@@ -18,4 +18,4 @@ The docker compose file sets up
 
 In addition, the file structure include the following folders:
 
-- **web-frontend**. This is the web UI written in [Vue.js](https://vuejs.org/).
+- **web-frontend**. This is the web UI written in [Vue.js](https://vuejs.org/) version 3.
