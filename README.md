@@ -6,15 +6,13 @@ A dashboard to update your dependencies.
 To run the whole thing:
 
 ```sh
-$ docker-compose build
-$ docker-compose up
+make all
 ```
 
 To run the front end for development, build and run the docker image:
 
 ```sh
-$ docker build --pull --rm -f "web-frontend/Dockerfile" -t whackadep-front:latest "web-frontend"
-$  docker run --rm -it  -p 8080:8080/tcp whackadep-front:latest
+make front
 ```
 
 ## Architecture
