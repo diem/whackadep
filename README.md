@@ -3,16 +3,10 @@
 A dashboard to update your dependencies.
 ## Usage
 
-To run the whole thing:
+To run the whole thing for development:
 
 ```sh
-make all
-```
-
-To run the front end for development, build and run the docker image:
-
-```sh
-make front
+make
 ```
 
 ## Architecture
@@ -21,7 +15,7 @@ The docker compose file sets up
 
 - **web-backend**. This is the dashboard that you use to manage your dependencies. It is written with the [Rocket](https://rocket.rs/) web framework.
 - **cronjobs**. These are cronjobs that need to run periodically in order to check if new dependency upgrades are available. It is based on [guppy](https://github.com/facebookincubator/cargo-guppy).
-- **db**. This is the [PostgreSQL](https://www.postgresql.org/) database where information about dependencies throughout the lifetime of the codebase are persisted.
+- **db**. This is the [Mongodb]() database where information about dependencies throughout the lifetime of the codebase are persisted.
 
 In addition, the file structure include the following folders:
 
