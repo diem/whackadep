@@ -1,0 +1,43 @@
+version: "3.9"
+
+services:
+  # front
+  web-frontend:
+    build: ./web-frontend
+    volumes:
+      - ./web-frontend:/app
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+    ports:
+      - "8080:8080"
+
+  # backend
+  web-backend:
+    build: ./web-backend
+    ports:
+      - "8081:8080"
+    environment:
+      - ROCKET_ADDRESS=0.0.0.0
+      - ROCKET_PORT=8080
+
+  # cronjobs
+  cron:
+    build: ./cronjobs
+    ports:
+      - "6000:6000"
+
+  # database
+  mongo:
+    image: mongo:4.4.2
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: password
+
+  # database UI for testing
+  mongo-express:
+    image: mongo-express:0.54.0
+    ports:
+      - 8082:8081
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: root
+      ME_CONFIG_MONGODB_ADMINPASSWORD: password
