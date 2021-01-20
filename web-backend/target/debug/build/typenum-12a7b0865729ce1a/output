@@ -1,0 +1,2 @@
+cargo:rustc-env=TYPENUM_BUILD_CONSTS=/Users/davidwg/Work/whackadep/webUI/target/debug/build/typenum-12a7b0865729ce1a/out/consts.rs
+cargo:rustc-env=TYPENUM_BUILD_OP=/Users/davidwg/Work/whackadep/webUI/target/debug/build/typenum-12a7b0865729ce1a/out/op.rs

@@ -1,0 +1,32 @@
+version: "3.9"
+
+services:
+  # website
+  web:
+    build: ./web-backend
+    ports:
+      - "8080:8080"
+    environment:
+      - ROCKET_ADDRESS=0.0.0.0
+      - ROCKET_PORT=8080
+
+  # cronjobs
+  cron:
+    build: ./cronjobs
+    ports:
+      - "6000:6000"
+
+  # database
+  db:
+    image: postgres:13.1
+    environment:
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - PGDATA=/var/lib/postgresql/data
+
+  # database UI for testing
+  adminer:
+    image: adminer:4.7.8
+    ports:
+      - 8081:8080
