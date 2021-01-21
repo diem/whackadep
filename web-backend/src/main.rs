@@ -10,8 +10,13 @@ use std::thread;
 
 mod metrics;
 
+//
+// Routes
+//
+
 #[get("/")]
 fn index() -> &'static str {
+    // TODO: print other routes?
     "Hello, world!"
 }
 
@@ -22,7 +27,12 @@ fn metrics(state: State<App>) -> &'static str {
     return "ok";
 }
 
+//
+// App
+//
+
 struct App {
+    // to send requests to the metric service
     metrics_requester: Mutex<Sender<String>>,
 }
 
@@ -33,6 +43,7 @@ fn main() {
         metrics::start(receiver).expect("metrics stopped working");
     });
 
+    // configure app state
     let state = App {
         metrics_requester: Mutex::new(sender),
     };

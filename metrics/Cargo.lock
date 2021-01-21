@@ -228,17 +228,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "daily"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "git2",
- "guppy",
- "mongodb",
- "tempfile",
-]
-
-[[package]]
 name = "darling"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -911,6 +900,17 @@ name = "memchr"
 version = "2.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ee1c47aaa256ecabcaea351eae4a9b01ef39ed810004e298d2511ed284b1525"
+
+[[package]]
+name = "metrics"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "git2",
+ "guppy",
+ "mongodb",
+ "tempfile",
+]
 
 [[package]]
 name = "mime"

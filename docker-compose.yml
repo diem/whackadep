@@ -1,7 +1,7 @@
 version: "3.9"
 
 services:
-  # front
+  # front (web UI)
   web-frontend:
     build: ./web-frontend
     volumes:
@@ -11,7 +11,7 @@ services:
     ports:
       - "8080:8080"
 
-  # backend
+  # backend (API + Metrics)
   web-backend:
     build: ./web-backend
     ports:
@@ -20,11 +20,11 @@ services:
       - ROCKET_ADDRESS=0.0.0.0
       - ROCKET_PORT=8080
 
-  # cronjobs
-  cron:
-    build: ./cronjobs
-    ports:
-      - "6000:6000"
+  # cronjobs (query Metrics periodically)
+  #  cron:
+  #    build: ./cronjobs
+  #    ports:
+  #      - "6000:6000"
 
   # database
   mongo:

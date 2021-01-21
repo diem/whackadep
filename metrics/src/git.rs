@@ -1,100 +1,69 @@
 use anyhow::{anyhow, Result};
 use git2::Repository;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 
-const URL: &str = "https://github.com/diem/diem.git";
+// This module is implemented by calling the `git` command-line tool directly.
+// Ideally this would be implemented with the git2 rust library,
+// but we don't have time gosh damn it!
 
-pub struct Repo(Repository);
+pub struct Repo {
+    repo_folder: PathBuf,
+}
 
 impl Repo {
-    // clone
-    pub fn clone(url: &str, repo_folder: &Path) -> Result<Self> {
-        match Repository::clone(url, repo_folder) {
-            Ok(x) => Ok(Self(x)),
-            Err(e) => Err(e.into()),
-        }
+    // open an existing repository
+    pub fn new(repo_folder: &Path) -> Result<Self> {
+        Repository::open(repo_folder)?;
+        Ok(Self {
+            repo_folder: repo_folder.to_path_buf(),
+        })
     }
 
-    // open an existing repository
-    pub fn open(repo_folder: &Path) -> Result<Self> {
-        match Repository::open(repo_folder) {
-            Ok(x) => Ok(Self(x)),
-            Err(e) => Err(e.into()),
-        }
+    // clone
+    pub fn clone(url: &str, repo_folder: &Path) -> Result<Self> {
+        let output = Command::new("git")
+            .args(&["clone", url])
+            .arg(&repo_folder)
+            .output()?;
+        println!("stdout: {:?}", String::from_utf8(output.stdout));
+        Ok(Self {
+            repo_folder: repo_folder.to_path_buf(),
+        })
     }
 
     // performs a pull
-    pub fn update(&mut self) -> Result<()> {
-        // fetch
-        self.0.find_remote("origin")?.fetch(&["main"], None, None);
+    pub fn update(&self) -> Result<()> {
+        let output = Command::new("git")
+            .current_dir(&self.repo_folder)
+            .arg("pull")
+            .output()?;
+        println!("stdout: {:?}", String::from_utf8(output.stdout));
+        Ok(())
+    }
 
-        // get new head
-        let fetch_head = self.0.find_reference("FETCH_HEAD")?;
-        let fetch_commit = self.0.reference_to_annotated_commit(&fetch_head)?;
-        let analysis = self.0.merge_analysis(&[&fetch_commit])?;
-        if analysis.0.is_up_to_date() {
-            Ok(())
-        } else if analysis.0.is_fast_forward() {
-            let refname = format!("refs/heads/{}", "main");
-            let mut reference = self.0.find_reference(&refname)?;
-            reference.set_target(fetch_commit.id(), "Fast-Forward")?;
-            self.0.set_head(&refname)?;
-            self.0
-                .checkout_head(Some(git2::build::CheckoutBuilder::default().force()))
-                .map_err(|e| e.into())
-        } else {
-            Err(anyhow!("Fast-forward only!"))
-        }
+    pub fn head(&self) -> Result<String> {
+        let output = Command::new("git")
+            .current_dir(&self.repo_folder)
+            .args(&["rev-parse", "HEAD"])
+            .output()?;
+        String::from_utf8(output.stdout).map_err(|e| e.into())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::process::Command;
     use tempfile::tempdir;
 
     #[test]
-    fn test_clone() {
-        let dir = tempdir().unwrap();
-        let repo = Repo::clone("https://github.com/mimoo/NoiseGo.git", dir.path()).unwrap();
-    }
-
-    #[test]
-    fn test_update() {
+    fn test_t() {
         let dir = tempdir().unwrap();
 
-        // init empty repo and add remote
-        let output = Command::new("git")
-            .current_dir(&dir)
-            .arg("init")
-            .output()
-            .unwrap();
-        println!("stdout: {:?}", String::from_utf8(output.stdout));
-        println!("stderr: {:?}", String::from_utf8(output.stderr));
+        assert!(Repo::new(&dir.path()).is_err());
 
-        let output = Command::new("git")
-            .current_dir(&dir)
-            .arg("remote")
-            .arg("add")
-            .arg("origin")
-            .arg("https://github.com/mimoo/NoiseGo.git")
-            .output()
-            .unwrap();
-        println!("stdout: {:?}", String::from_utf8(output.stdout));
-        println!("stderr: {:?}", String::from_utf8(output.stderr));
+        Repo::clone("https://github.com/mimoo/disco.git", dir.path());
 
-        // pull
-        let mut repo = Repo::open(dir.path()).expect("should be able to open");
-        repo.update();
-        //        let head = repo.0.head().unwrap();
-        //        println!("{:?}", head.name());
-        let statuses = repo.0.statuses(None).unwrap();
-        for status in statuses.iter() {
-            println!("{:?}", status.status());
-        }
-
-        // make sure we got latest
-        // assert 467bb609019e8c11ba905200ade3320fb32ade9f
+        assert!(Repo::new(dir.path()).is_ok());
     }
 }
