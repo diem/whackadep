@@ -25,10 +25,13 @@ fn index() -> &'static str {
 
 #[get("/metrics")]
 // TODO: does anyhow result implement Responder?
-fn metrics(state: State<App>) -> Result<&'static str, rocket::response::Debug<anyhow::Error>> {
+fn metrics(state: State<App>) -> &'static str {
     let sender = state.metrics_requester.lock().unwrap();
-    sender.try_send(MetricsRequest::Dependencies)?;
-    return Ok("ok");
+    if sender.try_send(MetricsRequest::Dependencies).is_err() {
+        return "metrics service is busy";
+    }
+    //
+    "ok"
 }
 
 //
