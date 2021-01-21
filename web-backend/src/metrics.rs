@@ -1,9 +1,18 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use std::sync::mpsc::Receiver;
 
-pub fn start(receiver: Receiver<String>) -> Result<()> {
+pub enum MetricsRequest {
+    // request to refresh list of transitive dependencies
+    Dependencies,
+    // request to refresh
+}
+
+pub fn start(receiver: Receiver<MetricsRequest>) -> Result<()> {
     for request in receiver {
-        println!("received: {:?}", request);
+        match request {
+            MetricsRequest::Dependencies => println!("received"),
+            _ => return Err(anyhow!("invalid request")),
+        };
     }
     Ok(())
 }

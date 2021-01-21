@@ -3,12 +3,15 @@
 #[macro_use]
 extern crate rocket;
 
+use anyhow::Error;
 use rocket::State;
-use std::sync::mpsc::{channel, Sender};
+use std::sync::mpsc::{sync_channel, SyncSender};
 use std::sync::Mutex;
 use std::thread;
 
 mod metrics;
+
+use crate::metrics::MetricsRequest;
 
 //
 // Routes
@@ -17,14 +20,15 @@ mod metrics;
 #[get("/")]
 fn index() -> &'static str {
     // TODO: print other routes?
-    "Hello, world!"
+    "/metrics"
 }
 
 #[get("/metrics")]
-fn metrics(state: State<App>) -> &'static str {
+// TODO: does anyhow result implement Responder?
+fn metrics(state: State<App>) -> Result<&'static str, rocket::response::Debug<anyhow::Error>> {
     let sender = state.metrics_requester.lock().unwrap();
-    sender.send("hello!".to_string());
-    return "ok";
+    sender.try_send(MetricsRequest::Dependencies)?;
+    return Ok("ok");
 }
 
 //
@@ -33,12 +37,12 @@ fn metrics(state: State<App>) -> &'static str {
 
 struct App {
     // to send requests to the metric service
-    metrics_requester: Mutex<Sender<String>>,
+    metrics_requester: Mutex<SyncSender<MetricsRequest>>,
 }
 
 fn main() {
     // start metric server
-    let (sender, receiver) = channel::<String>();
+    let (sender, receiver) = sync_channel::<MetricsRequest>(1);
     thread::spawn(move || {
         metrics::start(receiver).expect("metrics stopped working");
     });

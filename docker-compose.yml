@@ -5,9 +5,9 @@ services:
   web-frontend:
     build: ./web-frontend
     volumes:
-      - ./web-frontend:/app
+      - ./web-frontend:/app # hot reload
     environment:
-      - CHOKIDAR_USEPOLLING=true
+      - CHOKIDAR_USEPOLLING=true # hot reload
     ports:
       - "8080:8080"
 
@@ -32,6 +32,8 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: password
+    ports:
+      - 27017:27017 # expose them for smooth dev'ing
 
   # database UI for testing
   mongo-express:
