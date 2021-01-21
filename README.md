@@ -27,8 +27,14 @@ The service is implemented using the [metrics](metrics) crate.
 
 Essentially, what the service does when called is:
 
-* Make sure it has a local copy of the [diem/diem repository](https://www.github.com/diem/diem).
-* Pull the latest changes from the repository.
-* Parse any dependency file (e.g. `Cargo.toml`) to obtain a list of dependencies.
-* Check if any of these dependencies have updates.
-* Store this information in mongodb under a new `_id`.
+1. Make sure it has a local copy of the [diem/diem repository](https://www.github.com/diem/diem).
+2. Pull the latest changes from the repository.
+3. Parse any dependency file (e.g. `Cargo.toml`) to obtain a list of dependencies.
+4. Check if any of these dependencies have updates.
+5. Store this information in mongodb under a new `_id`.
+
+Note that for steps 3 and 4, [dependabot]() has code that handles many types of files and package manager (Rust, Dockerfile, npm, etc.)
+
+Having said that, we want to perform more granular analysis on our Rust dependency.
+For example, we want to understand what updates are more urgent than others based on semver, breaking changes, [RUSTSEC advisories](https://rustsec.org/), Github statistics, dev dependency, etc.
+For this reason, we use custom code (built on top of [guppy](https://github.com/facebookincubator/cargo-guppy/)) to analyze Rust dependencies.
