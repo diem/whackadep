@@ -25,13 +25,17 @@ The architecture looks like the following:
 Metrics on dependencies are obtained via a **metrics** service within the [web-backend](web-backend).
 The service is implemented using the [metrics](web-backend/metrics) crate.
 
+![metrics](metrics.png)
+
 Essentially, what the service does when called is:
 
 1. Make sure it has a local copy of the [diem/diem repository](https://www.github.com/diem/diem).
 2. Pull the latest changes from the repository.
 3. Parse any dependency file (e.g. `Cargo.toml`) to obtain a list of dependencies.
-4. Check if any of these dependencies have updates.
-5. Store this information in mongodb under a new `_id`.
+4. Check if any of these dependencies have updates (for example, by querying crates.io).
+5. Check how urgent these updates are (for example, by checking output of cargo-audit).
+6. Check how shady these updates are (for example, by checking red flags on Github)
+7. Store this information in mongodb under a new `_id`.
 
 Note that for steps 3 and 4, [dependabot]() has code that handles many types of file and package manager (Rust, Dockerfile, npm, etc.)
 
