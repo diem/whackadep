@@ -10,4 +10,4 @@ edition = "2018"
 rocket = "0.4.6" # web framework
 anyhow = "1.0.38" # error handling
 
-metrics = { path = "../metrics" }
+metrics = { path = "./metrics" }

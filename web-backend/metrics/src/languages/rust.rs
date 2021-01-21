@@ -29,9 +29,8 @@ impl Rust {
             .output()?;
 
         // deserialize the release summary
-        let file = File::open(out_dir)?;
-        let reader = BufReader::new(file);
-        let summary: SummaryWithMetadata = serde_json::from_reader(reader)?;
+        let path = out_dir.push("summary-release.json");
+        parse_dependencies(path);
 
         // transform it to:
         // - remove workspace/internal packages
@@ -42,7 +41,12 @@ impl Rust {
         Ok(())
     }
 
-    pub fn parse_dependencies() {}
+    // deserialize the release summary
+    pub fn parse_dependencies(path: &Path) -> Result<SummaryWithMetadata> {
+        let file = File::open(path)?;
+        let reader = BufReader::new(file);
+        serde_json::from_reader(reader)
+    }
 
     // get dev dependencies by doing cargo select
     // then remove anything that's in release
