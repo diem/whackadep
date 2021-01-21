@@ -9,6 +9,12 @@ To run the whole thing for development:
 make
 ```
 
+This will re-build stuff all the time, if you know there hasn't been any changes lately you can simply run:
+
+```sh
+make fast
+```
+
 ## Architecture
 
 ![whackadep architecture](architecture.png)
