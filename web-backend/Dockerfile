@@ -6,4 +6,4 @@ COPY . .
 RUN rustup default nightly
 RUN cargo build
 
-CMD ["cargo", "+nightly", "run"]
+CMD ["cargo", "run"]

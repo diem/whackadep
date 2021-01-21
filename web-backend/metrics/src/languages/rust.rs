@@ -28,9 +28,14 @@ impl Rust {
             .arg("json")
             .output()?;
 
-        // deserialize the release summary
-        let path = out_dir.push("summary-release.json");
-        parse_dependencies(path);
+        // deserialize the release and the full summary
+        let path = out_dir.path().join("summary-release.json");
+        let release_deps = Self::parse_dependencies(&path);
+
+        let path = out_dir.path().join("summary-full.json"); // this will contain the dev dependencies
+        let all_deps = Self::parse_dependencies(&path);
+
+        // figure out what are dev dependencies by doing exclusion between the two
 
         // transform it to:
         // - remove workspace/internal packages
@@ -45,7 +50,7 @@ impl Rust {
     pub fn parse_dependencies(path: &Path) -> Result<SummaryWithMetadata> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
-        serde_json::from_reader(reader)
+        serde_json::from_reader(reader).map_err(|e| e.into())
     }
 
     // get dev dependencies by doing cargo select
