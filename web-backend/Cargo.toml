@@ -7,4 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rocket = "0.4.6"
+rocket = "0.4.6" # web framework
+anyhow = "1.0.38" # error handling
+
+metrics = { path = "../metrics" }

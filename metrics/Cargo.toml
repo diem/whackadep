@@ -1,5 +1,5 @@
 [package]
-name = "daily"
+name = "metrics"
 version = "0.1.0"
 authors = ["David Wong <davidwg@calibra.com>"]
 edition = "2018"
@@ -8,5 +8,9 @@ edition = "2018"
 
 [dependencies]
 guppy = "0.6.3" # library to analyze deps
-postgres = "0.19.0" # database used to store result of cronjobs
+mongodb = "1.1.1" # database used to store result of cronjobs
 anyhow = "1.0.38" # error handling library
+git2 = "0.13"
+
+[dev-dependencies]
+tempfile = "3.2.0"
