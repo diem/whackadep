@@ -21,3 +21,11 @@ the question is: **where do we compute these metrics?**.
 So, following pattern 1:
 
 * this crate is used by web-backend to perform metrics
+
+## Architecture
+
+* [external](external). Code that handles querying an external service (e.g. crates.io) to obtain information about a dependency.
+* [languages](languages). Code that handles parsing and fetching dependencies in different languages or types of file.
+* [db.rs](db.rs). Abstraction around the connection to the mongodb database.
+* [git.rs](git.rs). Abstraction around the `git` tool.
+* [lib.rs](lib.rs)

@@ -1,19 +1,22 @@
 use anyhow::Result;
 use std::path::Path;
 
-mod db;
+pub mod db;
 mod git;
 mod external;
+mod languages;
 
 use db::Db;
 use git::Repo;
 
 const REPO_URL: &str = "https://github.com/diem/diem.git";
 
+// The flow:
 // 1. initialize repo if not done
 // 2. git pull to get latest change
-// 3. run metrics to "extract"
-// 4. transform information
+// 3. run metrics to "extract" information about our dependencies
+//    this step only works for rust stuff atm
+// 4. check for updates 
 // 5. load it in DB
 
 struct Metrics {
@@ -39,18 +42,70 @@ impl Metrics {
         Ok(Self { repo, db })
     }
 
-    pub fn update(&self) -> Result<()> {
+    // function use to start an analyze
+    pub fn start_analysis(&self) -> Result<()> {
+        // 1. update 
         self.repo.update()?;
+
+        // 2. get metadata
+        let commit = self.repo.head().expect("couldn't get HEAD hash");
+
+        // 3. if we have already checked that commit, we can skip retrieving dependency info from Cargo.lock
+
+        // 4. retrieve dependencies
+
+        // 5. analyze dependencies
+
+        // 6. store analysis in db
+
+        //
         Ok(())
     }
+}
 
-    pub fn get_dependencies() {
-        cargo guppy select --kind ThirdParty > ../third_party.deps
-        cargo guppy select --kind DirectThirdParty > ../direct_third_party.deps
+impl Metrics {
+    fn store_analysis(&self) {
     }
+}
 
-    pub fn store_analysis(&self) {
-        // 3. get metadata
-        let commit = self.repo.head().expect("couldn't get HEAD hash");
-    }
+// represent a run of the analysis
+struct Analysis {
+    commit: String,
+
+    // not including dev dependencies
+    directDependencies: Vec<Dependency>,
+    indirectDependencies: Vec<Dependency>,
+
+    // dev dependencies
+    devDependencies: Vec<Dependency>,
+
+    // updates available
+    availableUpdates: Vec<DependencyChange>,
+}
+
+enum Language {
+    Rust,
+    Dockerfile,
+    Npm,
+}
+
+enum Source {
+    CratesIo,
+    Github,
+}
+
+struct Dependency {
+    name: String,
+    language: Language,
+    repo: Source,
+    version: String,
+}
+
+struct DependencyChange {
+    name: String,
+    language: Language,
+    repo: Source,
+    version: String,
+// name of committers ?
+// what info do we want to carry in a dependency change?
 }

@@ -11,6 +11,13 @@ guppy = "0.6.3" # library to analyze deps
 mongodb = "1.1.1" # database used to store result of cronjobs
 anyhow = "1.0.38" # error handling library
 git2 = "0.13.15" # git library
+tempfile = "3.2.0" # temporary folder helper
+serde_json = "1.0"
+tokio = { version = "0.2.18", features = ["full"] } # old version because of mongodb driver...
 
-[dev-dependencies]
-tempfile = "3.2.0"
+guppy-summaries = "0.3.1" # guppy summaries 
+
+# helper to populate database with test data
+[[bin]]
+name = "populate_test_data"
+# test = false # needed?

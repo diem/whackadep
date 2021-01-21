@@ -1,2 +1,2 @@
-mod crates_io;
+mod cratesio;
 mod github;
