@@ -8,7 +8,7 @@ use std::process::Command;
 // but we don't have time gosh damn it!
 
 pub struct Repo {
-    repo_folder: PathBuf,
+    pub repo_folder: PathBuf,
 }
 
 impl Repo {
@@ -47,7 +47,7 @@ impl Repo {
             .current_dir(&self.repo_folder)
             .args(&["rev-parse", "HEAD"])
             .output()?;
-        String::from_utf8(output.stdout).map_err(|e| e.into())
+        String::from_utf8(output.stdout).map_err(anyhow::Error::msg)
     }
 }
 

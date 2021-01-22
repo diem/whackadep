@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
   # front (web UI)
-  web-frontend:
+  frontend:
     build: ./web-frontend
     volumes:
       - ./web-frontend:/app # hot reload
@@ -12,7 +12,7 @@ services:
       - "8080:8080"
 
   # backend (API + Metrics)
-  web-backend:
+  backend:
     build: ./web-backend
     ports:
       - "8081:8080"

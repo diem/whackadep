@@ -1143,6 +1143,8 @@ dependencies = [
  "guppy",
  "guppy-summaries",
  "mongodb",
+ "semver",
+ "serde",
  "serde_json",
  "tempfile",
  "tokio",
@@ -2670,6 +2672,7 @@ dependencies = [
  "anyhow",
  "metrics",
  "rocket",
+ "tokio",
 ]
 
 [[package]]

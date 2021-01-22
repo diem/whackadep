@@ -8,6 +8,7 @@ use rocket::State;
 use std::sync::mpsc::{sync_channel, SyncSender};
 use std::sync::Mutex;
 use std::thread;
+use tokio::runtime::Runtime;
 
 mod metrics;
 
@@ -47,7 +48,8 @@ fn main() {
     // start metric server
     let (sender, receiver) = sync_channel::<MetricsRequest>(1);
     thread::spawn(move || {
-        metrics::start(receiver).expect("metrics stopped working");
+        let mut rt = Runtime::new().unwrap();
+        rt.block_on(metrics::start(receiver));
     });
 
     // configure app state

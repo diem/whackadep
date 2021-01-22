@@ -1,6 +1,7 @@
 use anyhow::Result;
-use mongodb::{options::ClientOptions, Client};
 use mongodb::bson::doc;
+use mongodb::bson::Document;
+use mongodb::{options::ClientOptions, Client};
 use std::env;
 
 // 1. initialize DB if not
@@ -9,10 +10,8 @@ use std::env;
 pub struct Db(mongodb::Database);
 
 impl Db {
-
     pub async fn new() -> Result<Self> {
-        let mongodb_uri =
-            env::var("MONGODB_URI").unwrap_or("mongodb://mongo:27017".to_string());
+        let mongodb_uri = env::var("MONGODB_URI").unwrap_or("mongodb://mongo:27017".to_string());
         println!("using following mongodb uri: {}", mongodb_uri);
 
         // parse a connection string into an options struct
@@ -42,9 +41,26 @@ impl Db {
         Ok(Self(db))
     }
 
-    pub async fn databases(&self) {
-
-
+    pub async fn write(&self, document: Document) {
+        let insert_result = self
+            .0
+            .collection("dependencies")
+            .insert_one(document, None)
+            .await
+            .unwrap();
+        println!("New document ID: {}", insert_result.inserted_id);
     }
 
+    pub async fn find(&self, commit: &str) -> Result<Option<Document>> {
+        self.0
+            .collection("dependencies")
+            .find_one(
+                doc! {
+                      "commit": commit,
+                },
+                None,
+            )
+            .await
+            .map_err(anyhow::Error::msg)
+    }
 }

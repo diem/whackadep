@@ -1,25 +1,26 @@
 use anyhow::Result;
+use mongodb::bson;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 pub mod db;
-mod git;
 mod external;
-mod languages;
+mod git;
+pub mod languages;
 
 use db::Db;
 use git::Repo;
-
-const REPO_URL: &str = "https://github.com/diem/diem.git";
+use languages::rust::RustAnalysis;
 
 // The flow:
 // 1. initialize repo if not done
 // 2. git pull to get latest change
 // 3. run metrics to "extract" information about our dependencies
 //    this step only works for rust stuff atm
-// 4. check for updates 
+// 4. check for updates
 // 5. load it in DB
 
-struct Metrics {
+pub struct Metrics {
     repo: Repo,
     db: Db,
 }
@@ -27,15 +28,16 @@ struct Metrics {
 impl Metrics {
     pub async fn new(repo_url: &str, repo_path: &Path) -> Result<Self> {
         // 1. initialize repo if not done
+        println!("getting diem/diem repo");
         let repo = match Repo::new(repo_path) {
-            Ok(x) => x,
-            Err(_) => Repo::clone(repo_url, repo_path)?,
+            Ok(repo) => repo,
+            Err(_) => {
+                println!("didn't have it, cloning it for the first time");
+                Repo::clone(repo_url, repo_path)?
+            }
         };
 
-        // 2. pull to get latest changes
-        repo.update()?;
-
-        // 3. create client to database
+        // 2. create client to database
         let db = Db::new().await?;
 
         //
@@ -43,69 +45,51 @@ impl Metrics {
     }
 
     // function use to start an analyze
-    pub fn start_analysis(&self) -> Result<()> {
-        // 1. update 
+    pub async fn start_analysis(&self) -> Result<()> {
+        // 1. pull latest changes on the repo
+        println!("pulling latest changes");
         self.repo.update()?;
 
         // 2. get metadata
         let commit = self.repo.head().expect("couldn't get HEAD hash");
+        println!("current commit: {}", commit);
 
         // 3. if we have already checked that commit, we can skip retrieving dependency info from Cargo.lock
-
-        // 4. retrieve dependencies
+        let rust_analysis = match self.db.find(&commit).await? {
+            None => {
+                // 4. retrieve dependencies
+                RustAnalysis::get_dependencies(&self.repo.repo_folder)?
+            }
+            Some(document) => bson::from_document(document).map_err(anyhow::Error::msg)?,
+        };
 
         // 5. analyze dependencies
 
+        // TKTK...
+        // note that dependencies might already have been analyzed here...
+        // so what to do?
+        // not do anything if nothing has changed
+        // detect changes?
+        // update in place?
+
         // 6. store analysis in db
+        println!("analysis done, storing in db...");
+        let analysis = Analysis {
+            commit: commit,
+            rust_dependencies: rust_analysis,
+        };
+
+        let analysis = bson::to_bson(&analysis).unwrap();
+        let document = analysis.as_document().unwrap();
+        self.db.write(document.to_owned()).await;
 
         //
         Ok(())
     }
 }
 
-impl Metrics {
-    fn store_analysis(&self) {
-    }
-}
-
-// represent a run of the analysis
+#[derive(Serialize, Deserialize)]
 struct Analysis {
     commit: String,
-
-    // not including dev dependencies
-    directDependencies: Vec<Dependency>,
-    indirectDependencies: Vec<Dependency>,
-
-    // dev dependencies
-    devDependencies: Vec<Dependency>,
-
-    // updates available
-    availableUpdates: Vec<DependencyChange>,
-}
-
-enum Language {
-    Rust,
-    Dockerfile,
-    Npm,
-}
-
-enum Source {
-    CratesIo,
-    Github,
-}
-
-struct Dependency {
-    name: String,
-    language: Language,
-    repo: Source,
-    version: String,
-}
-
-struct DependencyChange {
-    name: String,
-    language: Language,
-    repo: Source,
-    version: String,
-// name of committers ?
-// what info do we want to carry in a dependency change?
+    rust_dependencies: RustAnalysis,
 }

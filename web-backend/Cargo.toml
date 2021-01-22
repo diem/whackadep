@@ -9,5 +9,6 @@ edition = "2018"
 [dependencies]
 rocket = "0.4.6" # web framework
 anyhow = "1.0.38" # error handling
+tokio = { version = "0.2.18", features = ["full"] } # old version because of mongodb driver...
 
 metrics = { path = "./metrics" }

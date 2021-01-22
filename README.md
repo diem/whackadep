@@ -3,7 +3,7 @@
 A dashboard to update your dependencies.
 ## Usage
 
-To run the whole thing for development:
+To run the whole thing for development (requires [docker-compose](https://docs.docker.com/compose/)):
 
 ```sh
 make

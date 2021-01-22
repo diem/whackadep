@@ -1,67 +1,144 @@
-use anyhow::{anyhow, Result};
-use git2::Repository;
-use guppy_summaries::SummaryWithMetadata;
+//!
+//! Stored structures
+//! =================
+//! Note that to remain backward compatible, these structures
+//! should only be updated to add field, not remove.
+//! (As deserialization of past data wouldn't work anymore.)
+//! That being said, we might not store data for very long,
+//! so this might not matter...
+//!
+
+use anyhow::{anyhow, Context, Result};
+use guppy_summaries::{PackageStatus, SummarySource, SummaryWithMetadata};
+use semver::Version;
+use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::BufReader;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 use tempfile::tempdir;
 
-//
-//
-//
-
-pub struct Rust {
-    summaryRelease: Vec<u8>,
-    summaryDev: Vec<u8>,
+#[derive(Serialize, Deserialize, Default)]
+pub struct RustAnalysis {
+    /// Note that we do not use a map because the same dependency can be seen several.
+    /// This is due to different versions being used or/and being used directly and indirectly (transitively).
+    dependencies: Vec<DependencyInfo>,
 }
 
-impl Rust {
-    // use guppy summaries
-    pub fn get_release_dependencies(&mut self) -> Result<()> {
-        // this will produce a json file containing no dev dependencies
+#[derive(Serialize, Deserialize)]
+pub struct DependencyInfo {
+    name: String,
+    version: Version,
+    repo: SummarySource,
+    new_version: Option<NewVersion>,
+    dev: bool,
+    direct: bool,
+}
+
+/// NewVersion should contain any interesting information (red flags, etc.) about the changes observed in the new version
+#[derive(Serialize, Deserialize)]
+pub struct NewVersion {
+    version: Version,
+    associated_rustsec: Option<String>,
+}
+
+impl RustAnalysis {
+    pub fn get_dependencies(repo_dir: &Path) -> Result<Self> {
+        let (all_deps, release_deps) = Self::fetch(repo_dir)?;
+        Self::filter(all_deps, release_deps)
+    }
+
+    fn fetch(repo_dir: &Path) -> Result<(SummaryWithMetadata, SummaryWithMetadata)> {
+        println!("running generate-summaries");
+        // 1. this will produce a json file containing no dev dependencies
         // (only transitive dependencies used in release)
         let out_dir = tempdir()?;
         let output = Command::new("cargo")
+            .current_dir(repo_dir)
             .args(&["x", "generate-summaries"])
             .arg(&out_dir.path())
             .arg("json")
-            .output()?;
+            .output()
+            .context("couldn't run cargo x generate-summaries")?;
 
-        // deserialize the release and the full summary
+        if !output.status.success() {
+            return Err(anyhow!(
+                "cargo x generate-summaries failed: {:?}",
+                String::from_utf8(output.stderr)
+            ));
+        }
+
+        println!("{:?}", out_dir);
+        use std::{thread, time};
+        let ten_millis = time::Duration::from_millis(10000000000);
+        thread::sleep(ten_millis);
+
+        // 2. deserialize the release and the full summary
+        println!("deserialize result...");
         let path = out_dir.path().join("summary-release.json");
-        let release_deps = Self::parse_dependencies(&path);
+        let release_deps =
+            Self::parse_dependencies(&path).with_context(|| format!("couldn't open {:?}", path))?;
 
         let path = out_dir.path().join("summary-full.json"); // this will contain the dev dependencies
-        let all_deps = Self::parse_dependencies(&path);
-
-        // figure out what are dev dependencies by doing exclusion between the two
-
-        // transform it to:
-        // - remove workspace/internal packages
-        // - remove metadata
-        // - remove features
+        let all_deps =
+            Self::parse_dependencies(&path).with_context(|| format!("couldn't open {:?}", path))?;
 
         //
-        Ok(())
+        Ok((all_deps, release_deps))
     }
 
-    // deserialize the release summary
+    /// use guppy summaries
+    pub fn filter(
+        all_deps: SummaryWithMetadata,
+        release_deps: SummaryWithMetadata,
+    ) -> Result<Self> {
+        println!("filter result...");
+        let mut dependencies = Vec::new();
+
+        let all_deps_iter = all_deps
+            .target_packages
+            .iter()
+            .chain(all_deps.host_packages.iter()); // "host" point to build-time dependencies
+
+        for (summary_id, package_info) in all_deps_iter {
+            // ignore workspace/internal packages
+            if matches!(summary_id.source, SummarySource::Workspace{..} | SummarySource::Path{..}) {
+                continue;
+            }
+            if matches!(
+                package_info.status,
+                PackageStatus::Initial | PackageStatus::Workspace
+            ) {
+                continue;
+            }
+
+            // dev
+            let dev = !release_deps.host_packages.contains_key(summary_id)
+                && !release_deps.target_packages.contains_key(summary_id);
+
+            // direct dependency?
+            let direct = matches!(package_info.status, PackageStatus::Direct);
+
+            // insert
+            dependencies.push(DependencyInfo {
+                name: summary_id.name.clone(),
+                version: summary_id.version.clone(),
+                repo: summary_id.source.clone(),
+                new_version: None,
+                dev: dev,
+                direct: direct,
+            });
+        }
+
+        //
+        Ok(Self { dependencies })
+    }
+
+    /// deserialize the release summary
     pub fn parse_dependencies(path: &Path) -> Result<SummaryWithMetadata> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
-        serde_json::from_reader(reader).map_err(|e| e.into())
-    }
-
-    // get dev dependencies by doing cargo select
-    // then remove anything that's in release
-    pub fn get_dev_dependencies(&mut self) {
-        if self.summaryRelease.len() == 0 {
-            panic!("must get info on release dependencies first");
-        }
-
-        //      cargo guppy select --kind ThirdParty > ../third_party.deps
-        //      cargo guppy select --kind DirectThirdParty > ../direct_third_party.deps
+        serde_json::from_reader(reader).map_err(anyhow::Error::msg)
     }
 }
 
@@ -79,6 +156,6 @@ mod tests {
 
         // Read the JSON contents of the file as an instance of `User`.
         let u: SummaryWithMetadata = serde_json::from_reader(reader).unwrap();
-        println!("{:?}", u);
+        println!("{:#?}", u);
     }
 }
