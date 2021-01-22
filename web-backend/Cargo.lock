@@ -2879,11 +2879,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "webUI"
+name = "web_ui"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "futures",
  "metrics",
  "rocket",
  "rocket_contrib",

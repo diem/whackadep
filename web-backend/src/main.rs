@@ -33,11 +33,13 @@ fn refresh(state: State<App>) -> &'static str {
 
 #[get("/dependencies")]
 fn dependencies() -> String {
-    let db = match futures::executor::block_on(Db::new()) {
+    let mut rt = Runtime::new().unwrap();
+
+    let db = match rt.block_on(Db::new()) {
         Ok(db) => db,
         Err(_) => return "couldn't connect to the database".to_string(),
     };
-    let dependencies = futures::executor::block_on(db.get_dependencies());
+    let dependencies = rt.block_on(db.get_dependencies());
     match dependencies {
         Ok(dependencies) => match serde_json::to_string(&dependencies) {
             Ok(dependencies) => dependencies,

@@ -71,9 +71,6 @@ impl RustAnalysis {
         }
 
         println!("{:?}", out_dir);
-        use std::{thread, time};
-        let ten_millis = time::Duration::from_millis(10000000000);
-        thread::sleep(ten_millis);
 
         // 2. deserialize the release and the full summary
         println!("deserialize result...");
@@ -104,7 +101,10 @@ impl RustAnalysis {
 
         for (summary_id, package_info) in all_deps_iter {
             // ignore workspace/internal packages
-            if matches!(summary_id.source, SummarySource::Workspace{..} | SummarySource::Path{..}) {
+            if matches!(
+                summary_id.source,
+                SummarySource::Workspace { .. } | SummarySource::Path { .. }
+            ) {
                 continue;
             }
             if matches!(
