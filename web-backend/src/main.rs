@@ -59,10 +59,11 @@ struct App {
 #[launch]
 fn rocket() -> rocket::Rocket {
     // start metric server
-    let (sender, receiver) = sync_channel::<MetricsRequest>(1);
+    let (sender, receiver) = sync_channel::<MetricsRequest>(0);
     thread::spawn(move || {
         let mut rt = Runtime::new().unwrap();
-        rt.block_on(metrics::start(receiver));
+        rt.block_on(metrics::start(receiver))
+            .expect("metrics stopped working");
     });
 
     // configure app state
@@ -73,5 +74,5 @@ fn rocket() -> rocket::Rocket {
     // start server
     rocket::ignite()
         .manage(state)
-        .mount("/", routes![index, refresh])
+        .mount("/", routes![index, refresh, dependencies])
 }
