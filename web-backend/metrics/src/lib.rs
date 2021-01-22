@@ -6,11 +6,11 @@ use std::path::Path;
 pub mod db;
 mod external;
 mod git;
-pub mod languages;
+pub mod rust;
 
 use db::Db;
 use git::Repo;
-use languages::rust::RustAnalysis;
+use rust::RustAnalysis;
 
 // The flow:
 // 1. initialize repo if not done

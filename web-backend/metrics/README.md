@@ -12,3 +12,11 @@ Current directory structure at the time of this writing:
 * [languages](languages). Code that handles parsing and fetching dependencies in different languages or types of file.
 * [db.rs](db.rs). Abstraction around the connection to the mongodb database.
 * [git.rs](git.rs). Abstraction around the `git` tool.
+
+## Testing
+
+One can use the script [populate_test_data](bin/populate_test_data) to populate a mongodb instance with [testing data](resources/test).
+
+```sh
+$ MONGODB_URI="mongodb://root:password@localhost:27017" cargo run
+```

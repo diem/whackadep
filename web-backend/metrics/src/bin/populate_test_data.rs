@@ -1,5 +1,5 @@
 use metrics::db::Db;
-use metrics::languages::rust::RustAnalysis;
+use metrics::rust::RustAnalysis;
 use mongodb::bson;
 use std::path::PathBuf;
 
