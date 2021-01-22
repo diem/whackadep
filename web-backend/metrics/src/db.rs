@@ -1,7 +1,10 @@
-use anyhow::Result;
-use mongodb::bson::doc;
-use mongodb::bson::Document;
-use mongodb::{options::ClientOptions, Client};
+use crate::analysis::Analysis;
+use anyhow::{anyhow, Result};
+use mongodb::{
+    bson::{self, doc, Document},
+    options::{ClientOptions, FindOneOptions},
+    Client,
+};
 use std::env;
 
 // 1. initialize DB if not
@@ -10,6 +13,8 @@ use std::env;
 pub struct Db(mongodb::Database);
 
 impl Db {
+    /// this should be called by every query, as different queries should create new connections to the db
+    /// (since different queries might concurrently query the database).
     pub async fn new() -> Result<Self> {
         let mongodb_uri = env::var("MONGODB_URI").unwrap_or("mongodb://mongo:27017".to_string());
         println!("using following mongodb uri: {}", mongodb_uri);
@@ -62,5 +67,33 @@ impl Db {
             )
             .await
             .map_err(anyhow::Error::msg)
+    }
+
+    pub async fn get_dependencies(&self) -> Result<Analysis> {
+        let find_options = FindOneOptions::builder()
+            .sort(doc! {
+                "_id": -1
+            })
+            .build();
+
+        let dependencies = self
+            .0
+            .collection("dependencies")
+            .find_one(None, find_options)
+            .await
+            .map_err(anyhow::Error::msg)?
+            .ok_or(anyhow!("could not find any dependencies"))?;
+
+        // deserialize
+        bson::from_document(dependencies).map_err(anyhow::Error::msg)
+    }
+
+    // config should return:
+    // {
+    // trusted_dependencies: HashMap<name, reasons>,
+    // paused_dependencies: ...
+    // }
+    pub async fn get_config(&self) -> Result<Document> {
+        unimplemented!();
     }
 }
