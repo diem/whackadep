@@ -5,7 +5,8 @@ services:
   frontend:
     build: ./web-frontend
     volumes:
-      - ./web-frontend:/app # hot reload
+      - './web-frontend:/app' # hot reload
+      - '/app/node_modules'
     environment:
       - CHOKIDAR_USEPOLLING=true # hot reload
     ports:
