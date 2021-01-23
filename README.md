@@ -15,6 +15,30 @@ This will re-build stuff all the time, if you know there hasn't been any changes
 make fast
 ```
 
+These commands will run the following four services:
+
+* a web frontend on http://localhost:8080
+* an API backend on http://localhost:8081
+* a mongodb server on http://localhost:27017
+* a mongodb UI on http://localhost:8082
+
+This dev setup has hot reload for the front end (you can change front end files, and it'll get reflected) but not for the backend.
+It can be a bit heavy to always reload things when playing with the backend, so another way is to run the backend and front end manually:
+
+```sh
+> cd web-backend
+MONGODB_URI="mongodb://root:password@localhost:27017" cargo run
+```
+
+```sh
+> cd web-frontend
+> PROXY="http://localhost:8000" yarn serve
+```
+
+This setup makes sure that the frontend proxies requests to the backend (which will be served on port 8000 by default). 
+This is to avoid CORS issues.
+It also makes sure that the backend can reach mongodb (which is served on localhost via the docker-compose commands).
+
 ## Architecture
 
 ![whackadep architecture](architecture.png)

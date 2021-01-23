@@ -4,7 +4,7 @@
 extern crate rocket;
 
 use metrics::{db::Db, MetricsRequest};
-use rocket::State;
+use rocket::{http::Method, State};
 use std::sync::mpsc::{sync_channel, SyncSender};
 use std::sync::Mutex;
 use std::thread;
@@ -37,7 +37,7 @@ fn dependencies() -> String {
 
     let db = match rt.block_on(Db::new()) {
         Ok(db) => db,
-        Err(_) => return "couldn't connect to the database".to_string(),
+        Err(e) => return format!("couldn't connect to the database: {}", e),
     };
     let dependencies = rt.block_on(db.get_dependencies());
     match dependencies {

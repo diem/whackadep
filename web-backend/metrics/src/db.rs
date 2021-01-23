@@ -16,7 +16,8 @@ impl Db {
     /// this should be called by every query, as different queries should create new connections to the db
     /// (since different queries might concurrently query the database).
     pub async fn new() -> Result<Self> {
-        let mongodb_uri = env::var("MONGODB_URI").unwrap_or("mongodb://mongo:27017".to_string());
+        let mongodb_uri =
+            env::var("MONGODB_URI").unwrap_or("mongodb://root:password@mongo:27017".to_string());
         println!("using following mongodb uri: {}", mongodb_uri);
 
         // parse a connection string into an options struct

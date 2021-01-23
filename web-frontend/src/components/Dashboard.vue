@@ -34,9 +34,7 @@ export default {
     };
   },
   mounted() {
-    axios
-      .get("http://localhost:8000/dependencies")
-      .then((response) => (this.info = response));
+    axios.get("/dependencies").then((response) => (this.info = response));
     console.log(this.info);
   },
 };
