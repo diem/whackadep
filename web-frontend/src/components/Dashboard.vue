@@ -24,8 +24,21 @@
 </template>
 
 <script>
+import axios from "axios";
+
 export default {
   name: "Dashboard",
+  data() {
+    return {
+      info: null,
+    };
+  },
+  mounted() {
+    axios
+      .get("http://localhost:8000/dependencies")
+      .then((response) => (this.info = response));
+    console.log(this.info);
+  },
 };
 </script>
 
