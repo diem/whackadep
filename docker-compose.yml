@@ -5,10 +5,11 @@ services:
   frontend:
     build: ./web-frontend
     volumes:
-      - './web-frontend:/app' # hot reload
-      - '/app/node_modules'
+      - "./web-frontend:/app" # hot reload
+      - "/app/node_modules"
     environment:
       - CHOKIDAR_USEPOLLING=true # hot reload
+      - PROXY=http://backend:8081
     ports:
       - "8080:8080"
 
@@ -20,6 +21,7 @@ services:
     environment:
       - ROCKET_ADDRESS=0.0.0.0
       - ROCKET_PORT=8080
+      - MONGODB_URI=mongodb://root:password@mongo:27017
 
   # cronjobs (query Metrics periodically)
   #  cron:

@@ -1,6 +1,7 @@
 <template>
   <div class="hello">
     <p>Use this dashboard to manage your dependencies.</p>
+    <p>commit: {{ commit }}</p>
     <ul>
       <li>backlog over time (graph)</li>
       <li>number of direct deps over time (graph)</li>
@@ -19,6 +20,17 @@
         <td>create PR (unless review needed)</td>
         <td>changelog</td>
       </tr>
+      <tr v-for="d in dependencies" v-bind:key="d.name">
+        <td>{{ d.name }}</td>
+        <td>{{ d.version }}</td>
+        <td>{{ d.new_version }}</td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+      </tr>
     </table>
   </div>
 </template>
@@ -30,12 +42,15 @@ export default {
   name: "Dashboard",
   data() {
     return {
-      info: null,
+      commit: null,
+      dependencies: null,
     };
   },
   mounted() {
-    axios.get("/dependencies").then((response) => (this.info = response));
-    console.log(this.info);
+    axios.get("/dependencies").then((response) => {
+      this.commit = response.data.commit;
+      this.dependencies = response.data.rust_dependencies.dependencies;
+    });
   },
 };
 </script>
