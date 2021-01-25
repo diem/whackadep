@@ -144,11 +144,17 @@ impl RustAnalysis {
     }
 
     /// 3. updatable
-    fn updatable(&mut self) -> Result<()> {}
+    fn updatable(&mut self) -> Result<()> {
+        Ok(())
+    }
 
     /// 4. priority
-    fn priority(&mut self) -> Result<()> {}
+    fn priority(&mut self) -> Result<()> {
+        Ok(())
+    }
 
     /// 5. risk
-    fn risk(&mut self) -> Result<()> {}
+    fn risk(&mut self) -> Result<()> {
+        Ok(())
+    }
 }
