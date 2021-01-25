@@ -23,22 +23,13 @@ These commands will run the following four services:
 * a mongodb UI on http://localhost:8082
 
 This dev setup has hot reload for the front end (you can change front end files, and it'll get reflected) but not for the backend.
-It can be a bit heavy to always reload things when playing with the backend, so another way is to run the backend and front end manually:
+It can be a bit heavy to always reload things when playing with the backend, so another way is to run the different parts manually:
 
 ```sh
-> cd web-backend
-MONGODB_URI="mongodb://root:password@localhost:27017" cargo run
+make frontend
+make backend
+make database
 ```
-
-```sh
-> cd web-frontend
-> PROXY="http://localhost:8000" yarn serve
-```
-
-This setup makes sure that the frontend proxies requests to the backend (which will be served on port 8000 by default). 
-This is to avoid CORS issues.
-It also makes sure that the backend can reach mongodb (which is served on localhost via the docker-compose commands).
-
 ## Architecture
 
 ![whackadep architecture](architecture.png)
@@ -47,7 +38,7 @@ The architecture looks like the following:
 
 - [web-frontend](web-frontend). This is the web dashboard written in [Vue.js](https://vuejs.org/) version 3. It queries the web backend to obtain information on dependencies.
 - [web-backend](web-backend). This is the dashboard that you use to manage your dependencies. It is written with the [Rocket](https://rocket.rs/) web framework. It also serves a **metrics** API built on top of the [metrics](web-backend/metrics) crate.
-- [db](). This is the [Mongodb](https://www.mongodb.com/) database where information about dependencies throughout the lifetime of the codebase are persisted.
+- [db](db). This is the [Mongodb](https://www.mongodb.com/) database where information about dependencies throughout the lifetime of the codebase are persisted.
 - [cronjobs](cronjobs). These are cronjobs that call the backend's metric API periodically in order to check if new dependency upgrades are available.
 
 ## Metrics
