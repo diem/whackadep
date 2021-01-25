@@ -16,9 +16,9 @@ use std::path::Path;
 use std::process::Command;
 use tempfile::tempdir;
 
-mod cargoaudit;
+pub mod cargoaudit;
 pub mod cargoguppy;
-mod cargotree;
+pub mod cargotree;
 mod cratesio;
 
 use cargoguppy::CargoGuppy;

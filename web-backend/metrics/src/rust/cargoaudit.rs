@@ -5,7 +5,7 @@ use std::path::Path;
 use tokio::process::Command;
 
 #[derive(Deserialize)]
-struct CargoAudit {
+pub struct CargoAudit {
     warnings: HashMap<String, Warning>,
 }
 
@@ -36,7 +36,7 @@ impl CargoAudit {
         // make sure cargo-tree is installed
         // this seems necessary because cargo-audit might have had an update, or because of the rust-toolchain?
         let output = Command::new("cargo")
-            .args(&["install", "--force", "cargo-tree"])
+            .args(&["install", "cargo-tree"]) // TODO: use --force to force upgrade?
             .output()
             .await?;
         if !output.status.success() {

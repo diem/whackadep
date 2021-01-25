@@ -5,22 +5,12 @@
     <p># non-dev direct dependencies: {{ direct_dependencies }}</p>
     <p># non-dev transitive dependencies: {{ transitive_dependencies }}</p>
     <p># direct dev dependencies: {{ dev_dependencies }}</p>
-    <ul>
-      <li>backlog over time (graph)</li>
-      <li>number of direct deps over time (graph)</li>
-      <li>number of total deps over time (graph)</li>
-    </ul>
     <h2>updates available</h2>
     <table class="table">
       <thead>
         <tr>
           <td>name</td>
-          <td>current version</td>
-          <td>new version</td>
-          <td>type of change (MAJOR/MINOR/PATCH)</td>
-          <td>breaking change?</td>
-          <td>versions behind?</td>
-          <td>RUST-SEC?</td>
+          <td>version change</td>
           <td>create PR (unless review needed)</td>
           <td>changelog</td>
         </tr>
@@ -28,13 +18,11 @@
       <tbody>
         <tr v-for="d in dependencies" v-bind:key="d.name">
           <td>{{ d.name }}</td>
-          <td>{{ d.version }}</td>
-          <td>{{ d.new_version }}</td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
+          <td>{{ d.version }} -> {{ d.new_version }}</td>
+          <td>
+            <a @click="copy_to_clipboard">click to create a PR</a>
+            <span class="invisible">{{ d.create_PR }}</span>
+          </td>
           <td></td>
         </tr>
       </tbody>
@@ -58,6 +46,25 @@ export default {
       this.commit = response.data.commit;
       this.dependencies = response.data.rust_dependencies.dependencies;
     });
+  },
+  methods: {
+    copy_to_clipboard() {
+      /*
+        try {
+          // Now that we've selected the anchor text, execute the copy command
+          var successful = document.execCommand("copy");
+          var msg = successful ? "successful" : "unsuccessful";
+          console.log("Copy email command was " + msg);
+        } catch (err) {
+          console.log("Oops, unable to copy");
+        }
+
+        // Remove the selections - NOTE: Should use
+        // removeRange(range) when it is supported
+        window.getSelection().removeAllRanges();
+      });
+      */
+    },
   },
   computed: {
     direct_dependencies() {
