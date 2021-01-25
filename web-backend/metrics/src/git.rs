@@ -33,6 +33,7 @@ impl Repo {
     }
 
     // performs a pull
+    // TODO: since this might change the rust toolchain, do we want to do a rustup update here?
     pub fn update(&self) -> Result<()> {
         let output = Command::new("git")
             .current_dir(&self.repo_folder)

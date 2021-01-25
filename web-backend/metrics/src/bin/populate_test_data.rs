@@ -18,11 +18,8 @@ async fn main() {
     // 3. filter
     let analysis = RustAnalysis::filter(all_deps, release_deps).unwrap();
 
-    // connect to db
-    let db = Db::new().await.unwrap();
-
     // write bson to db
     let analysis = bson::to_bson(&analysis).unwrap();
     let document = analysis.as_document().unwrap();
-    db.write(document.to_owned()).await;
+    Db::write(document.to_owned()).unwrap();
 }

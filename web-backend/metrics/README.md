@@ -8,15 +8,17 @@ Ideally, this would be easily extendable for any languages, but to move fast let
 
 Current directory structure at the time of this writing:
 
-* [external](external). Code that handles querying an external service (e.g. crates.io) to obtain information about a dependency.
-* [languages](languages). Code that handles parsing and fetching dependencies in different languages or types of file.
-* [db.rs](db.rs). Abstraction around the connection to the mongodb database.
-* [git.rs](git.rs). Abstraction around the `git` tool.
+* [resources](resources). Contains results of guppy execution for test or to populate the database with some data.
+* src/[bin](src/bin). Contains CLIs to populate the database with test data.
+* src/[external](src/external). Code that handles querying an external service (e.g. crates.io) to obtain information about a dependency.
+* src/[rust](src/rust). Code that handles parsing and fetching dependencies in different languages or types of file.
+* src/[db.rs](src/db.rs). Abstraction around the mongodb database. Perhaps this should be a "model" thing.
+* src/[git.rs](src/git.rs). Abstraction around the `git` tool.
 
 ## Testing
 
 One can use the script [populate_test_data](bin/populate_test_data) to populate a mongodb instance with [testing data](resources/test).
 
 ```sh
-$ MONGODB_URI="mongodb://root:password@localhost:27017" cargo run
+$ MONGODB_URI="mongodb://root:password@localhost:27017" cargo run --bin populate_test_data
 ```

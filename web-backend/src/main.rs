@@ -4,6 +4,7 @@
 extern crate rocket;
 
 use metrics::{db::Db, MetricsRequest};
+use old_tokio::runtime::Runtime as OldRuntime;
 use rocket::{http::Method, State};
 use std::sync::mpsc::{sync_channel, SyncSender};
 use std::sync::Mutex;
@@ -24,7 +25,12 @@ fn index() -> &'static str {
 // TODO: does anyhow result implement Responder?
 fn refresh(state: State<App>) -> &'static str {
     let sender = state.metrics_requester.lock().unwrap();
-    if sender.try_send(MetricsRequest::Dependencies).is_err() {
+    if sender
+        .try_send(MetricsRequest::RustDependencies {
+            repo_url: "https://github.com/diem/diem.git".to_string(),
+        })
+        .is_err()
+    {
         return "metrics service is busy";
     }
     //
@@ -33,19 +39,12 @@ fn refresh(state: State<App>) -> &'static str {
 
 #[get("/dependencies")]
 fn dependencies() -> String {
-    let mut rt = Runtime::new().unwrap();
-
-    let db = match rt.block_on(Db::new()) {
-        Ok(db) => db,
-        Err(e) => return format!("couldn't connect to the database: {}", e),
-    };
-    let dependencies = rt.block_on(db.get_dependencies());
-    match dependencies {
+    match Db::get_dependencies() {
         Ok(dependencies) => match serde_json::to_string(&dependencies) {
             Ok(dependencies) => dependencies,
-            Err(_) => "couldn't deserialize dependencies".to_string(),
+            Err(e) => format!("couldn't deserialize dependencies: {}", e),
         },
-        Err(_) => "couldn't find any dependencies".to_string(),
+        Err(e) => format!("{}", e),
     }
 }
 
@@ -63,7 +62,7 @@ fn rocket() -> rocket::Rocket {
     // start metric server
     let (sender, receiver) = sync_channel::<MetricsRequest>(0);
     thread::spawn(move || {
-        let mut rt = Runtime::new().unwrap();
+        let rt = Runtime::new().unwrap();
         rt.block_on(metrics::start(receiver))
             .expect("metrics stopped working");
     });

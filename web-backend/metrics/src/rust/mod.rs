@@ -1,6 +1,6 @@
 //!
-//! Stored structures
-//! =================
+//! # Stored structures
+//!
 //! Note that to remain backward compatible, these structures
 //! should only be updated to add field, not remove.
 //! (As deserialization of past data wouldn't work anymore.)
@@ -20,13 +20,16 @@ use tempfile::tempdir;
 
 mod cratesio;
 
+/// RustAnalysis contains the result of the analysis of a rust workspace
 #[derive(Serialize, Deserialize, Default)]
 pub struct RustAnalysis {
-    /// Note that we do not use a map because the same dependency can be seen several.
+    /// Note that we do not use a map because the same dependency can be seen several times.
     /// This is due to different versions being used or/and being used directly and indirectly (transitively).
     dependencies: Vec<DependencyInfo>,
 }
 
+/// DependencyInfo contains the information obtained from a dependency.
+/// Note that some fields might be filled in different stages (e.g. by the priority engine or the risk engine).
 #[derive(Serialize, Deserialize)]
 pub struct DependencyInfo {
     name: String,

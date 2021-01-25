@@ -33,9 +33,6 @@ impl Analysis {
             }
         };
 
-        // 2. create client to database
-        let db = Db::new().await?;
-
         // 3. pull latest changes on the repo
         println!("pulling latest changes");
         repo.update()?;
@@ -45,7 +42,7 @@ impl Analysis {
         println!("current commit: {}", commit);
 
         // 5. if we have already checked that commit, we can skip retrieving dependency info from Cargo.lock
-        let rust_analysis = match db.find(&commit).await? {
+        let rust_analysis = match Db::find(&commit)? {
             None => {
                 // 4. retrieve dependencies
                 RustAnalysis::get_dependencies(&repo.repo_folder)?
@@ -71,9 +68,6 @@ impl Analysis {
 
         let analysis = bson::to_bson(&analysis).unwrap();
         let document = analysis.as_document().unwrap();
-        db.write(document.to_owned()).await;
-
-        //
-        Ok(())
+        Db::write(document.to_owned())
     }
 }

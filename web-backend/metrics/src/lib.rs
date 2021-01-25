@@ -12,18 +12,16 @@ use analysis::Analysis;
 
 pub enum MetricsRequest {
     // request to refresh list of transitive dependencies
-    Dependencies,
+    RustDependencies { repo_url: String },
 }
 
-const REPO_URL: &str = "https://github.com/diem/diem.git";
-
 pub async fn start(receiver: Receiver<MetricsRequest>) -> Result<()> {
+    println!("metrics service started");
     for request in receiver {
         match request {
-            MetricsRequest::Dependencies => {
-                println!("commencing analysis");
-
-                let metrics = match Analysis::analyze(REPO_URL, Path::new("diem_repo")).await {
+            MetricsRequest::RustDependencies { repo_url } => {
+                println!("commencing rust analysis");
+                match Analysis::analyze(&repo_url, Path::new("diem_repo")).await {
                     Ok(()) => println!("all good"),
                     Err(e) => {
                         println!("{}", e);
