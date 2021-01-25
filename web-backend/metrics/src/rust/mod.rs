@@ -17,7 +17,7 @@ use std::process::Command;
 use tempfile::tempdir;
 
 mod cargoaudit;
-mod cargoguppy;
+pub mod cargoguppy;
 mod cargotree;
 mod cratesio;
 
@@ -51,11 +51,24 @@ pub struct NewVersion {
 }
 
 impl RustAnalysis {
+    /// The main function that will go over the flow:
+    /// fetch -> filter -> updatables -> priority -> risk -> store
     pub async fn get_dependencies(repo_dir: &Path) -> Result<Self> {
+        // 1. fetch
         let (all_deps, release_deps) = Self::fetch(repo_dir).await?;
-        Self::filter(all_deps, release_deps)
+        // 2. filter
+        let mut rust_analysis = Self::filter(all_deps, release_deps)?;
+        // 3. updatable
+        rust_analysis.updatable()?;
+        // 4. priority
+        rust_analysis.priority()?;
+        // 5. risk
+        rust_analysis.risk()?;
+        //
+        Ok(rust_analysis)
     }
 
+    /// 1. fetch
     async fn fetch(repo_dir: &Path) -> Result<(SummaryWithMetadata, SummaryWithMetadata)> {
         println!("running generate-summaries");
         // 1. this will produce a json file containing no dev dependencies
@@ -80,7 +93,7 @@ impl RustAnalysis {
         Ok((all_deps, release_deps))
     }
 
-    /// use guppy summaries
+    /// 2. filter
     pub fn filter(
         all_deps: SummaryWithMetadata,
         release_deps: SummaryWithMetadata,
@@ -129,22 +142,13 @@ impl RustAnalysis {
         //
         Ok(Self { dependencies })
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+    /// 3. updatable
+    fn updatable(&mut self) -> Result<()> {}
 
-    #[test]
-    fn test_deserialize_summary() {
-        // read the release summary
-        let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        d.push("resources/test/summary-release.json");
-        let file = File::open(d).unwrap();
-        let reader = BufReader::new(file);
+    /// 4. priority
+    fn priority(&mut self) -> Result<()> {}
 
-        // Read the JSON contents of the file as an instance of `User`.
-        let u: SummaryWithMetadata = serde_json::from_reader(reader).unwrap();
-        println!("{:#?}", u);
-    }
+    /// 5. risk
+    fn risk(&mut self) -> Result<()> {}
 }

@@ -15,6 +15,7 @@ serde_json = "1.0" # bson serialization
 old_tokio = { package = "tokio", version = "0.2.18", features = ["full"] } # old version because of mongodb driver...
 tokio = { version = "1.1.0", features = ["full"] } # old version because of mongodb driver...
 futures = "0.3.12"
+juniper = { git = "https://github.com/graphql-rust/juniper" } # graphql
 
 # driver
 mongodb = "1.1.1" # database used to store result of cronjobs
@@ -23,6 +24,7 @@ mongodb = "1.1.1" # database used to store result of cronjobs
 guppy = "0.6.3" # library to analyze deps
 guppy-summaries = "0.3.1" # guppy summaries
 semver = "0.11.0" # semver of dependencies
+octocrab = "0.8"  # interact with github API
 
 #
 # Binaries
