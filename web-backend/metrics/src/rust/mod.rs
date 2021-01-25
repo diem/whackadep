@@ -12,13 +12,16 @@ use anyhow::{anyhow, Context, Result};
 use guppy_summaries::{PackageStatus, SummarySource, SummaryWithMetadata};
 use semver::Version;
 use serde::{Deserialize, Serialize};
-use std::fs::File;
-use std::io::BufReader;
 use std::path::Path;
 use std::process::Command;
 use tempfile::tempdir;
 
+mod cargoaudit;
+mod cargoguppy;
+mod cargotree;
 mod cratesio;
+
+use cargoguppy::CargoGuppy;
 
 /// RustAnalysis contains the result of the analysis of a rust workspace
 #[derive(Serialize, Deserialize, Default)]
@@ -48,42 +51,30 @@ pub struct NewVersion {
 }
 
 impl RustAnalysis {
-    pub fn get_dependencies(repo_dir: &Path) -> Result<Self> {
-        let (all_deps, release_deps) = Self::fetch(repo_dir)?;
+    pub async fn get_dependencies(repo_dir: &Path) -> Result<Self> {
+        let (all_deps, release_deps) = Self::fetch(repo_dir).await?;
         Self::filter(all_deps, release_deps)
     }
 
-    fn fetch(repo_dir: &Path) -> Result<(SummaryWithMetadata, SummaryWithMetadata)> {
+    async fn fetch(repo_dir: &Path) -> Result<(SummaryWithMetadata, SummaryWithMetadata)> {
         println!("running generate-summaries");
         // 1. this will produce a json file containing no dev dependencies
         // (only transitive dependencies used in release)
+
         let out_dir = tempdir()?;
-        let output = Command::new("cargo")
-            .current_dir(repo_dir)
-            .args(&["x", "generate-summaries"])
-            .arg(&out_dir.path())
-            .arg("json")
-            .output()
-            .context("couldn't run cargo x generate-summaries")?;
-
-        if !output.status.success() {
-            return Err(anyhow!(
-                "cargo x generate-summaries failed: {:?}",
-                String::from_utf8(output.stderr)
-            ));
-        }
-
         println!("{:?}", out_dir);
+
+        CargoGuppy::run_cargo_guppy(repo_dir, out_dir.path()).await?;
 
         // 2. deserialize the release and the full summary
         println!("deserialize result...");
         let path = out_dir.path().join("summary-release.json");
-        let release_deps =
-            Self::parse_dependencies(&path).with_context(|| format!("couldn't open {:?}", path))?;
+        let release_deps = CargoGuppy::parse_dependencies(&path)
+            .with_context(|| format!("couldn't open {:?}", path))?;
 
         let path = out_dir.path().join("summary-full.json"); // this will contain the dev dependencies
-        let all_deps =
-            Self::parse_dependencies(&path).with_context(|| format!("couldn't open {:?}", path))?;
+        let all_deps = CargoGuppy::parse_dependencies(&path)
+            .with_context(|| format!("couldn't open {:?}", path))?;
 
         //
         Ok((all_deps, release_deps))
@@ -137,13 +128,6 @@ impl RustAnalysis {
 
         //
         Ok(Self { dependencies })
-    }
-
-    /// deserialize the release summary
-    pub fn parse_dependencies(path: &Path) -> Result<SummaryWithMetadata> {
-        let file = File::open(path)?;
-        let reader = BufReader::new(file);
-        serde_json::from_reader(reader).map_err(anyhow::Error::msg)
     }
 }
 

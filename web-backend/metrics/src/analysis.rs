@@ -45,7 +45,7 @@ impl Analysis {
         let rust_analysis = match Db::find(&commit)? {
             None => {
                 // 4. retrieve dependencies
-                RustAnalysis::get_dependencies(&repo.repo_folder)?
+                RustAnalysis::get_dependencies(&repo.repo_folder).await?
             }
             Some(document) => bson::from_document(document).map_err(anyhow::Error::msg)?,
         };

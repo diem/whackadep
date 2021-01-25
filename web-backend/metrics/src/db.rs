@@ -8,7 +8,7 @@ use mongodb::{
 use old_tokio::runtime::Runtime as OldRuntime;
 use std::env;
 
-// TODO: this is not great! We spin a new runtime for every request. instead create a structure that is initialized once with a runtime, and re-use it over and over
+// TODO: this is not great! We spin a new runtime for every request. instead create a structure that is initialized once with a runtime, and re-use it over and over. At the same time, we're not doing db queries like crazy so, who cares?
 pub struct Db;
 
 impl Db {

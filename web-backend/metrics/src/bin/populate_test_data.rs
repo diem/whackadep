@@ -1,5 +1,5 @@
 use metrics::db::Db;
-use metrics::rust::RustAnalysis;
+use metrics::rust::{cargoguppy::CargoGuppy, RustAnalysis};
 use mongodb::bson;
 use std::path::PathBuf;
 
@@ -11,9 +11,9 @@ async fn main() {
 
     // 2. deserialize the release and the full summary
     let path = dir.as_path().join("summary-release.json");
-    let release_deps = RustAnalysis::parse_dependencies(&path).unwrap();
+    let release_deps = CargoGuppy::parse_dependencies(&path).unwrap();
     let path = dir.as_path().join("summary-full.json");
-    let all_deps = RustAnalysis::parse_dependencies(&path).unwrap();
+    let all_deps = CargoGuppy::parse_dependencies(&path).unwrap();
 
     // 3. filter
     let analysis = RustAnalysis::filter(all_deps, release_deps).unwrap();
