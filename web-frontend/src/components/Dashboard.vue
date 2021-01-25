@@ -2,6 +2,9 @@
   <div class="hello">
     <p>Use this dashboard to manage your dependencies.</p>
     <p>commit: {{ commit }}</p>
+    <p># non-dev direct dependencies: {{ direct_dependencies }}</p>
+    <p># non-dev transitive dependencies: {{ transitive_dependencies }}</p>
+    <p># direct dev dependencies: {{ dev_dependencies }}</p>
     <ul>
       <li>backlog over time (graph)</li>
       <li>number of direct deps over time (graph)</li>
@@ -51,6 +54,33 @@ export default {
       this.commit = response.data.commit;
       this.dependencies = response.data.rust_dependencies.dependencies;
     });
+  },
+  computed: {
+    direct_dependencies() {
+      if (this.dependencies != null) {
+        // there will be redundant dependencies
+        console.log(this.dependencies);
+        return this.dependencies.filter((dep) => !dep.dev && dep.direct).length;
+      }
+      return 0;
+    },
+    transitive_dependencies() {
+      if (this.dependencies != null) {
+        // there will be redundant dependencies
+        console.log(this.dependencies);
+        return this.dependencies.filter((dep) => !dep.dev && !dep.direct)
+          .length;
+      }
+      return 0;
+    },
+    dev_dependencies() {
+      if (this.dependencies != null) {
+        // there will be redundant dependencies
+        console.log(this.dependencies);
+        return this.dependencies.filter((dep) => dep.dev && dep.direct).length;
+      }
+      return 0;
+    },
   },
 };
 </script>
