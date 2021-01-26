@@ -1,4 +1,4 @@
-use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
+use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 use serde::{Deserialize, Serialize};
 use std::{
     env, fs,
@@ -20,6 +20,8 @@ fn main() {
         println!("usage: cargo run --bin github_jwt <PEM_FILE_PATH>");
         return;
     }
+
+    println!("creating access token for Github App Whackadep (97730)");
 
     let key = fs::read(&args[1]).unwrap();
 
