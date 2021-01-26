@@ -9,9 +9,11 @@
 //!
 
 use anyhow::{anyhow, Context, Result};
+use futures::{stream, Stream, StreamExt};
 use guppy_summaries::{PackageStatus, SummarySource, SummaryWithMetadata};
 use semver::Version;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::Path;
 use std::process::Command;
 use tempfile::tempdir;
@@ -46,7 +48,7 @@ pub struct DependencyInfo {
 /// NewVersion should contain any interesting information (red flags, etc.) about the changes observed in the new version
 #[derive(Serialize, Deserialize)]
 pub struct NewVersion {
-    version: Version,
+    versions: Vec<Version>,
     associated_rustsec: Option<String>,
 }
 
@@ -55,22 +57,31 @@ impl RustAnalysis {
     /// fetch -> filter -> updatables -> priority -> risk -> store
     pub async fn get_dependencies(repo_dir: &Path) -> Result<Self> {
         // 1. fetch
+        println!("1. fetching dependencies...");
         let (all_deps, release_deps) = Self::fetch(repo_dir).await?;
+
         // 2. filter
+        println!("2. filtering dependencies...");
         let mut rust_analysis = Self::filter(all_deps, release_deps)?;
+
         // 3. updatable
-        rust_analysis.updatable()?;
+        println!("3. checking for updates...");
+        rust_analysis.updatable_par().await?;
+
         // 4. priority
+        println!("4. priority engine running...");
         rust_analysis.priority()?;
+
         // 5. risk
+        println!("5. risk engine running...");
         rust_analysis.risk()?;
+
         //
         Ok(rust_analysis)
     }
 
     /// 1. fetch
     async fn fetch(repo_dir: &Path) -> Result<(SummaryWithMetadata, SummaryWithMetadata)> {
-        println!("running generate-summaries");
         // 1. this will produce a json file containing no dev dependencies
         // (only transitive dependencies used in release)
 
@@ -144,7 +155,103 @@ impl RustAnalysis {
     }
 
     /// 3. updatable
-    fn updatable(&mut self) -> Result<()> {
+    async fn updatable(&mut self) -> Result<()> {
+        // note that this might call crates.io several times for the same dependency
+        // (due to the fact that a dependency might appear several times with different versions or as "direct/indirect" and "dev/not-dev")
+        for dependency in &mut self.dependencies {
+            // get all versions for that dependency
+            let crates = cratesio::Crates::get_all_versions(&dependency.name).await?;
+
+            // get all versions GREATER than that dependency's version
+            let mut versions: Vec<Version> = crates
+                .versions
+                .iter()
+                // parse with semver
+                .map(|version| Version::parse(&version.num))
+                .filter_map(Result::ok)
+                // only get GREATER versions
+                .filter(|version| version > &dependency.version)
+                .collect();
+            versions.sort();
+
+            // any update available?
+            if versions.len() > 0 {
+                let new_version = NewVersion {
+                    versions: versions,
+                    associated_rustsec: None,
+                };
+                dependency.new_version = Some(new_version);
+            }
+        }
+
+        //
+        Ok(())
+    }
+
+    async fn updatable_par(&mut self) -> Result<()> {
+        // filter out non-crates.io dependencies
+        let mut dependencies: Vec<String> = self
+            .dependencies
+            .iter()
+            .filter(|dep| matches!(dep.repo, SummarySource::CratesIo))
+            .map(|dep| dep.name.clone())
+            .collect();
+
+        // remove duplicates (assumption: the dependency list is sorted alphabetically)
+        dependencies.dedup();
+
+        // fetch versions for each dependency in that list
+        let mut iterator = stream::iter(dependencies)
+            .map(|dependency| async move {
+                // get all versions for that dependency
+                (
+                    dependency.clone(),
+                    cratesio::Crates::get_all_versions(&dependency).await,
+                )
+            })
+            .buffer_unordered(10);
+
+        // extract the result as a hashmap of name -> semver
+        let mut dep_to_versions: HashMap<String, Vec<Version>> = HashMap::new();
+        while let Some((dependency, crate_)) = iterator.next().await {
+            if let Ok(crate_) = crate_ {
+                let mut versions: Vec<Version> = crate_
+                    .versions
+                    .iter()
+                    // parse as semver
+                    .map(|version| Version::parse(&version.num))
+                    .filter_map(Result::ok)
+                    // TODO: log the error ^
+                    .collect();
+                versions.sort();
+                dep_to_versions.insert(dependency, versions);
+            }
+        }
+
+        // update our list of dependencies with that new information
+        for dependency in &mut self.dependencies {
+            let versions = dep_to_versions.get(dependency.name.as_str());
+            if let Some(versions) = versions {
+                // get GREAT versions
+                // TODO: since the list is sorted, it should be faster to find the matching version and split_at there
+                let greater_versions: Vec<Version> = versions
+                    .iter()
+                    .filter(|&version| version > &dependency.version)
+                    .cloned()
+                    .collect();
+
+                // any update available?
+                if greater_versions.len() > 0 {
+                    let new_version = NewVersion {
+                        versions: greater_versions,
+                        associated_rustsec: None,
+                    };
+                    dependency.new_version = Some(new_version);
+                }
+            }
+        }
+
+        //
         Ok(())
     }
 

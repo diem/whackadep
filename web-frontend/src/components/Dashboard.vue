@@ -10,14 +10,18 @@
       <thead>
         <tr>
           <td>name</td>
+          <td>direct?</td>
+          <td>dev?</td>
           <td>version change</td>
           <td>create PR (unless review needed)</td>
           <td>changelog</td>
         </tr>
       </thead>
       <tbody>
-        <tr v-for="d in dependencies" v-bind:key="d.name">
+        <tr v-for="d in updatable_dependencies" v-bind:key="d.name">
           <td>{{ d.name }}</td>
+          <td>{{ d.direct }}</td>
+          <td>{{ d.dev }}</td>
           <td>{{ d.version }} -> {{ d.new_version }}</td>
           <td>
             <a @click="copy_to_clipboard">click to create a PR</a>
@@ -39,12 +43,16 @@ export default {
     return {
       commit: null,
       dependencies: null,
+      updatable_dependencies: null,
     };
   },
   mounted() {
     axios.get("/dependencies").then((response) => {
       this.commit = response.data.commit;
       this.dependencies = response.data.rust_dependencies.dependencies;
+      this.updatable_dependencies = response.data.rust_dependencies.dependencies.filter(
+        (dependency) => dependency.new_version != null
+      );
     });
   },
   methods: {

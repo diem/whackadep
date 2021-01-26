@@ -3,7 +3,14 @@ use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
 pub struct Crates {
+    #[serde(rename = "crate")]
+    pub crate_info: CrateInfo,
     pub versions: Vec<Version>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct CrateInfo {
+    pub repository: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -20,7 +27,6 @@ impl Crates {
         let client = reqwest::Client::builder().user_agent("whackadep").build()?;
 
         let body = client.get(&url).send().await?.text().await?;
-        println!("body: {}", body);
         serde_json::from_str(&body).map_err(anyhow::Error::msg)
     }
 }
