@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{bail, Result};
 use std::path::Path;
 use std::sync::mpsc::Receiver;
 
@@ -35,7 +35,7 @@ pub async fn start(receiver: Receiver<MetricsRequest>) -> Result<()> {
                     }
                 };
             }
-            _ => return Err(anyhow!("invalid request")),
+            _ => bail!("invalid request"),
         };
     }
     Ok(())

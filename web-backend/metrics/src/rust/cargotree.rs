@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{bail, Result};
 use std::path::Path;
 use tokio::process::Command;
 
@@ -13,10 +13,10 @@ impl CargoTree {
             .output()
             .await?;
         if !output.status.success() {
-            return Err(anyhow!(
+            bail!(
                 "couldn't install cargo-tree: {:?}",
                 String::from_utf8(output.stderr)
-            ));
+            );
         }
         Ok(())
     }
@@ -33,10 +33,10 @@ impl CargoTree {
             .output()
             .await?;
         if !output.status.success() {
-            return Err(anyhow!(
+            bail!(
                 "couldn't run cargo-tree: {:?}",
                 String::from_utf8(output.stderr)
-            ));
+            );
         }
 
         // convert stdout to string

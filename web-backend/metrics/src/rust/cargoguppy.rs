@@ -1,5 +1,5 @@
-use anyhow::{anyhow, Result};
-use guppy_summaries::{PackageStatus, SummarySource, SummaryWithMetadata};
+use anyhow::{bail, Result};
+use guppy_summaries::SummaryWithMetadata;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
@@ -22,10 +22,10 @@ impl CargoGuppy {
             .await?;
 
         if !output.status.success() {
-            return Err(anyhow!(
+            bail!(
                 "couldn't run cargo-guppy: {:?}",
                 String::from_utf8(output.stderr)
-            ));
+            );
         }
 
         Ok(())

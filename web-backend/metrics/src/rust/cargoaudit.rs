@@ -3,7 +3,7 @@
 //! - there is no patch
 //! - there are versions that are unaffected
 
-use anyhow::{anyhow, Result};
+use anyhow::{bail, Result};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -61,10 +61,10 @@ impl CargoAudit {
             .output()
             .await?;
         if !output.status.success() {
-            return Err(anyhow!(
+            bail!(
                 "couldn't install cargo-audit: {:?}",
                 String::from_utf8(output.stderr)
-            ));
+            );
         }
         Ok(())
     }
@@ -80,10 +80,10 @@ impl CargoAudit {
             .await?;
 
         if !output.status.success() {
-            return Err(anyhow!(
+            bail!(
                 "couldn't run cargo-audit: {:?}",
                 String::from_utf8(output.stderr)
-            ));
+            );
         }
 
         // load the json
