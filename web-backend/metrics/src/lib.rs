@@ -30,7 +30,7 @@ pub async fn start(receiver: Receiver<MetricsRequest>) -> Result<()> {
                 match Analysis::analyze(&repo_url, &repo_path).await {
                     Ok(()) => println!("all good"),
                     Err(e) => {
-                        println!("{}", e);
+                        println!("metrics failed to terminate: {}", e);
                         continue;
                     }
                 };

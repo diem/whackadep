@@ -47,7 +47,12 @@ impl Analysis {
                 // 4. retrieve dependencies
                 RustAnalysis::get_dependencies(&repo.repo_folder).await?
             }
-            Some(document) => bson::from_document(document).map_err(anyhow::Error::msg)?,
+            Some(document) => {
+                println!("commit already present in db");
+                let analysis: Analysis =
+                    bson::from_document(document).map_err(anyhow::Error::msg)?;
+                analysis.rust_dependencies
+            }
         };
 
         // 6. analyze dependencies

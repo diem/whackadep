@@ -13,6 +13,7 @@
           <td>direct?</td>
           <td>dev?</td>
           <td>version change</td>
+          <td>rustsec</td>
           <td>create PR (unless review needed)</td>
           <td>changelog</td>
         </tr>
@@ -23,6 +24,7 @@
           <td>{{ d.direct }}</td>
           <td>{{ d.dev }}</td>
           <td>{{ d.version }} -> {{ d.new_version }}</td>
+          <td>{{ d.rustsec }}</td>
           <td>
             <a @click="copy_to_clipboard">click to create a PR</a>
             <span class="invisible">{{ d.create_PR }}</span>

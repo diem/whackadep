@@ -265,7 +265,7 @@ impl RustAnalysis {
     async fn priority(&mut self, repo_dir: &Path) -> Result<()> {
         // get cargo-audit results
         let audit = CargoAudit::run_cargo_audit(repo_dir).await?;
-
+        println!("{:?}", audit);
         // go through every dependencies and check if they have an associated advisory
         for dependency in &mut self.dependencies {
             let res = audit.get(&(dependency.name.clone(), dependency.version.clone()));
