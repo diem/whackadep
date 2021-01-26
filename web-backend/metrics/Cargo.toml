@@ -26,6 +26,10 @@ guppy-summaries = "0.3.1" # guppy summaries
 semver = "0.11.0" # semver of dependencies
 octocrab = "0.8"  # interact with github API
 
+# bin-specific
+jsonwebtoken = "7.2.0" 
+
+
 #
 # Binaries
 #
@@ -33,4 +37,3 @@ octocrab = "0.8"  # interact with github API
 # helper to populate database with test data
 [[bin]]
 name = "populate_test_data"
-# test = false # needed?
