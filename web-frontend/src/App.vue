@@ -44,7 +44,8 @@ export default {
 };
 </script>
 
-<style>
-#app {
+<style scoped>
+nav {
+  margin-bottom: 10px;
 }
 </style>

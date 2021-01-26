@@ -7,7 +7,7 @@
         <th class="header" scope="col">dev?</th>
         <th class="header" scope="col">version change</th>
         <th class="header" scope="col">rustsec</th>
-        <th class="header" scope="col">create PR (unless review needed)</th>
+        <th class="header" scope="col">update</th>
         <th class="header" scope="col">changelog</th>
       </tr>
     </thead>
@@ -16,7 +16,7 @@
         <td>{{ d.name }}</td>
         <td>{{ d.direct }}</td>
         <td>{{ d.dev }}</td>
-        <td>{{ d.version }} -> {{ d.new_version }}</td>
+        <td>{{ d.version }} -> {{ d.new_version.versions.join(", ") }}</td>
         <td>{{ d.rustsec }}</td>
         <td>
           <a @click="copy_to_clipboard">click to create a PR</a>

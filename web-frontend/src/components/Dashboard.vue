@@ -1,13 +1,33 @@
 <template>
   <section>
-    <p>Use this dashboard to manage your dependencies.</p>
-    <p>commit: {{ commit }}</p>
-    <p># non-dev direct dependencies: {{ direct_dependencies }}</p>
-    <p># non-dev transitive dependencies: {{ transitive_dependencies }}</p>
-    <p># direct dev dependencies: {{ dev_dependencies }}</p>
-    <h2>Updates available for non-dev dependencies</h2>
+    <p>
+      commit: <code>{{ commit }}</code>
+    </p>
+
+    <div class="row" id="stats">
+      <div class="col-sm bg-warning bg-gradient p-5 center">
+        <big>{{ direct_dependencies }} </big>
+        <small> non-dev direct dependencies</small>
+      </div>
+      <div class="col-sm p-5 bg-info bg-gradient">
+        <big>{{ transitive_dependencies }} </big>
+        <small> non-dev transitive dependencies</small>
+      </div>
+      <div class="col-sm bg-success bg-gradient p-5">
+        <big>{{ dev_dependencies }} </big>
+        <small> direct dev dependencies</small>
+      </div>
+    </div>
+
+    <h2>
+      Updates available for non-dev dependencies ({{
+        non_dev_updatable_deps_count
+      }})
+    </h2>
     <DependenciesTable v-bind:dependencies="non_dev_updatable_deps" />
-    <h2>Updates available for dev dependencies</h2>
+    <h2>
+      Updates available for dev dependencies ({{ dev_updatable_deps_count }})
+    </h2>
     <DependenciesTable v-bind:dependencies="dev_updatable_deps" />
   </section>
 </template>
@@ -90,11 +110,32 @@ export default {
       }
       return 0;
     },
+    non_dev_updatable_deps_count() {
+      if (this.non_dev_updatable_deps != null) {
+        return this.non_dev_updatable_deps.length;
+      } else {
+        return 0;
+      }
+    },
+    dev_updatable_deps_count() {
+      if (this.dev_updatable_deps != null) {
+        return this.dev_updatable_deps.length;
+      } else {
+        return 0;
+      }
+    },
   },
 };
 </script>
 
 <style scoped>
+#stats {
+  text-align: center;
+  margin-bottom: 20px;
+}
+#stats div {
+  margin: 0 5px;
+}
 .header {
   position: sticky;
   top: 0;
