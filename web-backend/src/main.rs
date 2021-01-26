@@ -4,8 +4,7 @@
 extern crate rocket;
 
 use metrics::{db::Db, MetricsRequest};
-use old_tokio::runtime::Runtime as OldRuntime;
-use rocket::{http::Method, State};
+use rocket::State;
 use std::sync::mpsc::{sync_channel, SyncSender};
 use std::sync::Mutex;
 use std::thread;
