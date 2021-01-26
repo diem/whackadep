@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use mongodb::bson;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -49,8 +49,9 @@ impl Analysis {
             }
             Some(document) => {
                 println!("commit already present in db");
-                let analysis: Analysis =
-                    bson::from_document(document).map_err(anyhow::Error::msg)?;
+                let analysis: Analysis = bson::from_document(document)
+                    .map_err(anyhow::Error::msg)
+                    .context("Failed to deserialize analysis from database")?;
                 analysis.rust_dependencies
             }
         };

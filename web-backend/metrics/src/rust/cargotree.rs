@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use std::path::Path;
 use tokio::process::Command;
 
@@ -40,6 +40,8 @@ impl CargoTree {
         }
 
         // convert stdout to string
-        String::from_utf8(output.stdout).map_err(anyhow::Error::msg)
+        String::from_utf8(output.stdout)
+            .map_err(anyhow::Error::msg)
+            .context("Failed to deserialize cargo-tree output")
     }
 }

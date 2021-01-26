@@ -3,7 +3,7 @@
 //! - there is no patch
 //! - there are versions that are unaffected
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -16,7 +16,7 @@ use tokio::process::Command;
 
 #[derive(Deserialize)]
 pub struct CargoAudit {
-    warnings: HashMap<String, Warning>,
+    warnings: HashMap<String, Vec<Warning>>,
 }
 
 #[derive(Deserialize, Clone)]
@@ -87,11 +87,14 @@ impl CargoAudit {
         }
 
         // load the json
-        let audit: CargoAudit =
-            serde_json::from_slice(&output.stdout).map_err(anyhow::Error::msg)?;
+        println!("{:?}", String::from_utf8_lossy(&output.stdout));
+        let audit: CargoAudit = serde_json::from_slice(&output.stdout)
+            .map_err(anyhow::Error::msg)
+            .context("Failed to deserialize cargo-audit output")?;
 
         // sort all the warnings into dependency -> Advisory
-        let warnings: Vec<Warning> = audit.warnings.values().cloned().collect();
+        let warnings: Vec<Warning> = audit.warnings.values().cloned().flatten().collect();
+
         let advisories: HashMap<(String, Version), (Advisory, VersionInfo)> = warnings
             .into_iter()
             .map(|warning| {
@@ -109,5 +112,19 @@ impl CargoAudit {
 
         //
         Ok(advisories)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[tokio::test]
+    async fn test_cargo_audit() {
+        let mut repo_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        repo_dir.push("../diem_repo");
+        let res = CargoAudit::run_cargo_audit(repo_dir.as_path()).await;
+        println!("{:?}", res);
     }
 }
