@@ -19,12 +19,16 @@
       </div>
     </div>
 
+    <h2>RUSTSEC advisories without updates</h2>
+    <DependenciesTable v-bind:dependencies="rustsec" />
+
     <h2>
       Updates available for non-dev dependencies ({{
         non_dev_updatable_deps_count
       }})
     </h2>
     <DependenciesTable v-bind:dependencies="non_dev_updatable_deps" />
+
     <h2>
       Updates available for dev dependencies ({{ dev_updatable_deps_count }})
     </h2>
@@ -33,8 +37,6 @@
 </template>
 
 <script>
-import axios from "axios";
-
 import DependenciesTable from "./Dependencies.vue";
 
 export default {
@@ -45,10 +47,16 @@ export default {
       dependencies: null,
       dev_updatable_deps: null,
       non_dev_updatable_deps: null,
+      rustsec: null,
     };
   },
+  inject: {
+    axios: {
+      from: "axios",
+    },
+  },
   mounted() {
-    axios.get("/dependencies").then((response) => {
+    this.axios.get("/dependencies").then((response) => {
       this.commit = response.data.commit;
       this.dependencies = response.data.rust_dependencies.dependencies;
       var updatable_dependencies = response.data.rust_dependencies.dependencies.filter(
@@ -59,6 +67,10 @@ export default {
       );
       this.dev_updatable_deps = updatable_dependencies.filter(
         (dependency) => dependency.dev
+      );
+      this.rustsec = response.data.rust_dependencies.dependencies.filter(
+        (dependency) =>
+          dependency.rustsec != null && dependency.new_version == null
       );
     });
   },

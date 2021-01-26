@@ -4,7 +4,6 @@
       <tr>
         <th class="header" scope="col">name</th>
         <th class="header" scope="col">direct?</th>
-        <th class="header" scope="col">dev?</th>
         <th class="header" scope="col">version change</th>
         <th class="header" scope="col">rustsec</th>
         <th class="header" scope="col">update</th>
@@ -15,8 +14,11 @@
       <tr v-for="d in dependencies" v-bind:key="d.name">
         <td>{{ d.name }}</td>
         <td>{{ d.direct }}</td>
-        <td>{{ d.dev }}</td>
-        <td>{{ d.version }} -> {{ d.new_version.versions.join(", ") }}</td>
+        <td>
+          <span v-if="d.new_version">
+            {{ d.version }} -> {{ d.new_version.versions.join(", ") }}
+          </span>
+        </td>
         <td>{{ d.rustsec }}</td>
         <td>
           <a @click="copy_to_clipboard">click to create a PR</a>
