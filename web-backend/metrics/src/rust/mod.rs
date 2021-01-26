@@ -23,6 +23,7 @@ pub mod cargoguppy;
 pub mod cargotree;
 mod cratesio;
 
+use cargoaudit::CargoAudit;
 use cargoguppy::CargoGuppy;
 
 /// RustAnalysis contains the result of the analysis of a rust workspace
@@ -43,13 +44,19 @@ pub struct DependencyInfo {
     new_version: Option<NewVersion>,
     dev: bool,
     direct: bool,
+    rustsec: Option<RustSec>,
 }
 
 /// NewVersion should contain any interesting information (red flags, etc.) about the changes observed in the new version
 #[derive(Serialize, Deserialize)]
 pub struct NewVersion {
     versions: Vec<Version>,
-    associated_rustsec: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct RustSec {
+    advisory: cargoaudit::Advisory,
+    version_info: cargoaudit::VersionInfo,
 }
 
 impl RustAnalysis {
@@ -70,7 +77,7 @@ impl RustAnalysis {
 
         // 4. priority
         println!("4. priority engine running...");
-        rust_analysis.priority()?;
+        rust_analysis.priority(repo_dir).await?;
 
         // 5. risk
         println!("5. risk engine running...");
@@ -147,6 +154,7 @@ impl RustAnalysis {
                 new_version: None,
                 dev: dev,
                 direct: direct,
+                rustsec: None,
             });
         }
 
@@ -154,7 +162,8 @@ impl RustAnalysis {
         Ok(Self { dependencies })
     }
 
-    /// 3. updatable
+    /// Checks for updates in a set of crates
+    // TODO: check for updates on repository other than crates.io
     async fn updatable(&mut self) -> Result<()> {
         // note that this might call crates.io several times for the same dependency
         // (due to the fact that a dependency might appear several times with different versions or as "direct/indirect" and "dev/not-dev")
@@ -176,10 +185,7 @@ impl RustAnalysis {
 
             // any update available?
             if versions.len() > 0 {
-                let new_version = NewVersion {
-                    versions: versions,
-                    associated_rustsec: None,
-                };
+                let new_version = NewVersion { versions: versions };
                 dependency.new_version = Some(new_version);
             }
         }
@@ -188,6 +194,7 @@ impl RustAnalysis {
         Ok(())
     }
 
+    /// highly-concurrent version of `updatable()`
     async fn updatable_par(&mut self) -> Result<()> {
         // filter out non-crates.io dependencies
         let mut dependencies: Vec<String> = self
@@ -244,7 +251,6 @@ impl RustAnalysis {
                 if greater_versions.len() > 0 {
                     let new_version = NewVersion {
                         versions: greater_versions,
-                        associated_rustsec: None,
                     };
                     dependency.new_version = Some(new_version);
                 }
@@ -256,7 +262,22 @@ impl RustAnalysis {
     }
 
     /// 4. priority
-    fn priority(&mut self) -> Result<()> {
+    async fn priority(&mut self, repo_dir: &Path) -> Result<()> {
+        // get cargo-audit results
+        let audit = CargoAudit::run_cargo_audit(repo_dir).await?;
+
+        // go through every dependencies and check if they have an associated advisory
+        for dependency in &mut self.dependencies {
+            let res = audit.get(&(dependency.name.clone(), dependency.version.clone()));
+            if let Some((advisory, version_info)) = res {
+                dependency.rustsec = Some(RustSec {
+                    advisory: advisory.clone(),
+                    version_info: version_info.clone(),
+                });
+            }
+        }
+
+        //
         Ok(())
     }
 
