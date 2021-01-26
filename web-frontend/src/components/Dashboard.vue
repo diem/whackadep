@@ -6,16 +6,16 @@
     <p># non-dev transitive dependencies: {{ transitive_dependencies }}</p>
     <p># direct dev dependencies: {{ dev_dependencies }}</p>
     <h2>updates available</h2>
-    <table class="table">
-      <thead>
+    <table class="table table-light table-striped table-hover">
+      <thead style="position: sticky; top: 0">
         <tr>
-          <td>name</td>
-          <td>direct?</td>
-          <td>dev?</td>
-          <td>version change</td>
-          <td>rustsec</td>
-          <td>create PR (unless review needed)</td>
-          <td>changelog</td>
+          <th class="header" scope="col">name</th>
+          <th class="header" scope="col">direct?</th>
+          <th class="header" scope="col">dev?</th>
+          <th class="header" scope="col">version change</th>
+          <th class="header" scope="col">rustsec</th>
+          <th class="header" scope="col">create PR (unless review needed)</th>
+          <th class="header" scope="col">changelog</th>
         </tr>
       </thead>
       <tbody>
@@ -105,3 +105,10 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.header {
+  position: sticky;
+  top: 0;
+}
+</style>
