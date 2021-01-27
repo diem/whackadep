@@ -1,6 +1,9 @@
 # Whack-a-Dep!
 
 A dashboard to update your dependencies.
+
+![whackadep](whackadep.png)
+
 ## Usage
 
 To run the whole thing for development (requires [docker-compose](https://docs.docker.com/compose/)):
