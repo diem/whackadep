@@ -7,6 +7,7 @@ use mongodb::{
 };
 use old_tokio::runtime::Runtime as OldRuntime;
 use std::env;
+use tracing::info;
 
 // TODO: this is not great! We spin a new runtime for every request. instead create a structure that is initialized once with a runtime, and re-use it over and over. At the same time, we're not doing db queries like crazy so, who cares?
 pub struct Db;
@@ -17,7 +18,7 @@ impl Db {
     async fn new() -> Result<mongodb::Database> {
         let mongodb_uri =
             env::var("MONGODB_URI").unwrap_or("mongodb://root:password@mongo:27017".to_string());
-        println!("using following mongodb uri: {}", mongodb_uri);
+        info!("using following mongodb uri: {}", mongodb_uri);
 
         // parse a connection string into an options struct
         let mut client_options = ClientOptions::parse(&mongodb_uri).await?;
@@ -25,12 +26,6 @@ impl Db {
 
         // get a handle to the deployment
         let client = Client::with_options(client_options)?;
-
-        //
-        println!("databases:");
-        for name in client.list_database_names(None, None).await? {
-            println!("- {}", name);
-        }
 
         // get a handle to whackadep database
         let db = client.database("whackadep");
@@ -48,7 +43,7 @@ impl Db {
                 .insert_one(document, None)
                 .await
                 .map_err(anyhow::Error::msg)?;
-            println!("New document ID: {}", insert_result.inserted_id);
+            info!("New document ID: {}", insert_result.inserted_id);
             Ok(())
         })
     }

@@ -8,15 +8,15 @@
 //! so this might not matter...
 //!
 
-use anyhow::{anyhow, Context, Result};
-use futures::{stream, Stream, StreamExt};
+use anyhow::{Context, Result};
+use futures::{stream, StreamExt};
 use guppy_summaries::{PackageStatus, SummarySource, SummaryWithMetadata};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
-use std::process::Command;
 use tempfile::tempdir;
+use tracing::{debug, info};
 
 pub mod cargoaudit;
 pub mod cargoguppy;
@@ -64,23 +64,23 @@ impl RustAnalysis {
     /// fetch -> filter -> updatables -> priority -> risk -> store
     pub async fn get_dependencies(repo_dir: &Path) -> Result<Self> {
         // 1. fetch
-        println!("1. fetching dependencies...");
+        info!("1. fetching dependencies...");
         let (all_deps, release_deps) = Self::fetch(repo_dir).await?;
 
         // 2. filter
-        println!("2. filtering dependencies...");
+        info!("2. filtering dependencies...");
         let mut rust_analysis = Self::filter(all_deps, release_deps)?;
 
         // 3. updatable
-        println!("3. checking for updates...");
+        info!("3. checking for updates...");
         rust_analysis.updatable_par().await?;
 
         // 4. priority
-        println!("4. priority engine running...");
+        info!("4. priority engine running...");
         rust_analysis.priority(repo_dir).await?;
 
         // 5. risk
-        println!("5. risk engine running...");
+        info!("5. risk engine running...");
         rust_analysis.risk()?;
 
         //
@@ -93,12 +93,12 @@ impl RustAnalysis {
         // (only transitive dependencies used in release)
 
         let out_dir = tempdir()?;
-        println!("{:?}", out_dir);
+        debug!("tempdir: {:?}", out_dir);
 
         CargoGuppy::run_cargo_guppy(repo_dir, out_dir.path()).await?;
 
         // 2. deserialize the release and the full summary
-        println!("deserialize result...");
+        info!("deserialize result...");
         let path = out_dir.path().join("summary-release.json");
         let release_deps = CargoGuppy::parse_dependencies(&path)
             .with_context(|| format!("couldn't open {:?}", path))?;
@@ -116,7 +116,7 @@ impl RustAnalysis {
         all_deps: SummaryWithMetadata,
         release_deps: SummaryWithMetadata,
     ) -> Result<Self> {
-        println!("filter result...");
+        info!("filter result...");
         let mut dependencies = Vec::new();
 
         let all_deps_iter = all_deps
@@ -265,7 +265,7 @@ impl RustAnalysis {
     async fn priority(&mut self, repo_dir: &Path) -> Result<()> {
         // get cargo-audit results
         let audit = CargoAudit::run_cargo_audit(repo_dir).await?;
-        println!("{:?}", audit);
+        info!("{:?}", audit);
         // go through every dependencies and check if they have an associated advisory
         for dependency in &mut self.dependencies {
             let res = audit.get(&(dependency.name.clone(), dependency.version.clone()));

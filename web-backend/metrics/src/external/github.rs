@@ -6,6 +6,7 @@ use std::{
     fs,
     time::{Duration, SystemTime},
 };
+use tracing::debug;
 
 //use futures::{stream, StreamExt};
 
@@ -26,7 +27,7 @@ pub async fn get_repository_info(
         //        .base_url("https://api.github.com/")?
         .build()?;
 
-    println!("{:?}", octocrab);
+    debug!("{:?}", octocrab);
 
     octocrab
         .get("https://api.github.com/app/", None::<&()>)

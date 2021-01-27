@@ -14,7 +14,8 @@ serde = { version = "1.0", features = ["derive"] } # bson serialization
 serde_json = "1.0" # bson serialization
 old_tokio = { package = "tokio", version = "0.2.18", features = ["full"] } # old version because of mongodb driver...
 tokio = { version = "1.1.0", features = ["full"] } # old version because of mongodb driver...
-futures = "0.3.12"
+futures = "0.3.12" # async stuff
+tracing = "0.1.22" # logging
 
 # driver
 mongodb = "1.1.1" # database used to store result of cronjobs

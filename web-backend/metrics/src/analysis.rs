@@ -2,6 +2,7 @@ use anyhow::Result;
 use mongodb::bson;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use tracing::info;
 
 use crate::db::Db;
 use crate::git::Repo;
@@ -22,29 +23,29 @@ pub struct Analysis {
 /// 5. store it in DB
 pub async fn analyze(repo_url: &str, repo_path: &Path) -> Result<()> {
     // 1. initialize repo if not done
-    println!("getting diem/diem repo");
+    info!("getting diem/diem repo");
     let repo = match Repo::new(repo_path) {
         Ok(repo) => repo,
         Err(_) => {
-            println!("cloning {} into {}", repo_url, repo_path.to_string_lossy());
+            info!("cloning {} into {}", repo_url, repo_path.to_string_lossy());
             Repo::clone(repo_url, repo_path)?
         }
     };
 
     // 3. pull latest changes on the repo
-    println!("pulling latest changes");
+    info!("pulling latest changes");
     repo.update()?;
 
     // 4. get metadata
     let commit = repo.head().expect("couldn't get HEAD hash");
-    println!("current commit: {}", commit);
+    info!("current commit: {}", commit);
 
     // 5. run analysis for different languages
     // at the moment we only have Rust
     let rust_analysis = RustAnalysis::get_dependencies(&repo.repo_folder).await?;
 
     // 6. store analysis in db
-    println!("analysis done, storing in db...");
+    info!("analysis done, storing in db...");
     let analysis = Analysis {
         commit: commit,
         rust_dependencies: rust_analysis,

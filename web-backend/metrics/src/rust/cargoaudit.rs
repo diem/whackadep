@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 use tokio::process::Command;
+use tracing::debug;
 
 //
 // Structures to deserialize cargo-audit
@@ -87,7 +88,7 @@ impl CargoAudit {
         }
 
         // load the json
-        println!("{:?}", String::from_utf8_lossy(&output.stdout));
+        debug!("{:?}", String::from_utf8_lossy(&output.stdout));
         let audit: CargoAudit = serde_json::from_slice(&output.stdout)
             .map_err(anyhow::Error::msg)
             .context("Failed to deserialize cargo-audit output")?;

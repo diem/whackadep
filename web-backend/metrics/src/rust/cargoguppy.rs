@@ -4,12 +4,13 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
 use tokio::process::Command;
+use tracing::info;
 
 pub struct CargoGuppy;
 
 impl CargoGuppy {
     pub async fn run_cargo_guppy(repo_dir: &Path, out_dir: &Path) -> Result<()> {
-        println!("running generate-summaries");
+        info!("running generate-summaries");
 
         // 1. this will produce a json file containing no dev dependencies
         // (only transitive dependencies used in release)

@@ -58,6 +58,10 @@ struct App {
 
 #[launch]
 fn rocket() -> rocket::Rocket {
+    // init logging
+    tracing_subscriber::fmt::init();
+    info!("logging initialized");
+
     // start metric server
     let (sender, receiver) = sync_channel::<MetricsRequest>(0);
     thread::spawn(move || {
@@ -72,7 +76,7 @@ fn rocket() -> rocket::Rocket {
     };
 
     // start server
-    println!("starting rocket server");
+    info!("starting rocket server");
     rocket::ignite()
         .manage(state)
         .mount("/", routes![index, refresh, dependencies])

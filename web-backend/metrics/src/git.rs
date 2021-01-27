@@ -1,7 +1,8 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use git2::Repository;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use tracing::{debug, info};
 
 // This module is implemented by calling the `git` command-line tool directly.
 // Ideally this would be implemented with the git2 rust library,
@@ -26,7 +27,7 @@ impl Repo {
             .args(&["clone", url])
             .arg(&repo_folder)
             .output()?;
-        println!("stdout: {:?}", String::from_utf8(output.stdout));
+        debug!("stdout: {:?}", String::from_utf8(output.stdout.clone()));
         Ok(Self {
             repo_folder: repo_folder.to_path_buf(),
         })
@@ -39,7 +40,7 @@ impl Repo {
             .current_dir(&self.repo_folder)
             .arg("pull")
             .output()?;
-        println!("stdout: {:?}", String::from_utf8(output.stdout));
+        debug!("stdout: {:?}", String::from_utf8(output.stdout.clone()));
         Ok(())
     }
 

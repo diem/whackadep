@@ -21,11 +21,7 @@ impl CargoTree {
         Ok(())
     }
 
-    pub async fn run_cargo_tree(
-        repo_dir: &Path,
-        package: String,
-        version: String,
-    ) -> Result<String> {
+    pub async fn run_cargo_tree(repo_dir: &Path, package: String) -> Result<String> {
         let output = Command::new("cargo")
             .current_dir(repo_dir)
             .args(&["tree", "-i"]) // -i, --invert <SPEC>...          Invert the tree direction and focus on the given package
