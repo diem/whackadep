@@ -100,7 +100,6 @@ export default {
     direct_dependencies() {
       if (this.dependencies != null) {
         // there will be redundant dependencies
-        console.log(this.dependencies);
         return this.dependencies.filter((dep) => !dep.dev && dep.direct).length;
       }
       return 0;
@@ -108,7 +107,6 @@ export default {
     transitive_dependencies() {
       if (this.dependencies != null) {
         // there will be redundant dependencies
-        console.log(this.dependencies);
         return this.dependencies.filter((dep) => !dep.dev && !dep.direct)
           .length;
       }
@@ -117,7 +115,6 @@ export default {
     dev_dependencies() {
       if (this.dependencies != null) {
         // there will be redundant dependencies
-        console.log(this.dependencies);
         return this.dependencies.filter((dep) => dep.dev && dep.direct).length;
       }
       return 0;
