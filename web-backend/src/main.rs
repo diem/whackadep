@@ -3,12 +3,8 @@
 #[macro_use]
 extern crate rocket;
 
-#[macro_use]
-extern crate slog;
-
 use metrics::{db::Db, MetricsRequest};
 use rocket::State;
-use slog::Drain;
 use std::sync::mpsc::{sync_channel, SyncSender};
 use std::sync::Mutex;
 use std::thread;
@@ -62,19 +58,11 @@ struct App {
 
 #[launch]
 fn rocket() -> rocket::Rocket {
-    // set up logging
-    let decorator = slog_term::TermDecorator::new().build();
-    let drain = slog_term::FullFormat::new(decorator).build().fuse();
-    let drain = slog_async::Async::new(drain).build().fuse();
-    let log = slog::Logger::root(drain, o!());
-    info!(log, "logging initialized with level ?");
-
     // start metric server
-    let metrics_logger = log.new(o!());
     let (sender, receiver) = sync_channel::<MetricsRequest>(0);
     thread::spawn(move || {
         let rt = Runtime::new().unwrap();
-        rt.block_on(metrics::start(metrics_logger, receiver))
+        rt.block_on(metrics::start(receiver))
             .expect("metrics stopped working");
     });
 
@@ -84,7 +72,7 @@ fn rocket() -> rocket::Rocket {
     };
 
     // start server
-    info!(log, "starting rocket server");
+    println!("starting rocket server");
     rocket::ignite()
         .manage(state)
         .mount("/", routes![index, refresh, dependencies])
