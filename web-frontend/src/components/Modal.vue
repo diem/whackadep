@@ -19,7 +19,7 @@
               of the
               <code>main</code> branch and paste the following in your terminal:
             </p>
-            <pre><code>cargo update -p {{ name }}:{{ version}} --precise {{ new_version }}</code></pre>
+            <pre><code>cargo install cargo-update-dep && cargo update-dep -p {{ name }} -v {{ version}} -n {{ new_version }}</code></pre>
           </div>
           <div class="modal-footer">
             <button
