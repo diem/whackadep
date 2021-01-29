@@ -5,6 +5,7 @@ use tracing::{error, info};
 
 mod analysis;
 pub mod db;
+mod dependabot;
 mod external;
 mod git;
 pub mod rust;
