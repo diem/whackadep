@@ -47,12 +47,12 @@ pub struct DependencyInfo {
 
     rustsec: Option<RustSec>,
 
-    new_version: Option<NewVersion>,
+    update: Option<Update>,
 }
 
-/// NewVersion should contain any interesting information (red flags, etc.) about the changes observed in the new version
-#[derive(Serialize, Deserialize, Default)]
-pub struct NewVersion {
+/// Update should contain any interesting information (red flags, etc.) about the changes observed in the new version
+#[derive(Serialize, Deserialize, Default, Debug)]
+pub struct Update {
     /// all versions
     // TODO: we're missing dates of creation for stats though..
     versions: Vec<Version>,
@@ -158,7 +158,7 @@ impl RustAnalysis {
                 name: summary_id.name.clone(),
                 version: summary_id.version.clone(),
                 repo: summary_id.source.clone(),
-                new_version: None,
+                update: None,
                 dev: dev,
                 direct: direct,
                 rustsec: None,
@@ -224,9 +224,9 @@ impl RustAnalysis {
 
                 // any update available?
                 if greater_versions.len() > 0 {
-                    let mut new_version = NewVersion::default();
-                    new_version.versions = greater_versions;
-                    dependency.new_version = Some(new_version);
+                    let mut update = Update::default();
+                    update.versions = greater_versions;
+                    dependency.update = Some(update);
                 }
             }
         }
@@ -237,7 +237,7 @@ impl RustAnalysis {
 
     /// 4. priority
     async fn priority(&mut self, repo_dir: &Path) -> Result<()> {
-        // get cargo-audit results
+        // 1. get cargo-audit results
         info!("running cargo-audit");
         let audit = CargoAudit::run_cargo_audit(repo_dir).await?;
         for dependency in &mut self.dependencies {
@@ -250,35 +250,35 @@ impl RustAnalysis {
             }
         }
 
-        info!("dependabot still experimental, skipping");
-        return Ok(());
-
-        // fetch every changelog
+        // 2. fetch every changelog via dependabot
         info!("running dependabot to get changelogs");
-        for dependency in &mut self.dependencies {
-            if let Some(new_version) = &mut dependency.new_version {
-                let last_version = new_version
-                    .versions
-                    .last()
-                    .ok_or_else(|| anyhow!("a dependency has a new version, but can't find it"))?;
 
-                match dependabot::get_changelog(
-                    "cargo",
-                    &dependency.name,
-                    &dependency.version.to_string(),
-                    &last_version.to_string(),
-                )
-                .await
-                {
-                    Err(e) => {
-                        error!("{}", e);
-                    }
-                    Ok(update_metadata) => {
-                        new_version.update_metadata = update_metadata;
-                    }
-                };
-            }
-        }
+        let iterator = stream::iter(&mut self.dependencies)
+            .map(|dependency| async move {
+                if let Some(update) = &mut dependency.update {
+                    let new_version = match update.versions.last() {
+                        Some(version) => version.to_string(),
+                        None => {
+                            error!(
+                                "couldn't find new version in a dependency update: {:?}",
+                                update
+                            );
+                            "".to_string()
+                        }
+                    };
+                    let name = dependency.name.clone();
+                    let version = dependency.version.to_string();
+                    match dependabot::get_update_metadata("cargo", &name, &version, &new_version)
+                        .await
+                    {
+                        Ok(update_metadata) => update.update_metadata = update_metadata,
+                        Err(e) => error!("couldn't get changelog for {}: {}", dependency.name, e),
+                    };
+                }
+                ()
+            })
+            .buffer_unordered(10);
+        iterator.collect::<()>().await;
 
         //
         Ok(())

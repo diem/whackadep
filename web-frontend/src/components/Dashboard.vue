@@ -59,8 +59,9 @@ export default {
     this.axios.get("/dependencies").then((response) => {
       this.commit = response.data.commit;
       this.dependencies = response.data.rust_dependencies.dependencies;
+      console.log(response.data.rust_dependencies.dependencies);
       var updatable_dependencies = response.data.rust_dependencies.dependencies.filter(
-        (dependency) => dependency.new_version != null
+        (dependency) => dependency.update != null
       );
       this.non_dev_updatable_deps = updatable_dependencies.filter(
         (dependency) => !dependency.dev
@@ -69,8 +70,7 @@ export default {
         (dependency) => dependency.dev
       );
       this.rustsec = response.data.rust_dependencies.dependencies.filter(
-        (dependency) =>
-          dependency.rustsec != null && dependency.new_version == null
+        (dependency) => dependency.rustsec != null && dependency.update == null
       );
     });
   },

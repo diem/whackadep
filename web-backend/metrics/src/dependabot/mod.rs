@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use tokio::process::Command;
 use tracing::{error, info};
 
-#[derive(Deserialize, Default, Serialize)]
+#[derive(Deserialize, Default, Serialize, Debug)]
 pub struct UpdateMetadata {
     changelog_url: Option<String>,
     changelog_text: Option<String>,
@@ -12,13 +12,13 @@ pub struct UpdateMetadata {
     commits: Option<Vec<Commit>>,
 }
 
-#[derive(Deserialize, Default, Serialize)]
+#[derive(Deserialize, Default, Serialize, Debug)]
 pub struct Commit {
     message: String,
     html_url: String,
 }
 
-pub async fn get_changelog(
+pub async fn get_update_metadata(
     package_manager: &str,
     package: &str,
     version: &str,
