@@ -251,34 +251,44 @@ impl RustAnalysis {
         }
 
         // 2. fetch every changelog via dependabot
-        info!("running dependabot to get changelogs");
-
-        let iterator = stream::iter(&mut self.dependencies)
-            .map(|dependency| async move {
-                if let Some(update) = &mut dependency.update {
-                    let new_version = match update.versions.last() {
-                        Some(version) => version.to_string(),
-                        None => {
-                            error!(
-                                "couldn't find new version in a dependency update: {:?}",
-                                update
-                            );
-                            "".to_string()
-                        }
-                    };
-                    let name = dependency.name.clone();
-                    let version = dependency.version.to_string();
-                    match dependabot::get_update_metadata("cargo", &name, &version, &new_version)
+        if std::env::var("GITHUB_TOKEN").is_err() {
+            info!("skipping dependabot run due to GITHUB_TOKEN env var not found");
+        } else {
+            info!("running dependabot to get changelogs");
+            let iterator = stream::iter(&mut self.dependencies)
+                .map(|dependency| async move {
+                    if let Some(update) = &mut dependency.update {
+                        let new_version = match update.versions.last() {
+                            Some(version) => version.to_string(),
+                            None => {
+                                error!(
+                                    "couldn't find new version in a dependency update: {:?}",
+                                    update
+                                );
+                                "".to_string()
+                            }
+                        };
+                        let name = dependency.name.clone();
+                        let version = dependency.version.to_string();
+                        match dependabot::get_update_metadata(
+                            "cargo",
+                            &name,
+                            &version,
+                            &new_version,
+                        )
                         .await
-                    {
-                        Ok(update_metadata) => update.update_metadata = update_metadata,
-                        Err(e) => error!("couldn't get changelog for {}: {}", dependency.name, e),
-                    };
-                }
-                ()
-            })
-            .buffer_unordered(10);
-        iterator.collect::<()>().await;
+                        {
+                            Ok(update_metadata) => update.update_metadata = update_metadata,
+                            Err(e) => {
+                                error!("couldn't get changelog for {}: {}", dependency.name, e)
+                            }
+                        };
+                    }
+                    ()
+                })
+                .buffer_unordered(10);
+            iterator.collect::<()>().await;
+        }
 
         //
         Ok(())
