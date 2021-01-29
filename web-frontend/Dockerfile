@@ -9,6 +9,7 @@ COPY package*.json ./
 COPY yarn.lock .
 
 # install project dependencies
+RUN yarn global add @vue/cli
 RUN yarn install
 
 # copy project files and folders to the current working directory (i.e. 'app' folder)
