@@ -3,7 +3,6 @@ import App from './App.vue';
 
 import axios from 'axios';
 
-import 'bootstrap';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
 // this works, but seems not recommended (https://vuejs.org/v2/cookbook/adding-instance-properties.html)
