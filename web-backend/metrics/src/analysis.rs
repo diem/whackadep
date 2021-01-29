@@ -28,16 +28,16 @@ pub async fn analyze(repo_url: &str, repo_path: &Path) -> Result<()> {
         Ok(repo) => repo,
         Err(_) => {
             info!("cloning {} into {}", repo_url, repo_path.to_string_lossy());
-            Repo::clone(repo_url, repo_path)?
+            Repo::clone(repo_url, repo_path).await?
         }
     };
 
     // 3. pull latest changes on the repo
     info!("pulling latest changes");
-    repo.update()?;
+    repo.update().await?;
 
     // 4. get metadata
-    let commit = repo.head().expect("couldn't get HEAD hash");
+    let commit = repo.head().await.expect("couldn't get HEAD hash");
     info!("current commit: {}", commit);
 
     // 5. run analysis for different languages

@@ -1,8 +1,8 @@
 use anyhow::Result;
 use git2::Repository;
 use std::path::{Path, PathBuf};
-use std::process::Command;
-use tracing::{debug, info};
+use tokio::process::Command;
+use tracing::debug;
 
 // This module is implemented by calling the `git` command-line tool directly.
 // Ideally this would be implemented with the git2 rust library,
@@ -22,11 +22,12 @@ impl Repo {
     }
 
     // clone
-    pub fn clone(url: &str, repo_folder: &Path) -> Result<Self> {
+    pub async fn clone(url: &str, repo_folder: &Path) -> Result<Self> {
         let output = Command::new("git")
             .args(&["clone", url])
             .arg(&repo_folder)
-            .output()?;
+            .output()
+            .await?;
         debug!("stdout: {:?}", String::from_utf8(output.stdout.clone()));
         Ok(Self {
             repo_folder: repo_folder.to_path_buf(),
@@ -35,20 +36,22 @@ impl Repo {
 
     // performs a pull
     // TODO: since this might change the rust toolchain, do we want to do a rustup update here?
-    pub fn update(&self) -> Result<()> {
+    pub async fn update(&self) -> Result<()> {
         let output = Command::new("git")
             .current_dir(&self.repo_folder)
             .arg("pull")
-            .output()?;
+            .output()
+            .await?;
         debug!("stdout: {:?}", String::from_utf8(output.stdout.clone()));
         Ok(())
     }
 
-    pub fn head(&self) -> Result<String> {
+    pub async fn head(&self) -> Result<String> {
         let output = Command::new("git")
             .current_dir(&self.repo_folder)
             .args(&["rev-parse", "HEAD"])
-            .output()?;
+            .output()
+            .await?;
         String::from_utf8(output.stdout).map_err(anyhow::Error::msg)
     }
 }
