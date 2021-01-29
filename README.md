@@ -35,7 +35,6 @@ To rebuild the backend you can use:
 make restart-backend
 ```
 
-
 ## Architecture
 
 ![whackadep architecture](architecture.png)
@@ -45,7 +44,7 @@ The architecture looks like the following:
 - [web-frontend](web-frontend). This is the web dashboard written in [Vue.js](https://vuejs.org/) version 3. It queries the web backend to obtain information on dependencies.
 - [web-backend](web-backend). This is the dashboard that you use to manage your dependencies. It is written with the [Rocket](https://rocket.rs/) web framework. It also serves a **metrics** API built on top of the [metrics](web-backend/metrics) crate.
 - [db](db). This is the [Mongodb](https://www.mongodb.com/) database where information about dependencies throughout the lifetime of the codebase are persisted.
-- [cronjobs](cronjobs). These are cronjobs that call the backend's metric API periodically in order to check if new dependency upgrades are available.
+- [cronjobs](cronjobs). These are cronjobs that call the backend's metric API periodically in order to check if new dependency upgrades are available. (They don't work at the moment!)
 
 ## Metrics
 
