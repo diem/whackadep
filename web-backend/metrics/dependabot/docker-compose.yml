@@ -1,0 +1,12 @@
+version: "3.9"
+
+services:
+  # front (web UI)
+  changelog:
+    build: .
+    environment:
+      - "GITHUB_TOKEN=$GITHUB_TOKEN"
+      - "DEPENDABOT_PACKAGE_MANAGER=cargo"
+      - "DEPENDABOT_PACKAGE=serde"
+      - "DEPENDABOT_VERSION=0.9.15"
+      - "DEPENDABOT_NEW_VERSION=1.0.123"
