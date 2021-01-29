@@ -58,7 +58,7 @@ impl CargoAudit {
         // make sure cargo-tree is installed
         // this seems necessary because cargo-audit might have had an update, or because of the rust-toolchain?
         let output = Command::new("cargo")
-            .args(&["install", "cargo-tree"]) // TODO: use --force to force upgrade?
+            .args(&["install", "cargo-audit"]) // TODO: use --force to force upgrade?
             .output()
             .await?;
         if !output.status.success() {
