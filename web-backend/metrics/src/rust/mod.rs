@@ -251,7 +251,9 @@ impl RustAnalysis {
         }
 
         // 2. fetch every changelog via dependabot
-        if std::env::var("GITHUB_TOKEN").is_err() {
+        if std::env::var("GITHUB_TOKEN").is_err()
+            || std::env::var("GITHUB_TOKEN") == Ok("".to_string())
+        {
             info!("skipping dependabot run due to GITHUB_TOKEN env var not found");
         } else {
             info!("running dependabot to get changelogs");
