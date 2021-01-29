@@ -251,7 +251,7 @@ impl RustAnalysis {
         }
 
         info!("dependabot still experimental, skipping");
-        Ok(())
+        return Ok(());
 
         // fetch every changelog
         info!("running dependabot to get changelogs");
