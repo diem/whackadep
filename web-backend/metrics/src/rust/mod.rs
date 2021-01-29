@@ -8,7 +8,7 @@
 //! so this might not matter...
 //!
 
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use futures::{stream, StreamExt};
 use guppy_summaries::{PackageStatus, SummarySource, SummaryWithMetadata};
 use semver::Version;
@@ -23,6 +23,7 @@ pub mod cargoguppy;
 pub mod cargotree;
 mod cratesio;
 
+use crate::dependabot::{self, UpdateMetadata};
 use cargoaudit::CargoAudit;
 use cargoguppy::CargoGuppy;
 
@@ -41,16 +42,22 @@ pub struct DependencyInfo {
     name: String,
     version: Version,
     repo: SummarySource,
-    new_version: Option<NewVersion>,
     dev: bool,
     direct: bool,
+
     rustsec: Option<RustSec>,
+
+    new_version: Option<NewVersion>,
 }
 
 /// NewVersion should contain any interesting information (red flags, etc.) about the changes observed in the new version
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 pub struct NewVersion {
+    /// all versions
+    // TODO: we're missing dates of creation for stats though..
     versions: Vec<Version>,
+    /// changelog and commits between current version and last version available
+    update_metadata: UpdateMetadata,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -73,7 +80,7 @@ impl RustAnalysis {
 
         // 3. updatable
         info!("3. checking for updates...");
-        rust_analysis.updatable_par().await?;
+        rust_analysis.updatable().await?;
 
         // 4. priority
         info!("4. priority engine running...");
@@ -163,39 +170,7 @@ impl RustAnalysis {
     }
 
     /// Checks for updates in a set of crates
-    // TODO: check for updates on repository other than crates.io
     async fn updatable(&mut self) -> Result<()> {
-        // note that this might call crates.io several times for the same dependency
-        // (due to the fact that a dependency might appear several times with different versions or as "direct/indirect" and "dev/not-dev")
-        for dependency in &mut self.dependencies {
-            // get all versions for that dependency
-            let crates = cratesio::Crates::get_all_versions(&dependency.name).await?;
-
-            // get all versions GREATER than that dependency's version
-            let mut versions: Vec<Version> = crates
-                .versions
-                .iter()
-                // parse with semver
-                .map(|version| Version::parse(&version.num))
-                .filter_map(Result::ok)
-                // only get GREATER versions
-                .filter(|version| version > &dependency.version)
-                .collect();
-            versions.sort();
-
-            // any update available?
-            if versions.len() > 0 {
-                let new_version = NewVersion { versions: versions };
-                dependency.new_version = Some(new_version);
-            }
-        }
-
-        //
-        Ok(())
-    }
-
-    /// highly-concurrent version of `updatable()`
-    async fn updatable_par(&mut self) -> Result<()> {
         // filter out non-crates.io dependencies
         let mut dependencies: Vec<String> = self
             .dependencies
@@ -249,9 +224,8 @@ impl RustAnalysis {
 
                 // any update available?
                 if greater_versions.len() > 0 {
-                    let new_version = NewVersion {
-                        versions: greater_versions,
-                    };
+                    let mut new_version = NewVersion::default();
+                    new_version.versions = greater_versions;
                     dependency.new_version = Some(new_version);
                 }
             }
@@ -264,9 +238,8 @@ impl RustAnalysis {
     /// 4. priority
     async fn priority(&mut self, repo_dir: &Path) -> Result<()> {
         // get cargo-audit results
+        info!("running cargo-audit");
         let audit = CargoAudit::run_cargo_audit(repo_dir).await?;
-        info!("{:?}", audit);
-        // go through every dependencies and check if they have an associated advisory
         for dependency in &mut self.dependencies {
             let res = audit.get(&(dependency.name.clone(), dependency.version.clone()));
             if let Some((advisory, version_info)) = res {
@@ -274,6 +247,27 @@ impl RustAnalysis {
                     advisory: advisory.clone(),
                     version_info: version_info.clone(),
                 });
+            }
+        }
+
+        // fetch every changelog
+        info!("running dependabot to get changelogs");
+        for dependency in &mut self.dependencies {
+            if let Some(new_version) = &mut dependency.new_version {
+                let last_version = new_version
+                    .versions
+                    .last()
+                    .ok_or_else(|| anyhow!("a dependency has a new version, but can't find it"))?;
+
+                let update_metadata = dependabot::get_changelog(
+                    "cargo",
+                    &dependency.name,
+                    &dependency.version.to_string(),
+                    &last_version.to_string(),
+                )
+                .await?;
+
+                new_version.update_metadata = update_metadata;
             }
         }
 
