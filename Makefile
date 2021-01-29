@@ -8,4 +8,7 @@ fast:
 	docker-compose up
 
 restart-backend:
-	docker-compose up --detach --build backend	
+	docker-compose up --detach --build backend
+
+restart-frontend:
+	docker-compose up --detach --build frontend
