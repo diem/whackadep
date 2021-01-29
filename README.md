@@ -9,13 +9,15 @@ A dashboard to update your dependencies.
 To run the whole thing for development (requires [docker-compose](https://docs.docker.com/compose/)):
 
 ```sh
-make
+GITHUB_TOKEN=<PAT> make
 ```
 
-This will re-build stuff all the time, if you know there hasn't been any changes lately you can simply run:
+where PAT is a personnal access token for Github ([see steps here on how to create one](https://github.com/mimoo/cargo-dephell#usage))
+
+This will re-build everything all the time, if you know there hasn't been any changes lately you can simply run:
 
 ```sh
-make fast
+GITHUB_TOKEN=<PAT> make fast
 ```
 
 These commands will run the following four services:
@@ -26,15 +28,13 @@ These commands will run the following four services:
 * a mongodb UI on http://localhost:8082
 
 This dev setup has hot reload for the front end (you can change front end files, and it'll get reflected) but not for the backend.
-It can be a bit heavy to always reload things when playing with the backend, so another way is to run the different parts manually:
+
+To rebuild the backend you can use:
 
 ```sh
-make frontend
-make backend
-make database
+make restart-backend
 ```
 
-Note that the backend service can take a while to initialize the first time.
 
 ## Architecture
 

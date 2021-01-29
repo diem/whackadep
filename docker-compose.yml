@@ -19,6 +19,7 @@ services:
     ports:
       - "8081:8081"
     environment:
+      - GITHUB_TOKEN=$GITHUB_TOKEN
       - RUST_BACKTRACE=1
       - RUST_LOG=info
       - ROCKET_ADDRESS=0.0.0.0

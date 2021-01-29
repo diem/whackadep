@@ -250,6 +250,9 @@ impl RustAnalysis {
             }
         }
 
+        info!("dependabot still experimental, skipping");
+        Ok(())
+
         // fetch every changelog
         info!("running dependabot to get changelogs");
         for dependency in &mut self.dependencies {

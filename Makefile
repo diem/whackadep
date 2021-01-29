@@ -36,3 +36,6 @@ backend-no-container:
 
 database:
 	cd db && docker-compose up
+
+restart-backend:
+	docker-compose up --detach --build backend

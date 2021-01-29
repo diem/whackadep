@@ -4,7 +4,8 @@ FROM node:lts-alpine
 WORKDIR /app
 
 # copy both 'package.json' and 'package-lock.json' (if available)
-COPY package*.json ./
+# (note that package-lock.json is for npm, and we use yarn here, so not super useful)
+COPY package*.json ./ 
 COPY yarn.lock .
 
 # install project dependencies
