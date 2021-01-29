@@ -24,8 +24,8 @@ impl CargoGuppy {
 
         if !output.status.success() {
             bail!(
-                "couldn't run cargo-guppy: {:?}",
-                String::from_utf8(output.stderr)
+                "couldn't run cargo-guppy: {}",
+                String::from_utf8_lossy(&output.stderr)
             );
         }
 

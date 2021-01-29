@@ -28,7 +28,7 @@ impl Repo {
             .arg(&repo_folder)
             .output()
             .await?;
-        debug!("stdout: {:?}", String::from_utf8(output.stdout.clone()));
+        debug!("stdout: {}", String::from_utf8_lossy(&output.stdout));
         Ok(Self {
             repo_folder: repo_folder.to_path_buf(),
         })
@@ -42,7 +42,7 @@ impl Repo {
             .arg("pull")
             .output()
             .await?;
-        debug!("stdout: {:?}", String::from_utf8(output.stdout.clone()));
+        debug!("stdout: {}", String::from_utf8_lossy(&output.stdout));
         Ok(())
     }
 

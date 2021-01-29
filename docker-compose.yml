@@ -17,10 +17,12 @@ services:
   backend:
     build: ./web-backend
     ports:
-      - "8081:8080"
+      - "8081:8081"
     environment:
+      - RUST_BACKTRACE=1
+      - RUST_LOG=info
       - ROCKET_ADDRESS=0.0.0.0
-      - ROCKET_PORT=8080
+      - ROCKET_PORT=8081
       - MONGODB_URI=mongodb://root:password@mongo:27017
 
   # cronjobs (query Metrics periodically)

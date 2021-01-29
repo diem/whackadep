@@ -63,8 +63,8 @@ impl CargoAudit {
             .await?;
         if !output.status.success() {
             bail!(
-                "couldn't install cargo-audit: {:?}",
-                String::from_utf8(output.stderr)
+                "couldn't install cargo-audit: {}",
+                String::from_utf8_lossy(&output.stderr)
             );
         }
         Ok(())
@@ -82,8 +82,8 @@ impl CargoAudit {
 
         if !output.status.success() {
             bail!(
-                "couldn't run cargo-audit: {:?}",
-                String::from_utf8(output.stderr)
+                "couldn't run cargo-audit: {}",
+                String::from_utf8_lossy(&output.stderr)
             );
         }
 

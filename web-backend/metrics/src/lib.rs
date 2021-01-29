@@ -20,11 +20,13 @@ pub enum MetricsRequest {
 pub async fn start(receiver: Receiver<MetricsRequest>) -> Result<()> {
     let repo_path = Path::new("diem_repo");
 
-    info!("initializing stuff in metrics service");
+    info!("initializing cargo tree");
     rust::cargotree::CargoTree::init_cargo_tree().await?;
+
+    info!("initializing cargo audit");
     rust::cargoaudit::CargoAudit::init_cargo_audit().await?;
 
-    info!("metrics service starting");
+    info!("metrics service started!");
     for request in receiver {
         match request {
             MetricsRequest::RustDependencies { repo_url } => {

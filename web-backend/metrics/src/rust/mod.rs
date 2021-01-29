@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 use tempfile::tempdir;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 pub mod cargoaudit;
 pub mod cargoguppy;
@@ -259,15 +259,21 @@ impl RustAnalysis {
                     .last()
                     .ok_or_else(|| anyhow!("a dependency has a new version, but can't find it"))?;
 
-                let update_metadata = dependabot::get_changelog(
+                match dependabot::get_changelog(
                     "cargo",
                     &dependency.name,
                     &dependency.version.to_string(),
                     &last_version.to_string(),
                 )
-                .await?;
-
-                new_version.update_metadata = update_metadata;
+                .await
+                {
+                    Err(e) => {
+                        error!("{}", e);
+                    }
+                    Ok(update_metadata) => {
+                        new_version.update_metadata = update_metadata;
+                    }
+                };
             }
         }
 

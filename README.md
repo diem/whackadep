@@ -33,6 +33,9 @@ make frontend
 make backend
 make database
 ```
+
+Note that the backend service can take a while to initialize the first time.
+
 ## Architecture
 
 ![whackadep architecture](architecture.png)

@@ -2,14 +2,14 @@ use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tokio::process::Command;
-use tracing::info;
+use tracing::{error, info};
 
 #[derive(Deserialize, Default, Serialize)]
 pub struct UpdateMetadata {
-    changelog_url: String,
-    changelog_text: String,
-    commits_url: String,
-    commits_text: Vec<Commit>,
+    changelog_url: Option<String>,
+    changelog_text: Option<String>,
+    commits_url: Option<String>,
+    commits: Option<Vec<Commit>>,
 }
 
 #[derive(Deserialize, Default, Serialize)]
@@ -26,7 +26,6 @@ pub async fn get_changelog(
 ) -> Result<UpdateMetadata> {
     let mut dependabot_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     dependabot_dir.push("dependabot");
-    info!("{:?}", dependabot_dir);
 
     let output = Command::new("ruby")
         .current_dir(dependabot_dir)
@@ -40,10 +39,13 @@ pub async fn get_changelog(
 
     if !output.status.success() {
         bail!(
-            "couldn't run dependabot: {:?}",
-            String::from_utf8(output.stderr)
+            "couldn't run dependabot: {}",
+            String::from_utf8_lossy(&output.stderr)
         );
     }
 
-    serde_json::from_slice(&output.stdout).map_err(anyhow::Error::msg)
+    serde_json::from_slice(&output.stdout).map_err(|e| {
+        error!("{}", String::from_utf8_lossy(&output.stdout));
+        anyhow::Error::msg(e)
+    })
 }

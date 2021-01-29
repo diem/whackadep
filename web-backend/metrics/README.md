@@ -22,3 +22,12 @@ One can use the script [populate_test_data](bin/populate_test_data) to populate 
 ```sh
 $ MONGODB_URI="mongodb://root:password@localhost:27017" cargo run --bin populate_test_data
 ```
+
+This will not work if you don't have rust, or if you haven't initialized dependabot:
+
+```
+cd dependabot
+rbenv install 2.6.6
+rbenv global 2.6.6
+bundle install
+```
