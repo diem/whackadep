@@ -11,7 +11,7 @@ pub struct UpdateMetadata {
     changelog_url: Option<String>,
     changelog_text: Option<String>,
     commits_url: Option<String>,
-    commits: Option<Vec<Commit>>,
+    commits: Vec<Commit>,
 }
 
 #[derive(Deserialize, Default, Serialize, Debug)]
