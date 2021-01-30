@@ -1,4 +1,4 @@
-.PHONY: all fast frontend backend
+.PHONY: all fast frontend backend database restart-frontend restart-backend doc
 
 #
 # everything in this section uses the main docker-compose.yml file
@@ -33,3 +33,6 @@ backend:
 
 database:
 	cd db && docker-compose up
+
+doc:
+	cd web-backend/metrics && cargo doc && open target/doc/metrics/index.html

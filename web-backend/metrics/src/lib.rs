@@ -1,22 +1,31 @@
+//! Metrics is a library that can analyze rust dependencies in a given repository.
+//! It can also be used to run a Metrics service, with the function [`start()`].
+
 use anyhow::Result;
 use std::path::Path;
 use std::sync::mpsc::Receiver;
 use tracing::{error, info};
 
-mod analysis;
-mod common;
+pub mod analysis;
+pub mod common;
 pub mod db;
-mod dependabot;
-mod git;
+pub mod dependabot;
+pub mod git;
 pub mod rust;
 
 use analysis::analyze;
 
+/// A request that can be sent to the Metrics service (see [`start()`]).
 pub enum MetricsRequest {
-    // request to refresh list of transitive dependencies
+    /// A request to refresh the list of rust dependencies, given a git repository.
     RustDependencies { repo_url: String },
 }
 
+/// Initializes a metrics service with a channel [`Receiver`] and wait for requests to process.
+/// Requests on that channel can be of type [`MetricsRequest`].
+/// It currently only supports one query at a time,
+/// and will prevent any queries from being sent when busy.
+/// For this reason, you should call the sender with [`std::sync::mpsc::SyncSender::try_send()`].
 pub async fn start(receiver: Receiver<MetricsRequest>) -> Result<()> {
     let repo_path = Path::new("diem_repo");
 

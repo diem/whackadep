@@ -1,12 +1,13 @@
+//! This module abstracts the usage of Git.
+//! It is implemented by calling the `git` command-line tool directly.
+//! Ideally this would be implemented with a library (for example, git2),
+//! but ain't nobody got time for that!
+
 use anyhow::Result;
 use git2::Repository;
 use std::path::{Path, PathBuf};
 use tokio::process::Command;
 use tracing::debug;
-
-// This module is implemented by calling the `git` command-line tool directly.
-// Ideally this would be implemented with the git2 rust library,
-// but we don't have time gosh damn it!
 
 pub struct Repo {
     pub repo_folder: PathBuf,

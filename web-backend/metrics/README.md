@@ -2,6 +2,7 @@
 
 Crate to analyze dependencies.
 See [project's README](../README.md).
+
 ## Architecture
 
 Ideally, this would be easily extendable for any languages, but to move fast let's just create the code for rust and then seek to make it more generable and extandable.
@@ -14,6 +15,14 @@ Current directory structure at the time of this writing:
 * [src/rust](src/rust). Code that handles parsing and fetching dependencies in different languages or types of file.
 * [src/db.rs](src/db.rs). Abstraction around the mongodb database. Perhaps this should be a "model" thing.
 * [src/git.rs](src/git.rs). Abstraction around the `git` tool.
+
+## Documentation
+
+In the root folder this command will generate and open doc:
+
+```
+make doc
+```
 
 ## Testing
 

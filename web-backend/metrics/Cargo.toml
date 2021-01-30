@@ -24,7 +24,7 @@ mongodb = "1.1.1" # database used to store result of cronjobs
 guppy = "0.6.3" # library to analyze deps
 guppy-summaries = "0.3.1" # guppy summaries
 semver = "0.11.0" # semver of dependencies
-octocrab = "0.8"  # interact with github API
+octocrab = "0.8.11"  # interact with github API
 
 # bin-specific
 jsonwebtoken = "7.2.0" 

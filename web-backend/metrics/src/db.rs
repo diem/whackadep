@@ -1,3 +1,6 @@
+//! This module abstracts the database (mongodb)
+//! by providing functions to read and write specific documents.
+
 use crate::analysis::Analysis;
 use anyhow::{anyhow, Result};
 use mongodb::{
