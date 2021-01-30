@@ -6,15 +6,15 @@
 
     <div class="row" id="stats">
       <div class="col-sm bg-warning bg-gradient p-5 center">
-        <big>{{ direct_dependencies }} </big>
+        <strong>{{ direct_dependencies }} </strong>
         <small> non-dev direct dependencies</small>
       </div>
       <div class="col-sm p-5 bg-info bg-gradient">
-        <big>{{ transitive_dependencies }} </big>
+        <strong>{{ transitive_dependencies }} </strong>
         <small> non-dev transitive dependencies</small>
       </div>
       <div class="col-sm bg-success bg-gradient p-5">
-        <big>{{ dev_dependencies }} </big>
+        <strong>{{ dev_dependencies }} </strong>
         <small> direct dev dependencies</small>
       </div>
     </div>

@@ -21,12 +21,12 @@
           </td>
           <td>
             <span
-              v-if="d.new_version"
-              :title="d.version + ' → ' + d.new_version.versions.join(' → ')"
+              v-if="d.update"
+              :title="d.version + ' → ' + d.update.versions.join(' → ')"
             >
               <span>
                 {{ d.version }} →
-                {{ d.new_version.versions[d.new_version.versions.length - 1] }}
+                {{ d.update.versions[d.update.versions.length - 1] }}
               </span>
             </span>
           </td>
@@ -48,12 +48,12 @@
           </td>
           <td>
             <a
-              v-if="d.new_version"
+              v-if="d.update"
               @click.prevent="
                 $refs.modal.open(
                   d.name,
                   d.version,
-                  d.new_version.versions[d.new_version.versions.length - 1]
+                  d.update.versions[d.update.versions.length - 1]
                 )
               "
               href="#"
@@ -61,7 +61,15 @@
             >
             <span class="invisible">{{ d.create_PR }}</span>
           </td>
-          <td></td>
+          <td>
+            <span
+              v-if="d.update && d.update.update_metadata.changelog_text"
+              :title="d.update.update_metadata.changelog_text"
+            >
+              {{ clean_changelog(d.update.update_metadata.changelog_text) }}
+              <a :href="d.update.update_metadata.changelog_url">[...]</a>
+            </span>
+          </td>
         </tr>
       </tbody>
     </table>
@@ -79,6 +87,13 @@ export default {
   },
   components: {
     Modal,
+  },
+  methods: {
+    clean_changelog(changelog) {
+      var res = changelog.replaceAll(/(#)*/g, "");
+      res = res.replaceAll(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+      return res.slice(0, 100);
+    },
   },
 };
 </script>
