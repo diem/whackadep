@@ -4,9 +4,9 @@ use std::sync::mpsc::Receiver;
 use tracing::{error, info};
 
 mod analysis;
+mod common;
 pub mod db;
 mod dependabot;
-mod external;
 mod git;
 pub mod rust;
 

@@ -9,11 +9,11 @@ Ideally, this would be easily extendable for any languages, but to move fast let
 Current directory structure at the time of this writing:
 
 * [resources](resources). Contains results of guppy execution for test or to populate the database with some data.
-* src/[bin](src/bin). Contains CLIs to populate the database with test data.
-* src/[external](src/external). Code that handles querying an external service (e.g. crates.io) to obtain information about a dependency.
-* src/[rust](src/rust). Code that handles parsing and fetching dependencies in different languages or types of file.
-* src/[db.rs](src/db.rs). Abstraction around the mongodb database. Perhaps this should be a "model" thing.
-* src/[git.rs](src/git.rs). Abstraction around the `git` tool.
+* [src/bin](src/bin). Contains CLIs to populate the database with test data.
+* [src/common](src/common). Analysis code relevant for any languages (e.g. querying github.com).
+* [src/rust](src/rust). Code that handles parsing and fetching dependencies in different languages or types of file.
+* [src/db.rs](src/db.rs). Abstraction around the mongodb database. Perhaps this should be a "model" thing.
+* [src/git.rs](src/git.rs). Abstraction around the `git` tool.
 
 ## Testing
 
