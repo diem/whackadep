@@ -9,7 +9,6 @@ use tracing::{error, info};
 pub mod analysis;
 pub mod common;
 pub mod db;
-pub mod dependabot;
 pub mod git;
 pub mod rust;
 

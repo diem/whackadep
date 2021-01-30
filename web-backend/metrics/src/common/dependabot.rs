@@ -1,8 +1,10 @@
+//! This module abstract the [dependabot](https://github.com/dependabot/dependabot-core/) library.
+
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tokio::process::Command;
-use tracing::{error, info};
+use tracing::error;
 
 #[derive(Deserialize, Default, Serialize, Debug)]
 pub struct UpdateMetadata {

@@ -63,8 +63,7 @@ Essentially, what the service does when called is:
 6. Check how shady these updates are (for example, by checking red flags on Github)
 7. Store this information in mongodb under a new `_id`.
 
-Note that for steps 3 and 4, [dependabot]() has code that handles many types of file and package manager (Rust, Dockerfile, npm, etc.)
-
-Having said that, we want to perform more granular analysis on our Rust dependency.
+Note that for steps 3 and 4, [dependabot](https://github.com/dependabot/dependabot-core/blob/e207e5810b/cargo/lib/dependabot/cargo/file_updater/manifest_updater.rb) has code that handles many types of file and package manager (Rust, Dockerfile, npm, etc.)
+While we do use it, we want to perform more granular analysis on our Rust dependency.
 For example, we want to understand what updates are more urgent than others based on semver, breaking changes, [RUSTSEC advisories](https://rustsec.org/), Github statistics, dev dependency, etc.
-For this reason, we use custom code (built on top of [guppy](https://github.com/facebookincubator/cargo-guppy/)) to analyze Rust dependencies.
+For this reason, we use custom code (built on top of [guppy](https://github.com/facebookincubator/cargo-guppy/)) to analyze parts of Rust dependencies.

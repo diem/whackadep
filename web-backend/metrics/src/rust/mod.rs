@@ -1,3 +1,4 @@
+//! This module contains code to analyze Rust dependencies.
 //!
 //! # Stored structures
 //!
@@ -8,7 +9,7 @@
 //! so this might not matter...
 //!
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use futures::{stream, StreamExt};
 use guppy_summaries::{PackageStatus, SummarySource, SummaryWithMetadata};
 use semver::Version;
@@ -21,9 +22,9 @@ use tracing::{debug, error, info};
 pub mod cargoaudit;
 pub mod cargoguppy;
 pub mod cargotree;
-mod cratesio;
+pub mod cratesio;
 
-use crate::dependabot::{self, UpdateMetadata};
+use crate::common::dependabot::{self, UpdateMetadata};
 use cargoaudit::CargoAudit;
 use cargoguppy::CargoGuppy;
 
@@ -39,21 +40,26 @@ pub struct RustAnalysis {
 /// Note that some fields might be filled in different stages (e.g. by the priority engine or the risk engine).
 #[derive(Serialize, Deserialize)]
 pub struct DependencyInfo {
+    /// The name of the dependency.
     name: String,
+    /// The current version of the dependency.
     version: Version,
+    /// The repository where the dependency is hosted.
     repo: SummarySource,
+    /// Is it a dev-dependency?
     dev: bool,
+    /// Is it a direct, or a transitive dependency?
     direct: bool,
-
+    /// An optional RUSTSEC advisory associated with the dependency and its version.
     rustsec: Option<RustSec>,
-
+    /// An optional update available for the dependency.
     update: Option<Update>,
 }
 
 /// Update should contain any interesting information (red flags, etc.) about the changes observed in the new version
 #[derive(Serialize, Deserialize, Default, Debug)]
 pub struct Update {
-    /// all versions
+    /// All versions
     // TODO: we're missing dates of creation for stats though..
     versions: Vec<Version>,
     /// changelog and commits between current version and last version available
@@ -61,8 +67,11 @@ pub struct Update {
 }
 
 #[derive(Serialize, Deserialize)]
+/// A [RUSTSEC Advisory](https://rustsec.org/).
 pub struct RustSec {
+    /// The advisory information (id, description, date, etc.)
     advisory: cargoaudit::Advisory,
+    /// The versions patched and the versions unaffected.
     version_info: cargoaudit::VersionInfo,
 }
 
@@ -169,7 +178,7 @@ impl RustAnalysis {
         Ok(Self { dependencies })
     }
 
-    /// Checks for updates in a set of crates
+    /// 3. Checks for updates in a set of crates
     async fn updatable(&mut self) -> Result<()> {
         // filter out non-crates.io dependencies
         let mut dependencies: Vec<String> = self
@@ -235,7 +244,7 @@ impl RustAnalysis {
         Ok(())
     }
 
-    /// 4. priority
+    /// 4. priority engine
     async fn priority(&mut self, repo_dir: &Path) -> Result<()> {
         // 1. get cargo-audit results
         info!("running cargo-audit");
@@ -296,7 +305,7 @@ impl RustAnalysis {
         Ok(())
     }
 
-    /// 5. risk
+    /// 5. risk engine
     fn risk(&mut self) -> Result<()> {
         Ok(())
     }

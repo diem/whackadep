@@ -8,11 +8,8 @@ use std::{
 };
 use tracing::debug;
 
-//use futures::{stream, StreamExt};
-
-/// e.g. repo: "diem/diem"
-// what's interesting there?
-// - stargazers_count
+/// The function will retrieve repository metadata (like stargazers_count).
+/// It needs a Github personal access token (PAT) to function.
 pub async fn get_repository_info(
     access_token: Option<String>,
 ) -> Result<octocrab::models::Repository> {
