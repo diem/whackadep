@@ -9,6 +9,7 @@ Ideally, this would be easily extendable for any languages, but to move fast let
 
 Current directory structure at the time of this writing:
 
+* [dependabot](dependabot). Contains scripts to use [dependabot](https://github.com/dependabot/dependabot-core/) (a useful library to check dependencies of a repo).
 * [resources](resources). Contains results of guppy execution for test or to populate the database with some data.
 * [src/bin](src/bin). Contains CLIs to populate the database with test data.
 * [src/common](src/common). Analysis code relevant for any languages (e.g. querying github.com).
