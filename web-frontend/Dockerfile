@@ -1,4 +1,4 @@
-FROM node:lts-alpine
+FROM node:15.7.0-buster
 
 # install bash so that we can SSH into this container
 RUN apk update && apk add bash
