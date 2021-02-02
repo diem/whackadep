@@ -2,34 +2,19 @@
   <div>
     <table
       class="table table-light table-striped table-hover table-bordered table-sm align-middle"
-      style="table-layout: fixed"
     >
       <thead style="position: sticky; top: 0">
         <tr>
-          <th scope="col">priority</th>
           <th class="header" scope="col">name</th>
           <th class="header" scope="col">type</th>
-          <th class="header" scope="col">version change</th>
           <th class="header" scope="col">rustsec</th>
-          <th class="header" scope="col">update</th>
-          <th class="header" scope="col">changelog</th>
-          <th class="header" scope="col">commits</th>
         </tr>
       </thead>
       <tbody>
-        <tr v-for="(d, index) in dependencies" v-bind:key="d.name">
-          <th scope="row">{{ index + 1 }}</th>
+        <tr v-for="d in dependencies" v-bind:key="d.name">
           <td>{{ d.name }}</td>
           <td>
             <span v-if="d.direct">direct</span><span v-else>transitive</span>
-          </td>
-          <td>
-            <span
-              v-if="d.update"
-              :title="d.version + ' → ' + d.update.versions.join(' → ')"
-            >
-              {{ version_change(d) }}
-            </span>
           </td>
           <td>
             <span v-if="d.rustsec" :title="JSON.stringify(d.rustsec)">
@@ -45,42 +30,6 @@
                 <br />versions unaffected:
                 {{ d.rustsec.version_info.unaffected.join(", ") }}
               </span>
-            </span>
-          </td>
-          <td>
-            <a
-              v-if="d.update"
-              @click.prevent="
-                $refs.modal.open(
-                  d.name,
-                  d.version,
-                  d.update.versions[d.update.versions.length - 1]
-                )
-              "
-              href="#"
-              >create a PR</a
-            >
-            <span class="invisible">{{ d.create_PR }}</span>
-          </td>
-          <td>
-            <span
-              v-if="d.update && d.update.update_metadata.changelog_text"
-              :title="d.update.update_metadata.changelog_text"
-            >
-              {{ clean_changelog(d.update.update_metadata.changelog_text) }}
-              <a :href="d.update.update_metadata.changelog_url">[...]</a>
-            </span>
-          </td>
-          <td>
-            <span
-              v-if="
-                d.update &&
-                d.update.update_metadata.commits &&
-                d.update.update_metadata.commits.length > 0
-              "
-              :title="JSON.stringify(d.update.update_metadata.commits)"
-            >
-              <a :href="d.update.update_metadata.commits_url">commits</a>
             </span>
           </td>
         </tr>

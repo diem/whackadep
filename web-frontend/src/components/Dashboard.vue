@@ -26,7 +26,7 @@
       with a recommendation on what crate can be used in place of the current
       one.
     </p>
-    <DependenciesTable v-bind:dependencies="rustsec" />
+    <RustsecTable v-bind:dependencies="rustsec" />
 
     <h2>
       Updates available for non-dev dependencies ({{
@@ -36,7 +36,12 @@
     <p>
       These are non-dev dependencies that can be updated either because they are
       direct dependencies or because they are transitive and do not have
-      breaking changes (according to Rust semantic about semver).
+      breaking changes (according to
+      <a
+        href="https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#caret-requirements"
+        >Rust semantic</a
+      >
+      about semver).
     </p>
     <DependenciesTable v-bind:dependencies="non_dev_updatable_deps" />
 
@@ -46,7 +51,12 @@
     <p>
       These are dev dependencies that can be updated either because they are
       direct dependencies or because they are transitive and do not have
-      breaking changes (according to Rust semantic about semver).
+      breaking changes (according to
+      <a
+        href="https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#caret-requirements"
+        >Rust semantic</a
+      >
+      about semver).
     </p>
     <DependenciesTable v-bind:dependencies="dev_updatable_deps" />
 
@@ -57,9 +67,13 @@
     </h2>
     <p>
       These are dependencies that have an update, but can't be updated because
-      they are transitive dependencies and don't respect Rust semantic about
-      semver ("An update is allowed if the new version number does not modify
-      the left-most non-zero digit in the major, minor, patch grouping").
+      they are transitive dependencies and don't respect
+      <a
+        href="https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#caret-requirements"
+        >Rust semantic</a
+      >
+      about semver ("An update is allowed if the new version number does not
+      modify the left-most non-zero digit in the major, minor, patch grouping").
     </p>
     <DependenciesTable v-bind:dependencies="cant_update_deps" />
   </section>
@@ -67,6 +81,7 @@
 
 <script>
 import DependenciesTable from "./Dependencies.vue";
+import RustsecTable from "./Rustsec.vue";
 
 export default {
   name: "Dashboard",
@@ -137,6 +152,7 @@ export default {
   },
   components: {
     DependenciesTable,
+    RustsecTable,
   },
   methods: {
     count(deps) {
