@@ -27,6 +27,7 @@ pub mod cargoaudit;
 pub mod cargoguppy;
 pub mod cargotree;
 pub mod cratesio;
+pub mod diff;
 
 use crate::common::dependabot::{self, UpdateMetadata};
 use cargoaudit::CargoAudit;
@@ -74,6 +75,8 @@ pub struct Update {
     versions: Vec<Version>,
     /// changelog and commits between current version and last version available
     update_metadata: UpdateMetadata,
+    /// build.rs changed
+    build_rs: bool,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug, Eq, Hash)]
@@ -345,6 +348,30 @@ impl RustAnalysis {
 
     /// 5. risk engine
     fn risk(&mut self) -> Result<()> {
+        for dependency in &mut self.dependencies {
+            if let Some(update) = &mut dependency.update {
+                let original_dep_name = &dependency.name;
+                let original_dep_version = &dependency.version;
+                let latest_version = match update.versions.last() {
+                    Some(version) => version.to_string(),
+                    None => {
+                        error!(
+                            "couldn't find new version in a dependency update: {:?}",
+                            update
+                        );
+                        "".to_string()
+                    }
+                };
+                let cargo_crate_original_version =
+                    format!("{}=={}", original_dep_name, original_dep_version);
+                let cargo_crate_new_version = format!("{}=={}", original_dep_name, latest_version);
+
+                update.build_rs = diff::is_diff_in_buildrs(
+                    &cargo_crate_original_version,
+                    &cargo_crate_new_version,
+                )?;
+            }
+        }
         Ok(())
     }
 }
