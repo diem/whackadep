@@ -29,10 +29,16 @@ These commands will run the following four services:
 
 This dev setup has hot reload for the front end (you can change front end files, and it'll get reflected) but not for the backend.
 
-To rebuild the backend you can use:
+To rebuild the backend (or frontend) you can use:
 
 ```sh
 make restart-backend
+```
+
+To SSH into the backend (or frontend) you can use:
+
+```sh
+make ssh-backend
 ```
 
 ## Architecture

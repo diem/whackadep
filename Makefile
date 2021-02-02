@@ -21,6 +21,15 @@ restart-backend:
 restart-frontend:
 	docker-compose up --detach --build frontend
 
+# to SSH into the backend server
+ssh-backend:
+	docker exec -it backend /bin/bash
+
+# to SSH into the frontend server
+ssh-frontend:
+	docker exec -it frontend /bin/bash
+
+
 #
 # you probably won't need the following command, which run things separately (without the main docker-compose)
 #
