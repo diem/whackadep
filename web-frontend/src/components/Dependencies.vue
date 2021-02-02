@@ -7,7 +7,7 @@
       <thead style="position: sticky; top: 0">
         <tr>
           <th scope="col">priority</th>
-          <th class="header" scope="col">name</th>
+          <th class="header" scope="col" data-bs-toggle="tooltip">name</th>
           <th class="header" scope="col">type</th>
           <th class="header" scope="col">version change</th>
           <th class="header" scope="col">rustsec</th>
@@ -23,14 +23,11 @@
           <td>
             <span v-if="d.direct">direct</span><span v-else>transitive</span>
           </td>
-          <td>
-            <span
-              v-if="d.update"
-              :title="d.version + ' → ' + d.update.versions.join(' → ')"
-            >
-              {{ version_change(d) }}
-            </span>
-          </td>
+          <td
+            v-tooltip
+            :title="d.version + ' → ' + d.update.versions.join(' → ')"
+            v-text="version_change(d)"
+          ></td>
           <td>
             <span v-if="d.rustsec" :title="JSON.stringify(d.rustsec)">
               <strong>{{ d.rustsec.advisory.id }}</strong
@@ -86,6 +83,7 @@
         </tr>
       </tbody>
     </table>
+
     <Modal ref="modal" />
   </div>
 </template>

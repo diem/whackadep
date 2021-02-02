@@ -1,20 +1,24 @@
+// vue
 import { createApp } from 'vue';
 import App from './App.vue';
 
+// external js libraries
 import axios from 'axios';
 import semver from 'semver';
+import { Tooltip } from 'bootstrap';
 
-
+// css
 import 'bootstrap/dist/css/bootstrap.min.css';
 
-// this works, but seems not recommended (https://vuejs.org/v2/cookbook/adding-instance-properties.html)
-// global.bootstrap = bootstrap;
-
 const app = createApp(App);
-
-// https://stackoverflow.com/questions/65184107/how-to-use-vue-prototype-or-global-variable-in-vue-3
+app.directive('tooltip', {
+  mounted(el) {
+    new Tooltip(el, {
+      boundary: 'window',
+    });
+  }
+})
 app.provide('axios', axios);
 app.provide('semver', semver);
-
 app.mount('#app');
 
