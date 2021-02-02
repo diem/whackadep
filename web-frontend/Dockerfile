@@ -14,7 +14,6 @@ COPY yarn.lock .
 # install project dependencies
 RUN yarn global add @vue/cli
 RUN yarn install
-RUN yarn add 
 
 # copy project files and folders to the current working directory (i.e. 'app' folder)
 COPY . .
