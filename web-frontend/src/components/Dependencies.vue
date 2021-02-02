@@ -26,10 +26,7 @@
               v-if="d.update"
               :title="d.version + ' → ' + d.update.versions.join(' → ')"
             >
-              <span>
-                {{ d.version }} →
-                {{ d.update.versions[d.update.versions.length - 1] }}
-              </span>
+              {{ version_change(d) }}
             </span>
           </td>
           <td>
@@ -102,11 +99,25 @@ export default {
   components: {
     Modal,
   },
+  inject: {
+    semver: {
+      from: "semver",
+    },
+  },
   methods: {
     clean_changelog(changelog) {
       var res = changelog.replaceAll(/(#)*/g, "");
       res = res.replaceAll(/\[([^\]]+)\]\([^)]+\)/g, "$1");
       return res.slice(0, 100);
+    },
+    version_change(dependency) {
+      var version = dependency.version;
+      var new_version =
+        dependency.update.versions[dependency.update.versions.length - 1];
+      // rust has the tendency to lie when
+
+      var type_change = this.semver.diff(version, new_version);
+      return type_change + " (" + version + " → " + new_version + ")";
     },
   },
 };

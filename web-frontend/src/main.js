@@ -2,6 +2,8 @@ import { createApp } from 'vue';
 import App from './App.vue';
 
 import axios from 'axios';
+import semver from 'semver';
+
 
 import 'bootstrap/dist/css/bootstrap.min.css';
 
@@ -12,6 +14,7 @@ const app = createApp(App);
 
 // https://stackoverflow.com/questions/65184107/how-to-use-vue-prototype-or-global-variable-in-vue-3
 app.provide('axios', axios);
+app.provide('semver', semver);
 
 app.mount('#app');
 
