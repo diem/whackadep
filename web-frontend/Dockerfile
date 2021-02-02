@@ -1,8 +1,5 @@
 FROM node:15.7.0-buster
 
-# install bash so that we can SSH into this container
-RUN apk update && apk add bash
-
 # make the 'app' folder the current working directory
 WORKDIR /app
 
