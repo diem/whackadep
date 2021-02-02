@@ -5,12 +5,13 @@ WORKDIR /app
 
 # copy both 'package.json' and 'package-lock.json' (if available)
 # (note that package-lock.json is for npm, and we use yarn here, so not super useful)
-COPY package*.json ./ 
+COPY package.json ./ 
 COPY yarn.lock .
 
 # install project dependencies
 RUN yarn global add @vue/cli
 RUN yarn install
+RUN yarn add 
 
 # copy project files and folders to the current working directory (i.e. 'app' folder)
 COPY . .
