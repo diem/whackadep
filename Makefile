@@ -6,7 +6,7 @@
 
 # run everything for dev
 all:
-	docker-compose build
+	docker-compose build --no-cache
 	docker-compose up
 
 # run everything for dev without re-building (if you know nothing has changed since last time, this is faster)
