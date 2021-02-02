@@ -7,7 +7,7 @@
       <thead style="position: sticky; top: 0">
         <tr>
           <th scope="col">priority</th>
-          <th class="header" scope="col" data-bs-toggle="tooltip">name</th>
+          <th class="header" scope="col">name</th>
           <th class="header" scope="col">type</th>
           <th class="header" scope="col">version change</th>
           <th class="header" scope="col">rustsec</th>
@@ -18,15 +18,19 @@
       </thead>
       <tbody>
         <tr v-for="(d, index) in dependencies" v-bind:key="d.name">
-          <th scope="row">{{ index + 1 }}</th>
+          <th scope="row">
+            <a v-popover="'hey'">{{ index + 1 }}</a>
+          </th>
           <td>{{ d.name }}</td>
           <td>
             <span v-if="d.direct">direct</span><span v-else>transitive</span>
           </td>
-          <td
-            v-tooltip="d.version + ' → ' + d.update.versions.join(' → ')"
-            v-text="version_change(d)"
-          ></td>
+          <td>
+            <span
+              v-tooltip="d.version + ' → ' + d.update.versions.join(' → ')"
+              v-text="version_change(d)"
+            ></span>
+          </td>
           <td>
             <span v-if="d.rustsec" :title="JSON.stringify(d.rustsec)">
               <strong>{{ d.rustsec.advisory.id }}</strong
@@ -126,5 +130,8 @@ export default {
 .header {
   position: sticky;
   top: 0;
+}
+a {
+  cursor: pointer;
 }
 </style>
