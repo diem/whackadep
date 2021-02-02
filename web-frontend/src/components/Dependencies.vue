@@ -24,8 +24,7 @@
             <span v-if="d.direct">direct</span><span v-else>transitive</span>
           </td>
           <td
-            v-tooltip
-            :title="d.version + ' → ' + d.update.versions.join(' → ')"
+            v-tooltip="d.version + ' → ' + d.update.versions.join(' → ')"
             v-text="version_change(d)"
           ></td>
           <td>
@@ -94,7 +93,7 @@ import Modal from "./Modal.vue";
 export default {
   name: "DependenciesTable",
   props: {
-    dependencies: [],
+    dependencies: Array,
   },
   components: {
     Modal,

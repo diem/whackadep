@@ -45,7 +45,7 @@ import Modal from "./Modal.vue";
 export default {
   name: "DependenciesTable",
   props: {
-    dependencies: [],
+    dependencies: Array,
   },
   components: {
     Modal,

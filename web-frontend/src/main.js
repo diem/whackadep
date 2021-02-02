@@ -12,9 +12,10 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 
 const app = createApp(App);
 app.directive('tooltip', {
-  mounted(el) {
+  mounted(el, binding) {
     new Tooltip(el, {
       boundary: 'window',
+      title: binding.value,
     });
   }
 })

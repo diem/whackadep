@@ -87,11 +87,12 @@ export default {
   name: "Dashboard",
   data() {
     return {
-      commit: null,
-      dependencies: null,
-      dev_updatable_deps: null,
-      non_dev_updatable_deps: null,
-      rustsec: null,
+      commit: "",
+      dependencies: [],
+      dev_updatable_deps: [],
+      non_dev_updatable_deps: [],
+      cant_update_deps: [],
+      rustsec: [],
     };
   },
   inject: {
