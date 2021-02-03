@@ -38,7 +38,7 @@ pub struct RustAnalysis {
 
 /// DependencyInfo contains the information obtained from a dependency.
 /// Note that some fields might be filled in different stages (e.g. by the priority engine or the risk engine).
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, PartialEq)]
 pub struct DependencyInfo {
     /// The name of the dependency.
     name: String,
@@ -57,7 +57,7 @@ pub struct DependencyInfo {
 }
 
 /// Update should contain any interesting information (red flags, etc.) about the changes observed in the new version
-#[derive(Serialize, Deserialize, Default, Debug)]
+#[derive(Serialize, Deserialize, Default, Debug, PartialEq)]
 pub struct Update {
     /// All versions
     // TODO: we're missing dates of creation for stats though..
@@ -66,7 +66,7 @@ pub struct Update {
     update_metadata: UpdateMetadata,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, PartialEq)]
 /// A [RUSTSEC Advisory](https://rustsec.org/).
 pub struct RustSec {
     /// The advisory information (id, description, date, etc.)
@@ -174,6 +174,14 @@ impl RustAnalysis {
             });
         }
 
+        // sort
+        info!("sorting dependencies");
+        dependencies.sort_by_cached_key(|d| (d.name.clone(), d.version.clone(), d.dev, d.direct));
+
+        // remove duplicates of tuples (name, version, repo, dev, direct)
+        info!("removing duplicates");
+        dependencies.dedup();
+
         //
         Ok(Self { dependencies })
     }
@@ -188,7 +196,8 @@ impl RustAnalysis {
             .map(|dep| dep.name.clone())
             .collect();
 
-        // remove duplicates (assumption: the dependency list is sorted alphabetically)
+        // remove duplicates of names (stronger than the dedup in step 2)
+        // (assumption: the dependency list is sorted alphabetically)
         dependencies.dedup();
 
         // fetch versions for each dependency in that list
