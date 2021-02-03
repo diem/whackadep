@@ -3,7 +3,7 @@
     <table
       class="table table-light table-striped table-hover table-bordered table-sm align-middle"
     >
-      <thead style="position: sticky; top: 0">
+      <thead style="position: sticky; top: 0" class="thead-dark">
         <tr>
           <th class="header" scope="col">name</th>
           <th class="header" scope="col">type</th>

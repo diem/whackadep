@@ -4,7 +4,7 @@
       class="table table-light table-striped table-hover table-bordered table-sm align-middle"
       style="table-layout: fixed"
     >
-      <thead style="position: sticky; top: 0">
+      <thead style="position: sticky; top: 0" class="thead-dark">
         <tr>
           <th class="header text-center" scope="col">priority</th>
           <th class="header text-center" scope="col">name</th>

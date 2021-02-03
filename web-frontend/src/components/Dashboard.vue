@@ -1,31 +1,31 @@
 <template>
   <section>
-    <p>
+    <div class="alert alert-warning">
       commit: <code>{{ commit }}</code>
-    </p>
+    </div>
 
     <div class="row" id="stats">
-      <div class="col-sm bg-warning bg-gradient p-5 center">
+      <div class="col-sm bg-light bg-gradient p-5">
         <strong>{{ direct_dependencies }} </strong>
         <small> non-dev direct dependencies</small>
       </div>
-      <div class="col-sm p-5 bg-info bg-gradient">
+      <div class="col-sm p-5 bg-light bg-gradient">
         <strong>{{ transitive_dependencies }} </strong>
         <small> non-dev transitive dependencies</small>
       </div>
-      <div class="col-sm bg-success bg-gradient p-5">
+      <div class="col-sm bg-light bg-gradient p-5">
         <strong>{{ dev_dependencies }} </strong>
         <small> direct dev dependencies</small>
       </div>
     </div>
 
     <h2>RUSTSEC advisories without updates</h2>
-    <p>
+    <div class="alert alert-info">
       These are dependencies that have RUST advisories associated to them, but
       no updates available to "fix" the advisory. Usually, the advisory comes
       with a recommendation on what crate can be used in place of the current
       one.
-    </p>
+    </div>
     <RustsecTable v-bind:dependencies="rustsec" />
 
     <h2>
@@ -33,7 +33,7 @@
         count(non_dev_updatable_deps)
       }})
     </h2>
-    <p>
+    <div class="alert alert-info">
       These are non-dev dependencies that can be updated either because they are
       direct dependencies or because they are transitive and do not have
       breaking changes (according to
@@ -42,13 +42,13 @@
         >Rust semantic</a
       >
       about semver).
-    </p>
+    </div>
     <DependenciesTable v-bind:dependencies="non_dev_updatable_deps" />
 
     <h2>
       Updates available for dev dependencies ({{ count(dev_updatable_deps) }})
     </h2>
-    <p>
+    <div class="alert alert-info">
       These are dev dependencies that can be updated either because they are
       direct dependencies or because they are transitive and do not have
       breaking changes (according to
@@ -57,7 +57,7 @@
         >Rust semantic</a
       >
       about semver).
-    </p>
+    </div>
     <DependenciesTable v-bind:dependencies="dev_updatable_deps" />
 
     <h2>
@@ -65,7 +65,7 @@
         count(cant_update_deps)
       }})
     </h2>
-    <p>
+    <div class="alert alert-info">
       These are dependencies that have an update, but can't be updated because
       they are transitive dependencies and don't respect
       <a
@@ -74,7 +74,7 @@
       >
       about semver ("An update is allowed if the new version number does not
       modify the left-most non-zero digit in the major, minor, patch grouping").
-    </p>
+    </div>
     <DependenciesTable v-bind:dependencies="cant_update_deps" />
   </section>
 </template>
@@ -117,6 +117,10 @@ function calculate_priority_score(dep) {
 
   //
   return { priority_score, priority_reasons };
+}
+
+function sort_priority(a, b) {
+  return a.priority_score > b.priority_score ? -1 : 1;
 }
 
 export default {
@@ -171,8 +175,8 @@ export default {
       this.non_dev_updatable_deps = can_update_dependencies.filter(
         (dependency) => !dependency.dev
       );
-      this.non_dev_updatable_deps = this.non_dev_updatable_deps.sort((a, b) =>
-        a.priority_score > b.priority_score ? -1 : 1
+      this.non_dev_updatable_deps = this.non_dev_updatable_deps.sort(
+        sort_priority
       );
       console.log("non-dev update deps", this.non_dev_updatable_deps);
 
@@ -180,6 +184,7 @@ export default {
       this.dev_updatable_deps = can_update_dependencies.filter(
         (dependency) => dependency.dev
       );
+      this.dev_updatable_deps = this.dev_updatable_deps.sort(sort_priority);
 
       // finally, retrieve dependencies that have updates and _can't_ be updated
       // just in case we made a mistake above...
@@ -190,6 +195,7 @@ export default {
           return false;
         }
       });
+      this.cant_update_deps = this.cant_update_deps.sort(sort_priority);
     });
   },
   components: {
@@ -275,6 +281,7 @@ export default {
 #stats div {
   margin: 0 5px;
 }
+
 .header {
   position: sticky;
   top: 0;

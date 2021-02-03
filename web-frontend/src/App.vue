@@ -1,7 +1,7 @@
 <template>
   <div class="container">
     <!-- header/nav -->
-    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
       <div class="container-fluid">
         <span class="navbar-brand mb-0 h1">Whack-a-dep!</span>
         <button
