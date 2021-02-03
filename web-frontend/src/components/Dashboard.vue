@@ -97,14 +97,26 @@ function version_change(dep) {
 
 function calculate_priority_score(dep) {
   var priority_score = 0;
+  var priority_reasons = [];
 
+  // version change
   var type_of_change = version_change(dep);
   if (type_of_change == "major") {
     priority_score += 10;
+    priority_reasons.push("MAJOR version change");
   } else if (type_of_change == "minor") {
     priority_score += 2;
+    priority_reasons.push("MINOR version change");
   }
-  return priority_score;
+
+  // RUSTSEC
+  if (dep.rustsec) {
+    priority_score += 20;
+    priority_reasons.push("RUSTSEC associated");
+  }
+
+  //
+  return { priority_score, priority_reasons };
 }
 
 export default {
@@ -137,8 +149,11 @@ export default {
       var updatable_dependencies = response.data.rust_dependencies.dependencies
         .filter((dependency) => dependency.update != null)
         .map((dependency) => {
-          var priority_score = calculate_priority_score(dependency);
+          let { priority_score, priority_reasons } = calculate_priority_score(
+            dependency
+          );
           dependency.priority_score = priority_score;
+          dependency.priority_reasons = priority_reasons;
           return dependency;
         });
 

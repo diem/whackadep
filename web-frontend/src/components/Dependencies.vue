@@ -23,9 +23,12 @@
         >
           <!-- rank -->
           <th scope="row" class="text-center">
-            <a href="#" @click.prevent v-b-popover.hover.top="'hey'">{{
-              index + 1
-            }}</a>
+            <a
+              href="#"
+              @click.prevent
+              v-b-popover.hover.top="d.priority_reasons.join('\n')"
+              >{{ index + 1 }}</a
+            >
           </th>
           <!-- name -->
           <td>{{ d.name }}</td>
