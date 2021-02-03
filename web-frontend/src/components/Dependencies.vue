@@ -26,7 +26,7 @@
             <a
               href="#"
               @click.prevent
-              v-b-popover.hover.top="d.priority_reasons.join('\n')"
+              v-b-popover.hover.left="d.priority_reasons.join(', ')"
               >{{ index + 1 }}</a
             >
           </th>

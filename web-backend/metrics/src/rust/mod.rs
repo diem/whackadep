@@ -128,6 +128,9 @@ impl RustAnalysis {
     }
 
     /// 2. filter
+    /// - filters out internal workspace packages
+    /// - might have the same dependency several times but with different version, or as a dev dependency or not (dev), or imported directly or transitively (direct), or with a different repository (repo)
+    /// - we filter out duplicates that have the same dependency/version/dev/direct/repo tuple, which happens when the same dependency is imported in different places with different features (in other words, we don't care about features)
     pub fn filter(
         all_deps: SummaryWithMetadata,
         release_deps: SummaryWithMetadata,
