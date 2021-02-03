@@ -35,25 +35,16 @@
         </tr>
       </tbody>
     </table>
-    <Modal ref="modal" />
   </div>
 </template>
 
 <script>
-import Modal from "./Modal.vue";
+import semver from "semver";
 
 export default {
   name: "DependenciesTable",
   props: {
     dependencies: Array,
-  },
-  components: {
-    Modal,
-  },
-  inject: {
-    semver: {
-      from: "semver",
-    },
   },
   methods: {
     clean_changelog(changelog) {
@@ -67,7 +58,7 @@ export default {
         dependency.update.versions[dependency.update.versions.length - 1];
       // rust has the tendency to lie when
 
-      var type_change = this.semver.diff(version, new_version);
+      var type_change = semver.diff(version, new_version);
       return type_change + " (" + version + " → " + new_version + ")";
     },
   },

@@ -17,10 +17,15 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="(d, index) in dependencies" v-bind:key="d.priority_score">
+        <tr
+          v-for="(d, index) in dependencies"
+          v-bind:key="d.name + d.version + d.direct + d.dev"
+        >
           <!-- rank -->
           <th scope="row" class="text-center">
-            <a href="#" @click.prevent v-popover="'hey'">{{ index + 1 }}</a>
+            <a href="#" @click.prevent v-b-popover.hover.top="'hey'">{{
+              index + 1
+            }}</a>
           </th>
           <!-- name -->
           <td>{{ d.name }}</td>
@@ -30,7 +35,9 @@
           <!-- version -->
           <td>
             <span
-              v-tooltip="d.version + ' → ' + d.update.versions.join(' → ')"
+              v-b-tooltip.hover="
+                d.version + ' → ' + d.update.versions.join(' → ')
+              "
               v-text="version_change(d)"
             ></span>
           </td>
@@ -53,18 +60,7 @@
           </td>
           <!-- create PR -->
           <td class="text-center">
-            <a
-              v-if="d.update"
-              @click.prevent="
-                $refs.modal.open(
-                  d.name,
-                  d.version,
-                  d.update.versions[d.update.versions.length - 1]
-                )
-              "
-              href="#"
-              >create a PR</a
-            >
+            <a v-if="d.update" href="#">create a PR</a>
             <span class="invisible">{{ d.create_PR }}</span>
           </td>
           <!-- changelog -->
@@ -76,7 +72,7 @@
               <a
                 href="#"
                 @click.prevent
-                v-popover="
+                v-b-popover.hover.top="
                   clean_changelog(d.update.update_metadata.changelog_text)
                 "
                 >preview</a
@@ -100,26 +96,16 @@
         </tr>
       </tbody>
     </table>
-
-    <Modal ref="modal" />
   </div>
 </template>
 
 <script>
-import Modal from "./Modal.vue";
+import semver from "semver";
 
 export default {
   name: "DependenciesTable",
   props: {
     dependencies: Array,
-  },
-  components: {
-    Modal,
-  },
-  inject: {
-    semver: {
-      from: "semver",
-    },
   },
   methods: {
     clean_changelog(changelog) {
@@ -137,7 +123,7 @@ export default {
         dependency.update.versions[dependency.update.versions.length - 1];
       // rust has the tendency to lie when
 
-      var type_change = this.semver.diff(version, new_version);
+      var type_change = semver.diff(version, new_version);
       return type_change;
     },
   },

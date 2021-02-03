@@ -50,8 +50,3 @@ nav {
 }
 </style>
 
-<style>
-.popover-body {
-  white-space: pre-wrap;
-}
-</style>

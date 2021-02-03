@@ -81,6 +81,7 @@
 
 <script>
 import semver from "semver";
+import axios from "axios";
 
 import DependenciesTable from "./Dependencies.vue";
 import RustsecTable from "./Rustsec.vue";
@@ -118,16 +119,8 @@ export default {
       rustsec: [],
     };
   },
-  inject: {
-    axios: {
-      from: "axios",
-    },
-    semver: {
-      from: "semver",
-    },
-  },
   mounted() {
-    this.axios.get("/dependencies").then((response) => {
+    axios.get("/dependencies").then((response) => {
       // retrieve commit
       this.commit = response.data.commit;
 
@@ -208,22 +201,22 @@ export default {
         dependency.update.versions[dependency.update.versions.length - 1];
 
       var pre = this.predicate(version);
-      return this.semver.satisfies(new_version, pre);
+      return semver.satisfies(new_version, pre);
     },
     predicate(version) {
-      var major = this.semver.major(version);
+      var major = semver.major(version);
       if (major != 0) {
         return `${major}.x`;
       }
-      var minor = this.semver.minor(version);
+      var minor = semver.minor(version);
       if (minor != 0) {
         return `${major}.${minor}.x`;
       }
-      var patch = this.semver.patch(version);
+      var patch = semver.patch(version);
       if (patch != 0) {
         return `${major}.${minor}.${patch}.x`;
       }
-      var prerelease = this.semver.prerelease(version);
+      var prerelease = semver.prerelease(version);
       if (prerelease != 0) {
         return `${major}.${minor}.${patch}.${prerelease}.x`;
       }
