@@ -46,19 +46,11 @@
           </td>
           <!-- RUSTSEC -->
           <td>
-            <span v-if="d.rustsec" :title="JSON.stringify(d.rustsec)">
-              <strong>{{ d.rustsec.advisory.id }}</strong
-              >: {{ d.rustsec.advisory.title }}.
-
-              <span v-if="d.rustsec.version_info.patched.length > 0">
-                <br />versions patched:
-                {{ d.rustsec.version_info.patched.join(", ") }}.
-              </span>
-
-              <span v-if="d.rustsec.version_info.unaffected.length > 0">
-                <br />versions unaffected:
-                {{ d.rustsec.version_info.unaffected.join(", ") }}
-              </span>
+            <span
+              v-if="d.rustsec"
+              v-b-popover.hover.top="clean_rustsec(d.rustsec)"
+            >
+              <strong>{{ d.rustsec.advisory.id }}</strong>
             </span>
           </td>
           <!-- create PR -->
@@ -128,6 +120,24 @@ export default {
 
       var type_change = semver.diff(version, new_version);
       return type_change;
+    },
+    clean_rustsec(rustsec) {
+      let title = rustsec.advisory.title;
+      let desc = rustsec.advisory.description;
+
+      let result = `${title}, ${desc}`;
+
+      if (rustsec.version_info.patched.length > 0) {
+        let patched = rustsec.version_info.patched.join(", ");
+        result += `, versions patched: ${patched}.`;
+      }
+
+      if (rustsec.version_info.unaffected.length > 0) {
+        let unaffected = rustsec.version_info.unaffected.join(", ");
+        result += `, versions unaffected: ${unaffected}.`;
+      }
+
+      return result;
     },
   },
 };
