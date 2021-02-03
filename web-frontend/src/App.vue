@@ -49,3 +49,9 @@ nav {
   margin-bottom: 10px;
 }
 </style>
+
+<style>
+.popover-body {
+  white-space: pre-wrap;
+}
+</style>

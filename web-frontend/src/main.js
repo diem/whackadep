@@ -28,12 +28,12 @@ app.directive('tooltip', {
   }
 })
 
-
 // create a v-popover="'some text'" directive
 app.directive('popover', {
   mounted(el, binding) {
     new Popover(el, {
       content: binding.value,
+      trigger: 'click focus',
     });
   }
 })

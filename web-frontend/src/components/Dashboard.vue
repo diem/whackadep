@@ -80,8 +80,31 @@
 </template>
 
 <script>
+import semver from "semver";
+
 import DependenciesTable from "./Dependencies.vue";
 import RustsecTable from "./Rustsec.vue";
+
+function version_change(dep) {
+  var version = dep.version;
+  var new_version = dep.update.versions[dep.update.versions.length - 1];
+  // rust has the tendency to lie when
+
+  var type_change = semver.diff(version, new_version);
+  return type_change;
+}
+
+function calculate_priority_score(dep) {
+  var priority_score = 0;
+
+  var type_of_change = version_change(dep);
+  if (type_of_change == "major") {
+    priority_score += 10;
+  } else if (type_of_change == "minor") {
+    priority_score += 2;
+  }
+  return priority_score;
+}
 
 export default {
   name: "Dashboard",
@@ -110,45 +133,55 @@ export default {
 
       // retrieve all rust dependencies
       this.dependencies = response.data.rust_dependencies.dependencies;
-      console.log(response.data.rust_dependencies.dependencies);
+      console.log("all deps", this.dependencies);
 
       // filter for dependencies that have a RUSTSEC but no updates
       this.rustsec = response.data.rust_dependencies.dependencies.filter(
         (dependency) => dependency.rustsec != null && dependency.update == null
       );
 
-      // filter for dependencies that have updates and _can_ be updated
+      // filter for dependencies that have updates
       var updatable_dependencies = response.data.rust_dependencies.dependencies
         .filter((dependency) => dependency.update != null)
-        .filter((dependency) => {
+        .map((dependency) => {
+          var priority_score = calculate_priority_score(dependency);
+          dependency.priority_score = priority_score;
+          return dependency;
+        });
+
+      var can_update_dependencies = updatable_dependencies.filter(
+        (dependency) => {
           if (!dependency.direct) {
             return this.update_allowed(dependency);
           } else {
             return true;
           }
-        });
-
-      // filter for non-dev dependencies that have an update
-      this.non_dev_updatable_deps = updatable_dependencies.filter(
-        (dependency) => !dependency.dev
+        }
       );
 
+      // filter for non-dev dependencies that have an update
+      this.non_dev_updatable_deps = can_update_dependencies.filter(
+        (dependency) => !dependency.dev
+      );
+      this.non_dev_updatable_deps = this.non_dev_updatable_deps.sort((a, b) =>
+        a.priority_score > b.priority_score ? -1 : 1
+      );
+      console.log("non-dev update deps", this.non_dev_updatable_deps);
+
       // filter for dev dependencies that have an update
-      this.dev_updatable_deps = updatable_dependencies.filter(
+      this.dev_updatable_deps = can_update_dependencies.filter(
         (dependency) => dependency.dev
       );
 
       // finally, retrieve dependencies that have updates and _can't_ be updated
       // just in case we made a mistake above...
-      this.cant_update_deps = response.data.rust_dependencies.dependencies
-        .filter((dependency) => dependency.update != null)
-        .filter((dependency) => {
-          if (!dependency.direct) {
-            return !this.update_allowed(dependency);
-          } else {
-            return false;
-          }
-        });
+      this.cant_update_deps = updatable_dependencies.filter((dependency) => {
+        if (!dependency.direct) {
+          return !this.update_allowed(dependency);
+        } else {
+          return false;
+        }
+      });
     });
   },
   components: {

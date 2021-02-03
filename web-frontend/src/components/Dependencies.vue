@@ -6,31 +6,35 @@
     >
       <thead style="position: sticky; top: 0">
         <tr>
-          <th scope="col">priority</th>
-          <th class="header" scope="col">name</th>
-          <th class="header" scope="col">type</th>
-          <th class="header" scope="col">version change</th>
-          <th class="header" scope="col">rustsec</th>
-          <th class="header" scope="col">update</th>
-          <th class="header" scope="col">changelog</th>
-          <th class="header" scope="col">commits</th>
+          <th class="header text-center" scope="col">priority</th>
+          <th class="header text-center" scope="col">name</th>
+          <th class="header text-center" scope="col">type</th>
+          <th class="header text-center" scope="col">version change</th>
+          <th class="header text-center" scope="col">rustsec</th>
+          <th class="header text-center" scope="col">update</th>
+          <th class="header text-center" scope="col">changelog</th>
+          <th class="header text-center" scope="col">commits</th>
         </tr>
       </thead>
       <tbody>
-        <tr v-for="(d, index) in dependencies" v-bind:key="d.name">
-          <th scope="row">
-            <a v-popover="'hey'">{{ index + 1 }}</a>
+        <tr v-for="(d, index) in dependencies" v-bind:key="d.priority_score">
+          <!-- rank -->
+          <th scope="row" class="text-center">
+            <a href="#" @click.prevent v-popover="'hey'">{{ index + 1 }}</a>
           </th>
+          <!-- name -->
           <td>{{ d.name }}</td>
           <td>
             <span v-if="d.direct">direct</span><span v-else>transitive</span>
           </td>
+          <!-- version -->
           <td>
             <span
               v-tooltip="d.version + ' → ' + d.update.versions.join(' → ')"
               v-text="version_change(d)"
             ></span>
           </td>
+          <!-- RUSTSEC -->
           <td>
             <span v-if="d.rustsec" :title="JSON.stringify(d.rustsec)">
               <strong>{{ d.rustsec.advisory.id }}</strong
@@ -47,7 +51,8 @@
               </span>
             </span>
           </td>
-          <td>
+          <!-- create PR -->
+          <td class="text-center">
             <a
               v-if="d.update"
               @click.prevent="
@@ -62,16 +67,25 @@
             >
             <span class="invisible">{{ d.create_PR }}</span>
           </td>
-          <td>
+          <!-- changelog -->
+          <td class="text-center">
             <span
               v-if="d.update && d.update.update_metadata.changelog_text"
               :title="d.update.update_metadata.changelog_text"
             >
-              {{ clean_changelog(d.update.update_metadata.changelog_text) }}
-              <a :href="d.update.update_metadata.changelog_url">[...]</a>
+              <a
+                href="#"
+                @click.prevent
+                v-popover="
+                  clean_changelog(d.update.update_metadata.changelog_text)
+                "
+                >preview</a
+              >
+              (<a :href="d.update.update_metadata.changelog_url">link</a>)
             </span>
           </td>
-          <td>
+          <!-- commits -->
+          <td class="text-center">
             <span
               v-if="
                 d.update &&
@@ -110,8 +124,12 @@ export default {
   methods: {
     clean_changelog(changelog) {
       var res = changelog.replaceAll(/(#)*/g, "");
+      // strip markdown links
       res = res.replaceAll(/\[([^\]]+)\]\([^)]+\)/g, "$1");
-      return res.slice(0, 100);
+      // strip html tags
+      res = res.replace(/(<([^>]+)>)/gi, "");
+      //
+      return res.slice(0, 100) + " [...]";
     },
     version_change(dependency) {
       var version = dependency.version;
@@ -120,7 +138,7 @@ export default {
       // rust has the tendency to lie when
 
       var type_change = this.semver.diff(version, new_version);
-      return type_change + " (" + version + " → " + new_version + ")";
+      return type_change;
     },
   },
 };
@@ -131,7 +149,8 @@ export default {
   position: sticky;
   top: 0;
 }
+
 a {
-  cursor: pointer;
+  text-decoration: none;
 }
 </style>
