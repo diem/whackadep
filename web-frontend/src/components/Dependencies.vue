@@ -59,7 +59,9 @@
           </td>
           <!-- create PR -->
           <td class="text-center">
-            <a v-if="d.update" href="#">create a PR</a>
+            <a v-if="d.update" href="#" @click.prevent="create_PR(d)"
+              >create a PR</a
+            >
             <span class="invisible">{{ d.create_PR }}</span>
           </td>
           <!-- changelog -->
@@ -95,6 +97,9 @@
         </tr>
       </tbody>
     </table>
+    <b-modal ref="modal" hide-footer title="Updating a dependency">
+      <div class="d-block text-center" v-html="modal_text"></div>
+    </b-modal>
   </div>
 </template>
 
@@ -106,7 +111,58 @@ export default {
   props: {
     dependencies: Array,
   },
+  data() {
+    return {
+      modal_text: "",
+    };
+  },
   methods: {
+    create_PR(d) {
+      let new_version = d.update.versions[d.update.versions.length - 1];
+      let modal_text = "";
+      if (d.update.update_metadata) {
+        if (d.update.update_metadata.changelog_text) {
+          modal_text += `
+          <h3>Changelog</h3>
+          <pre>${d.update.update_metadata.changelog_text}</pre>
+        `;
+        }
+        if (d.update.update_metadata.commits.length > 0) {
+          modal_text += `<h3>Commits</h3><ul>`;
+          d.update.update_metadata.commits.forEach((commit) => {
+            modal_text += `<li>${commit}</li>`;
+          });
+          modal_text += `</ul>`;
+        }
+      }
+
+      modal_text += `
+      <h3>Create a PR</h3>
+      <p>To create a PR easily, make sure you are on an up-to-date branch
+      of the
+      <code>main</code> branch and paste the following in your terminal:</p>
+
+      <pre><code>cargo update-dep -p ${d.name} -v ${d.version} -n ${new_version}</code></pre>
+
+      <p>This assumes that you have cargo-update-dep installed, you can get it via:</p>
+
+      <pre><code>cargo install cargo-update-dep</code></pre>
+`;
+
+      this.modal_text = modal_text;
+      this.showModal();
+    },
+    //
+    // Modal stuff
+    //
+    showModal() {
+      this.$refs["modal"].show();
+    },
+    hideModal() {
+      this.$refs["modal"].hide();
+      this.modal_text = "";
+    },
+    //
     clean_changelog(changelog) {
       var res = changelog.replaceAll(/(#)*/g, "");
       // strip markdown links
