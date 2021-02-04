@@ -13,7 +13,10 @@
               v-for="d in change_summary.new_updates"
               v-bind:key="d.name + d.version + d.direct + d.dev"
             >
-              {{ d.name }} (<small
+              <a :href="'#' + d.name + d.version + d.direct + d.dev">{{
+                d.name
+              }}</a>
+              (<small
                 >{{ d.version }} → {{ d.update.versions.join(" → ") }}</small
               >)
             </li>

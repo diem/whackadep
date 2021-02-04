@@ -31,7 +31,11 @@
             >
           </th>
           <!-- name -->
-          <td>{{ d.name }}</td>
+          <td>
+            <strong :id="d.name + d.version + d.direct + d.dev">{{
+              d.name
+            }}</strong>
+          </td>
           <td>
             <span v-if="d.direct">direct</span><span v-else>transitive</span>
           </td>

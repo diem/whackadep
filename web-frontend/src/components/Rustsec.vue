@@ -12,7 +12,9 @@
       </thead>
       <tbody>
         <tr v-for="d in dependencies" v-bind:key="d.name">
-          <td>{{ d.name }}</td>
+          <td>
+            <strong>{{ d.name }}</strong>
+          </td>
           <td>
             <span v-if="d.direct">direct</span><span v-else>transitive</span>
           </td>
