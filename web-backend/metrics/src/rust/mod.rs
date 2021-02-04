@@ -14,10 +14,14 @@ use futures::{stream, StreamExt};
 use guppy_summaries::{PackageStatus, SummarySource, SummaryWithMetadata};
 use semver::Version;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use tempfile::tempdir;
 use tracing::{debug, error, info};
+
+//
+// Modules
+//
 
 pub mod cargoaudit;
 pub mod cargoguppy;
@@ -28,17 +32,23 @@ use crate::common::dependabot::{self, UpdateMetadata};
 use cargoaudit::CargoAudit;
 use cargoguppy::CargoGuppy;
 
+//
+// Structures
+//
+
 /// RustAnalysis contains the result of the analysis of a rust workspace
 #[derive(Serialize, Deserialize, Default)]
 pub struct RustAnalysis {
     /// Note that we do not use a map because the same dependency can be seen several times.
     /// This is due to different versions being used or/and being used directly and indirectly (transitively).
     dependencies: Vec<DependencyInfo>,
+
+    change_summary: Option<ChangeSummary>,
 }
 
 /// DependencyInfo contains the information obtained from a dependency.
 /// Note that some fields might be filled in different stages (e.g. by the priority engine or the risk engine).
-#[derive(Serialize, Deserialize, PartialEq)]
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct DependencyInfo {
     /// The name of the dependency.
     name: String,
@@ -57,7 +67,7 @@ pub struct DependencyInfo {
 }
 
 /// Update should contain any interesting information (red flags, etc.) about the changes observed in the new version
-#[derive(Serialize, Deserialize, Default, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Default, Debug, PartialEq, Clone)]
 pub struct Update {
     /// All versions
     // TODO: we're missing dates of creation for stats though..
@@ -66,7 +76,7 @@ pub struct Update {
     update_metadata: UpdateMetadata,
 }
 
-#[derive(Serialize, Deserialize, PartialEq)]
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug, Eq, Hash)]
 /// A [RUSTSEC Advisory](https://rustsec.org/).
 pub struct RustSec {
     /// The advisory information (id, description, date, etc.)
@@ -75,10 +85,17 @@ pub struct RustSec {
     version_info: cargoaudit::VersionInfo,
 }
 
+//
+// Analysis function
+//
+
 impl RustAnalysis {
     /// The main function that will go over the flow:
     /// fetch -> filter -> updatables -> priority -> risk -> store
-    pub async fn get_dependencies(repo_dir: &Path) -> Result<Self> {
+    pub async fn get_dependencies(
+        repo_dir: &Path,
+        previous_analysis: Option<&Self>,
+    ) -> Result<Self> {
         // 1. fetch
         info!("1. fetching dependencies...");
         let (all_deps, release_deps) = Self::fetch(repo_dir).await?;
@@ -98,6 +115,12 @@ impl RustAnalysis {
         // 5. risk
         info!("5. risk engine running...");
         rust_analysis.risk()?;
+
+        // 6. summary of changes since last analysis
+        if let Some(old) = previous_analysis {
+            let change_summary = ChangeSummary::new(old, &rust_analysis)?;
+            rust_analysis.change_summary = Some(change_summary);
+        }
 
         //
         Ok(rust_analysis)
@@ -186,7 +209,10 @@ impl RustAnalysis {
         dependencies.dedup();
 
         //
-        Ok(Self { dependencies })
+        Ok(Self {
+            dependencies: dependencies,
+            change_summary: None,
+        })
     }
 
     /// 3. Checks for updates in a set of crates
@@ -320,5 +346,112 @@ impl RustAnalysis {
     /// 5. risk engine
     fn risk(&mut self) -> Result<()> {
         Ok(())
+    }
+}
+
+//
+// Summary of changes between analysis
+// ===================================
+//
+// What matters from a user perspective?
+// - new updates available (including changelog/commit)
+// - new rustsec available
+//
+
+/// Contains changes observed since the last analysis
+#[derive(Serialize, Deserialize, Default)]
+pub struct ChangeSummary {
+    /// new updates available
+    new_updates: Vec<DependencyInfo>,
+    /// new RUSTSEC advisories
+    new_rustsec: Vec<RustSec>,
+}
+
+impl ChangeSummary {
+    /// Creates a change summary by diffing two analysis together
+    pub fn new(old: &RustAnalysis, new: &RustAnalysis) -> Result<ChangeSummary> {
+        //
+        let mut rust_changes = ChangeSummary::default();
+
+        //
+        // get new updates available
+        //
+
+        // build a hashmap of (name, etc.) -> update
+        let mut dep_to_update_version: HashMap<(String, Version), Option<Version>> = HashMap::new();
+        for dependency in &old.dependencies {
+            let mut update_version = None;
+            if let Some(update) = &dependency.update {
+                update_version = update.versions.last().cloned();
+                if update_version.is_none() {
+                    error!(
+                        "dependency update didn't have a last version: {:?}",
+                        dependency
+                    );
+                    continue;
+                }
+            }
+            // only insert if not present
+            let name = dependency.name.clone();
+            let version = dependency.version.clone();
+            dep_to_update_version
+                .entry((name, version))
+                .or_insert(update_version);
+        }
+
+        // check for each update, if the hashmap has something
+        for dependency in &new.dependencies {
+            if let Some(new_update) = &dependency.update {
+                let key = (dependency.name.clone(), dependency.version.clone());
+                if let Some(update) = dep_to_update_version.get(&key) {
+                    if let Some(version) = update {
+                        let new_version = match new_update.versions.last() {
+                            Some(version) => version,
+                            None => {
+                                error!(
+                                    "some dependency update doesn't have a version: {:?}",
+                                    dependency
+                                );
+                                continue;
+                            }
+                        };
+                        if new_version > version {
+                            // new_er_ update found
+                            rust_changes.new_updates.push(dependency.clone());
+                        }
+                    } else {
+                        // update found for dependency that didn't have an update
+                        rust_changes.new_updates.push(dependency.clone());
+                    }
+                } else {
+                    // update found for new dependency
+                    rust_changes.new_updates.push(dependency.clone());
+                }
+            }
+        }
+
+        //
+        // check for new rustsec advisories
+        //
+
+        // create hashset of rustsec
+        let mut set = HashSet::new();
+        for dependency in &old.dependencies {
+            if let Some(rustsec) = &dependency.rustsec {
+                set.insert(rustsec.clone());
+            }
+        }
+
+        // figure out if anything is not in that set
+        for dependency in &new.dependencies {
+            if let Some(rustsec) = &dependency.rustsec {
+                if !set.contains(rustsec) {
+                    rust_changes.new_rustsec.push(rustsec.clone());
+                }
+            }
+        }
+
+        //
+        Ok(rust_changes)
     }
 }

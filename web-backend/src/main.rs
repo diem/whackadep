@@ -39,11 +39,11 @@ fn refresh(state: State<App>) -> &'static str {
 #[get("/dependencies")]
 fn dependencies() -> String {
     match Db::get_dependencies() {
-        Ok(dependencies) => match serde_json::to_string(&dependencies) {
+        Some(dependencies) => match serde_json::to_string(&dependencies) {
             Ok(dependencies) => dependencies,
             Err(e) => format!("couldn't deserialize dependencies: {}", e),
         },
-        Err(e) => format!("{}", e),
+        None => "no dependency analysis found".to_string(),
     }
 }
 

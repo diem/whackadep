@@ -34,7 +34,7 @@ struct PackageInfo {
     version: String,
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Advisory {
     id: String,
     title: String,
@@ -43,7 +43,7 @@ pub struct Advisory {
     url: String,
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VersionInfo {
     patched: Vec<String>,
     unaffected: Vec<String>,

@@ -45,9 +45,14 @@ pub async fn analyze(repo_url: &str, repo_path: &Path) -> Result<()> {
     let commit = repo.head().await.expect("couldn't get HEAD hash");
     info!("current commit: {}", commit);
 
+    // get previous analysis
+    let previous_analysis = Db::get_dependencies();
+
     // 4. run analysis for different languages
     // (at the moment we only have Rust)
-    let rust_analysis = RustAnalysis::get_dependencies(&repo.repo_folder).await?;
+    let previous_rust_analysis = previous_analysis.as_ref().map(|x| &x.rust_dependencies);
+    let rust_analysis =
+        RustAnalysis::get_dependencies(&repo.repo_folder, previous_rust_analysis).await?;
 
     // 5. store analysis in db
     info!("analysis done, storing in db...");

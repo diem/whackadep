@@ -10,7 +10,7 @@ use mongodb::{
 };
 use old_tokio::runtime::Runtime as OldRuntime;
 use std::env;
-use tracing::info;
+use tracing::{error, info};
 
 // TODO: this is not great! We spin a new runtime for every request. instead create a structure that is initialized once with a runtime, and re-use it over and over. At the same time, we're not doing db queries like crazy so, who cares?
 pub struct Db;
@@ -67,7 +67,7 @@ impl Db {
         })
     }
 
-    pub fn get_dependencies() -> Result<Analysis> {
+    pub fn get_dependencies() -> Option<Analysis> {
         let find_options = FindOneOptions::builder()
             .sort(doc! {
                 "_id": -1
@@ -84,8 +84,20 @@ impl Db {
                 .ok_or(anyhow!("could not find any dependencies"))
         });
 
+        let dependencies = match dependencies {
+            Ok(res) => res,
+            Err(e) => {
+                error!("potentially an error (unless this is running for the first time): couldn't find any dependencies: {}", e);
+                return None;
+            }
+        };
+
         // deserialize
-        bson::from_document(dependencies?).map_err(anyhow::Error::msg)
+        bson::from_document(dependencies)
+            .map_err(|e| {
+                error!("couldn't convert bson document: {}", e);
+            })
+            .ok()
     }
 
     // config should return:
