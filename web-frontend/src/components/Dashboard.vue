@@ -1,8 +1,37 @@
 <template>
   <section>
-    <div class="alert alert-warning">
-      commit: <code>{{ commit }}</code>
-    </div>
+    <section class="alert alert-warning">
+      <h2 class="alert-heading">Information</h2>
+      commit: <code>{{ commit }}</code
+      ><br />
+      <div v-if="change_summary">
+        <div v-if="change_summary.new_updates.length > 0">
+          <hr />
+          new updates:
+          <ul>
+            <li
+              v-for="d in change_summary.new_updates"
+              v-bind:key="d.name + d.version + d.direct + d.dev"
+            >
+              {{ d.name }} (<small
+                >{{ d.version }} → {{ d.update.versions.join(" → ") }}</small
+              >)
+            </li>
+          </ul>
+        </div>
+
+        <div v-if="change_summary.new_rustsec.length > 0">
+          <hr />
+          new RUSTSEC advisories:
+          <li
+            v-for="r in change_summary.new_rustsec"
+            v-bind:key="r.advisory.id"
+          >
+            <strong>{{ r.advisory.id }}</strong> - {{ r.advisory.title }}
+          </li>
+        </div>
+      </div>
+    </section>
 
     <div class="row" id="stats">
       <div class="col-sm bg-light bg-gradient p-5">
@@ -128,6 +157,7 @@ export default {
   data() {
     return {
       commit: "",
+      change_summary: null,
       dependencies: [],
       dev_updatable_deps: [],
       non_dev_updatable_deps: [],
@@ -139,6 +169,9 @@ export default {
     axios.get("/dependencies").then((response) => {
       // retrieve commit
       this.commit = response.data.commit;
+
+      // retrieve change summary
+      this.change_summary = response.data.rust_dependencies.change_summary;
 
       // retrieve all rust dependencies
       this.dependencies = response.data.rust_dependencies.dependencies;
