@@ -2,7 +2,9 @@
   <section>
     <section class="alert alert-warning">
       <h2 class="alert-heading">Information</h2>
-      commit: <code>{{ commit }}</code
+      commit:
+      <a :href="'https://github.com/diem/diem/commit/' + commit" target="_blank"
+        ><code>{{ commit }}</code></a
       ><br />
       <div v-if="change_summary">
         <div v-if="change_summary.new_updates.length > 0">

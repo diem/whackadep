@@ -38,7 +38,7 @@ use cargoguppy::CargoGuppy;
 //
 
 /// RustAnalysis contains the result of the analysis of a rust workspace
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Debug)]
 pub struct RustAnalysis {
     /// Note that we do not use a map because the same dependency can be seen several times.
     /// This is due to different versions being used or/and being used directly and indirectly (transitively).
@@ -386,7 +386,7 @@ impl RustAnalysis {
 //
 
 /// Contains changes observed since the last analysis
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Debug)]
 pub struct ChangeSummary {
     /// new updates available
     new_updates: Vec<DependencyInfo>,

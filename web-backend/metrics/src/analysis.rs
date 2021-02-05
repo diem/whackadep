@@ -1,6 +1,7 @@
 //! This module implements the code to analyze a repository's dependencies.
 
 use anyhow::Result;
+use chrono::prelude::*;
 use mongodb::bson;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -10,12 +11,14 @@ use crate::db::Db;
 use crate::git::Repo;
 use crate::rust::RustAnalysis;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 /// An analysis result. It contains the commit that was analyzed, as well as the results of the analysis on dependencies.
 /// At the moment it only contains analysis results for Rust dependencies.
 pub struct Analysis {
     /// The SHA-1 hash indicating the exact commit used to analyze the given repository.
     commit: String,
+    repository: String,
+    timestamp: DateTime<Utc>,
     /// The result of the rust dependencies analysis
     rust_dependencies: RustAnalysis,
 }
@@ -46,7 +49,7 @@ pub async fn analyze(repo_url: &str, repo_path: &Path) -> Result<()> {
     info!("current commit: {}", commit);
 
     // get previous analysis
-    let previous_analysis = Db::get_dependencies();
+    let previous_analysis = Db::get_last_analysis()?;
 
     // 4. run analysis for different languages
     // (at the moment we only have Rust)
@@ -58,6 +61,8 @@ pub async fn analyze(repo_url: &str, repo_path: &Path) -> Result<()> {
     info!("analysis done, storing in db...");
     let analysis = Analysis {
         commit: commit,
+        repository: repo_url.to_string(),
+        timestamp: Utc::now(),
         rust_dependencies: rust_analysis,
     };
     let analysis = bson::to_bson(&analysis).unwrap();

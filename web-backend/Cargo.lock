@@ -1259,6 +1259,7 @@ name = "metrics"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "futures",
  "git2",
  "guppy",

@@ -17,6 +17,7 @@ tokio = { version = "1.1.0", features = ["full"] } # old version because of mong
 futures = "0.3.12" # async stuff
 tracing = "0.1.22" # logging
 regex = "1.4.3" # used for checking diff output
+chrono = "0.4" # used for datetime of mongodb document
 
 # driver
 mongodb = "1.1.1" # database used to store result of cronjobs

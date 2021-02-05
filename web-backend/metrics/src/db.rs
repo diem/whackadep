@@ -2,7 +2,7 @@
 //! by providing functions to read and write specific documents.
 
 use crate::analysis::Analysis;
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use mongodb::{
     bson::{self, doc, Document},
     options::{ClientOptions, FindOneOptions},
@@ -10,7 +10,7 @@ use mongodb::{
 };
 use old_tokio::runtime::Runtime as OldRuntime;
 use std::env;
-use tracing::{error, info};
+use tracing::info;
 
 // TODO: this is not great! We spin a new runtime for every request. instead create a structure that is initialized once with a runtime, and re-use it over and over. At the same time, we're not doing db queries like crazy so, who cares?
 pub struct Db;
@@ -67,7 +67,7 @@ impl Db {
         })
     }
 
-    pub fn get_dependencies() -> Option<Analysis> {
+    pub fn get_last_analysis() -> Result<Option<Analysis>> {
         let find_options = FindOneOptions::builder()
             .sort(doc! {
                 "_id": -1
@@ -75,29 +75,24 @@ impl Db {
             .build();
 
         let mut rt = OldRuntime::new().unwrap();
-        let dependencies: Result<bson::Document> = rt.block_on(async {
+        let analysis: Result<Option<bson::Document>> = rt.block_on(async {
             let db = Self::new().await.map_err(anyhow::Error::msg)?;
             db.collection("dependencies")
                 .find_one(None, find_options)
                 .await
-                .map_err(anyhow::Error::msg)?
-                .ok_or(anyhow!("could not find any dependencies"))
+                .map_err(anyhow::Error::msg)
         });
 
-        let dependencies = match dependencies {
-            Ok(res) => res,
-            Err(e) => {
-                error!("potentially an error (unless this is running for the first time): couldn't find any dependencies: {}", e);
-                return None;
-            }
+        // did we find anything?
+        let analysis = match analysis? {
+            Some(x) => x,
+            None => return Ok(None),
         };
 
         // deserialize
-        bson::from_document(dependencies)
-            .map_err(|e| {
-                error!("couldn't convert bson document: {}", e);
-            })
-            .ok()
+        bson::from_document(analysis)
+            .map(|analysis| Some(analysis))
+            .map_err(anyhow::Error::msg)
     }
 
     // config should return:
