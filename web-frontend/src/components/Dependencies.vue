@@ -98,7 +98,7 @@
       </tbody>
     </table>
     <b-modal ref="modal" hide-footer title="Updating a dependency">
-      <div class="d-block text-center" v-html="modal_text"></div>
+      <div class="d-block" v-html="modal_text"></div>
     </b-modal>
   </div>
 </template>
@@ -130,7 +130,7 @@ export default {
         if (d.update.update_metadata.commits.length > 0) {
           modal_text += `<h3>Commits</h3><ul>`;
           d.update.update_metadata.commits.forEach((commit) => {
-            modal_text += `<li>${commit}</li>`;
+            modal_text += `<li><a href="${commit.html_url}" target="_blank">${commit.message}</a></li>`;
           });
           modal_text += `</ul>`;
         }
