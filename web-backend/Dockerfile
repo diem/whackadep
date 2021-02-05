@@ -1,7 +1,7 @@
 FROM rust:1.49.0
 
 # 1. setup rust
-RUN rustup default nightly
+RUN rustup default nightly-2021-01-20
 
 # 2. setup ruby
 RUN git clone https://github.com/rbenv/rbenv.git /root/.rbenv

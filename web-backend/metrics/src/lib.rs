@@ -34,6 +34,9 @@ pub async fn start(receiver: Receiver<MetricsRequest>) -> Result<()> {
     info!("initializing cargo audit");
     rust::cargoaudit::CargoAudit::init_cargo_audit().await?;
 
+    info!("initializing cargo download");
+    rust::diff::init_cargo_download().await?;
+
     info!("metrics service started!");
     for request in receiver {
         match request {
