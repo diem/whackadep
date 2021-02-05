@@ -5,7 +5,7 @@ use chrono::prelude::*;
 use mongodb::bson;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use tracing::info;
+use tracing::{error, info};
 
 use crate::db::Db;
 use crate::git::Repo;
@@ -49,7 +49,16 @@ pub async fn analyze(repo_url: &str, repo_path: &Path) -> Result<()> {
     info!("current commit: {}", commit);
 
     // get previous analysis
-    let previous_analysis = Db::get_last_analysis()?;
+    let previous_analysis = match Db::get_last_analysis() {
+        Ok(maybe_prev) => maybe_prev,
+        Err(e) => {
+            error!(
+                "couldn't get previous analysis, perhaps the format changed: {}",
+                e
+            );
+            None
+        }
+    };
 
     // 4. run analysis for different languages
     // (at the moment we only have Rust)

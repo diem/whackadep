@@ -2,6 +2,8 @@
   <section>
     <section class="alert alert-warning">
       <h2 class="alert-heading">Information</h2>
+      date: {{ date }}
+      <br />
       commit:
       <a :href="'https://github.com/diem/diem/commit/' + commit" target="_blank"
         ><code>{{ commit }}</code></a
@@ -153,7 +155,7 @@ function calculate_priority_score(dep) {
   return { priority_score, priority_reasons };
 }
 
-function calculate_risk_score(dep){
+function calculate_risk_score(dep) {
   var risk_score = 0;
   var risk_reasons = [];
 
@@ -162,7 +164,7 @@ function calculate_risk_score(dep){
     risk_reasons.push("<code>build.rs</code> file Changed");
   }
 
-  return {risk_score, risk_reasons};
+  return { risk_score, risk_reasons };
 }
 
 function sort_priority(a, b) {
@@ -174,6 +176,7 @@ export default {
   data() {
     return {
       commit: "",
+      date: "",
       change_summary: null,
       dependencies: [],
       dev_updatable_deps: [],
@@ -186,6 +189,13 @@ export default {
     axios.get("/dependencies").then((response) => {
       // retrieve commit
       this.commit = response.data.commit;
+
+      // retrieve datetime
+      var date = new Date(response.data.timestamp * 1000);
+      var hours = date.getHours();
+      var minutes = "0" + date.getMinutes();
+      var seconds = "0" + date.getSeconds();
+      this.date = hours + ":" + minutes.substr(-2) + ":" + seconds.substr(-2);
 
       // retrieve change summary
       this.change_summary = response.data.rust_dependencies.change_summary;
