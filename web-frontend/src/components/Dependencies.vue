@@ -136,6 +136,14 @@ export default {
         }
       }
 
+      if (d.risk_score > 0) {
+        modal_text += `<h3>Risks</h3><ul>`;
+        d.risk_reasons.forEach((reason) => {
+          modal_text += `<li>${reason}</li>`
+        });
+        modal_text += `</ul>`;
+      }
+
       modal_text += `
       <h3>Create a PR</h3>
       <p>To create a PR easily, make sure you are on an up-to-date branch
