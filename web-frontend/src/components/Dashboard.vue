@@ -192,11 +192,7 @@ export default {
       this.commit = response.data.commit;
 
       // retrieve datetime
-      var date = new Date(response.data.timestamp * 1000);
-      var hours = date.getHours();
-      var minutes = "0" + date.getMinutes();
-      var seconds = "0" + date.getSeconds();
-      this.date = hours + ":" + minutes.substr(-2) + ":" + seconds.substr(-2);
+      this.date = new Date(response.data.timestamp);
 
       // retrieve change summary
       this.change_summary = response.data.rust_dependencies.change_summary;
