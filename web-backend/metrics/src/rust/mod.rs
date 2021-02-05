@@ -44,6 +44,7 @@ pub struct RustAnalysis {
     /// This is due to different versions being used or/and being used directly and indirectly (transitively).
     dependencies: Vec<DependencyInfo>,
 
+    /// A summary of the changes since last analysis
     change_summary: Option<ChangeSummary>,
 }
 

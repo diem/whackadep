@@ -17,10 +17,22 @@ use crate::rust::RustAnalysis;
 pub struct Analysis {
     /// The SHA-1 hash indicating the exact commit used to analyze the given repository.
     commit: String,
+    // The full repository link (e.g. https://github.com/diem/diem.git)
     repository: String,
+    // the time at which the analysis was done
     timestamp: DateTime<Utc>,
+    // previous analysis
+    previous_analysis: Option<PreviousAnalysis>,
+
+    // per-languages results
     /// The result of the rust dependencies analysis
     rust_dependencies: RustAnalysis,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct PreviousAnalysis {
+    commit: String,
+    timestamp: DateTime<Utc>,
 }
 
 /// The analyze function does the following:
@@ -48,7 +60,7 @@ pub async fn analyze(repo_url: &str, repo_path: &Path) -> Result<()> {
     let commit = repo.head().await.expect("couldn't get HEAD hash");
     info!("current commit: {}", commit);
 
-    // get previous analysis
+    // 4. get previous analysis
     let previous_analysis = match Db::get_last_analysis() {
         Ok(maybe_prev) => maybe_prev,
         Err(e) => {
@@ -60,21 +72,46 @@ pub async fn analyze(repo_url: &str, repo_path: &Path) -> Result<()> {
         }
     };
 
-    // 4. run analysis for different languages
+    // 5. run analysis for different languages
     // (at the moment we only have Rust)
     let previous_rust_analysis = previous_analysis.as_ref().map(|x| &x.rust_dependencies);
     let rust_analysis =
         RustAnalysis::get_dependencies(&repo.repo_folder, previous_rust_analysis).await?;
 
-    // 5. store analysis in db
+    // 6. store analysis in db
     info!("analysis done, storing in db...");
+
+    // 4. get previous analysis
+    let previous_analysis = if let Some(previous_analysis) = &previous_analysis {
+        Some(PreviousAnalysis {
+            commit: previous_analysis.commit.clone(),
+            timestamp: previous_analysis.timestamp.clone(),
+        })
+    } else {
+        None
+    };
     let analysis = Analysis {
         commit: commit,
         repository: repo_url.to_string(),
         timestamp: Utc::now(),
+        previous_analysis: previous_analysis,
         rust_dependencies: rust_analysis,
     };
     let analysis = bson::to_bson(&analysis).unwrap();
     let document = analysis.as_document().unwrap();
     Db::write(document.to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[tokio::test]
+    async fn test_analysis() {
+        let temp_dir = tempdir().unwrap();
+        analyze("https://github.com/diem/diem.git", temp_dir.path())
+            .await
+            .unwrap();
+    }
 }

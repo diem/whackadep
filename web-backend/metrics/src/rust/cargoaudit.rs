@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 use tokio::process::Command;
-use tracing::debug;
+use tracing::{debug, error};
 
 //
 // Structures to deserialize cargo-audit
@@ -80,9 +80,11 @@ impl CargoAudit {
             .output()
             .await?;
 
-        if !output.status.success() {
+        // seems like cargo audit returns 0 and 1 when the stdout output is clean
+        if !matches!(output.status.code(), Some(1) | Some(0)) {
             bail!(
-                "couldn't run cargo-audit: {}",
+                "couldn't run cargo-audit, error code: {:?}, error: {}",
+                output.status.code(),
                 String::from_utf8_lossy(&output.stderr)
             );
         }
@@ -122,6 +124,7 @@ mod tests {
     use std::path::PathBuf;
 
     #[tokio::test]
+    #[ignore]
     async fn test_cargo_audit() {
         let mut repo_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         repo_dir.push("../diem_repo");
