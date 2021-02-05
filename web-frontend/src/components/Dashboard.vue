@@ -35,7 +35,7 @@
         </div>
       </div>
     </section>
-
+    <hr />
     <div class="row" id="stats">
       <div class="col-sm bg-light bg-gradient p-5">
         <strong>{{ direct_dependencies }} </strong>
@@ -50,7 +50,7 @@
         <small> direct dev dependencies</small>
       </div>
     </div>
-
+    <hr />
     <h2>RUSTSEC advisories without updates</h2>
     <div class="alert alert-info">
       These are dependencies that have RUST advisories associated to them, but
@@ -59,7 +59,7 @@
       one.
     </div>
     <RustsecTable v-bind:dependencies="rustsec" />
-
+    <hr />
     <h2>
       Updates available for non-dev dependencies ({{
         count(non_dev_updatable_deps)
@@ -76,7 +76,7 @@
       about semver).
     </div>
     <DependenciesTable v-bind:dependencies="non_dev_updatable_deps" />
-
+    <hr />
     <h2>
       Updates available for dev dependencies ({{ count(dev_updatable_deps) }})
     </h2>
@@ -91,7 +91,7 @@
       about semver).
     </div>
     <DependenciesTable v-bind:dependencies="dev_updatable_deps" />
-
+    <hr />
     <h2>
       Updates that can't be applied for dependencies ({{
         count(cant_update_deps)
