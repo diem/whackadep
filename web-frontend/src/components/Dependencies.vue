@@ -37,7 +37,7 @@
             }}</strong>
           </td>
           <td>
-            <span v-if="d.direct">direct</span><span v-else>transitive</span>
+            {{ d.direct ? "direct" : "transitive" }}
           </td>
           <!-- version -->
           <td>
@@ -139,7 +139,7 @@ export default {
       if (d.risk_score > 0) {
         modal_text += `<h3>Risks</h3><ul>`;
         d.risk_reasons.forEach((reason) => {
-          modal_text += `<li>${reason}</li>`
+          modal_text += `<li>${reason}</li>`;
         });
         modal_text += `</ul>`;
       }

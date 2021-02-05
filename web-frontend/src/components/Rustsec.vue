@@ -16,7 +16,7 @@
             <strong>{{ d.name }}</strong>
           </td>
           <td>
-            <span v-if="d.direct">direct</span><span v-else>transitive</span>
+            {{ d.direct ? "direct" : "transitive" }}
           </td>
           <td>
             <span v-if="d.rustsec" :title="JSON.stringify(d.rustsec)">
