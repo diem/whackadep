@@ -153,6 +153,18 @@ function calculate_priority_score(dep) {
   return { priority_score, priority_reasons };
 }
 
+function calculate_risk_score(dep){
+  var risk_score = 0;
+  var risk_reasons = [];
+
+  if (dep.update.build_rs) {
+    risk_score += 10;
+    risk_reasons.push("<code>build.rs</code> file Changed");
+  }
+
+  return {risk_score, risk_reasons};
+}
+
 function sort_priority(a, b) {
   return a.priority_score > b.priority_score ? -1 : 1;
 }
@@ -196,6 +208,11 @@ export default {
           );
           dependency.priority_score = priority_score;
           dependency.priority_reasons = priority_reasons;
+
+          let { risk_score, risk_reasons } = calculate_risk_score(dependency);
+          dependency.risk_score = risk_score;
+          dependency.risk_reasons = risk_reasons;
+
           return dependency;
         });
 
