@@ -1,4 +1,4 @@
-.PHONY: all fast frontend backend database restart-frontend restart-backend doc
+.PHONY: all fast frontend backend database restart-frontend restart-backend doc refresh ssh-frontend ssh-backend
 
 #
 # everything in this section uses the main docker-compose.yml file
@@ -29,6 +29,9 @@ ssh-backend:
 ssh-frontend:
 	docker exec -it frontend /bin/bash
 
+# handy command to trigger a refresh on the API
+refresh:
+	curl -X GET http://127.0.0.1:8081/refresh
 
 #
 # you probably won't need the following command, which run things separately (without the main docker-compose)
