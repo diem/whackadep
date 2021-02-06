@@ -195,13 +195,13 @@ export default {
 
       let result = `${title}, ${desc}`;
 
-      if (rustsec.version_info.patched.length > 0) {
-        let patched = rustsec.version_info.patched.join(", ");
+      if (rustsec.versions.patched.length > 0) {
+        let patched = rustsec.versions.patched.join(", ");
         result += `, versions patched: ${patched}.`;
       }
 
-      if (rustsec.version_info.unaffected.length > 0) {
-        let unaffected = rustsec.version_info.unaffected.join(", ");
+      if (rustsec.versions.unaffected.length > 0) {
+        let unaffected = rustsec.versions.unaffected.join(", ");
         result += `, versions unaffected: ${unaffected}.`;
       }
 

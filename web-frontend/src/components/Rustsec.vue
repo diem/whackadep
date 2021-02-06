@@ -23,14 +23,14 @@
               <strong>{{ d.rustsec.advisory.id }}</strong
               >: {{ d.rustsec.advisory.title }}.
 
-              <span v-if="d.rustsec.version_info.patched.length > 0">
+              <span v-if="d.rustsec.versions.patched.length > 0">
                 <br />versions patched:
-                {{ d.rustsec.version_info.patched.join(", ") }}.
+                {{ d.rustsec.versions.patched.join(", ") }}.
               </span>
 
-              <span v-if="d.rustsec.version_info.unaffected.length > 0">
+              <span v-if="d.rustsec.versions.unaffected.length > 0">
                 <br />versions unaffected:
-                {{ d.rustsec.version_info.unaffected.join(", ") }}
+                {{ d.rustsec.versions.unaffected.join(", ") }}
               </span>
             </span>
           </td>

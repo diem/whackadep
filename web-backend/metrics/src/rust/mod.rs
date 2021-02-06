@@ -30,7 +30,7 @@ pub mod cratesio;
 pub mod diff;
 
 use crate::common::dependabot::{self, UpdateMetadata};
-use cargoaudit::CargoAudit;
+use cargoaudit::{CargoAudit, RustSec};
 use cargoguppy::CargoGuppy;
 
 //
@@ -63,7 +63,7 @@ pub struct DependencyInfo {
     /// Is it a direct, or a transitive dependency?
     direct: bool,
     /// An optional RUSTSEC advisory associated with the dependency and its version.
-    rustsec: Option<RustSec>,
+    rustsec: Option<Vec<RustSec>>,
     /// An optional update available for the dependency.
     update: Option<Update>,
 }
@@ -78,15 +78,6 @@ pub struct Update {
     update_metadata: UpdateMetadata,
     /// build.rs changed
     build_rs: bool,
-}
-
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug, Eq, Hash)]
-/// A [RUSTSEC Advisory](https://rustsec.org/).
-pub struct RustSec {
-    /// The advisory information (id, description, date, etc.)
-    advisory: cargoaudit::Advisory,
-    /// The versions patched and the versions unaffected.
-    version_info: cargoaudit::VersionInfo,
 }
 
 //
@@ -292,13 +283,8 @@ impl RustAnalysis {
         info!("running cargo-audit");
         let audit = CargoAudit::run_cargo_audit(repo_dir).await?;
         for dependency in &mut self.dependencies {
-            let res = audit.get(&(dependency.name.clone(), dependency.version.clone()));
-            if let Some((advisory, version_info)) = res {
-                dependency.rustsec = Some(RustSec {
-                    advisory: advisory.clone(),
-                    version_info: version_info.clone(),
-                });
-            }
+            let key = (dependency.name.clone(), dependency.version.clone());
+            dependency.rustsec = audit.get(&key).cloned();
         }
 
         // 2. fetch every changelog via dependabot
@@ -474,7 +460,7 @@ impl ChangeSummary {
         for dependency in &new.dependencies {
             if let Some(rustsec) = &dependency.rustsec {
                 if !set.contains(rustsec) {
-                    rust_changes.new_rustsec.push(rustsec.clone());
+                    rust_changes.new_rustsec.extend_from_slice(&rustsec);
                 }
             }
         }
