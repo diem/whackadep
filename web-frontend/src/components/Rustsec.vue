@@ -19,28 +19,30 @@
             {{ d.direct ? "direct" : "transitive" }}
           </td>
           <td>
-            <span v-if="d.rustsec" :title="JSON.stringify(d.rustsec)">
-              <strong
-                ><a
-                  :href="
-                    'https://rustsec.org/advisories/' +
-                    d.rustsec.advisory.id +
-                    '.html'
-                  "
-                  target="_blank"
-                  >{{ d.rustsec.advisory.id }}</a
-                ></strong
-              >: {{ d.rustsec.advisory.title }}.
+            <span v-if="d.rustsec">
+              <div v-for="rustsec in d.rustsec" :key="rustsec.advisory.id">
+                <strong
+                  ><a
+                    :href="
+                      'https://rustsec.org/advisories/' +
+                      rustsec.advisory.id +
+                      '.html'
+                    "
+                    target="_blank"
+                    >{{ rustsec.advisory.id }}</a
+                  ></strong
+                >: {{ rustsec.advisory.title }}.
 
-              <span v-if="d.rustsec.versions.patched.length > 0">
-                <br />versions patched:
-                {{ d.rustsec.versions.patched.join(", ") }}.
-              </span>
+                <span v-if="rustsec.versions.patched.length > 0">
+                  <br />versions patched:
+                  {{ rustsec.versions.patched.join(", ") }}.
+                </span>
 
-              <span v-if="d.rustsec.versions.unaffected.length > 0">
-                <br />versions unaffected:
-                {{ d.rustsec.versions.unaffected.join(", ") }}
-              </span>
+                <span v-if="rustsec.versions.unaffected.length > 0">
+                  <br />versions unaffected:
+                  {{ rustsec.versions.unaffected.join(", ") }}
+                </span>
+              </div>
             </span>
           </td>
         </tr>

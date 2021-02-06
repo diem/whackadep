@@ -50,21 +50,24 @@
           </td>
           <!-- RUSTSEC -->
           <td>
-            <span
-              v-if="d.rustsec"
-              v-b-popover.hover.top="clean_rustsec(d.rustsec)"
-            >
-              <strong
-                ><a
-                  :href="
-                    'https://rustsec.org/advisories/' +
-                    d.rustsec.advisory.id +
-                    '.html'
-                  "
-                  target="_blank"
-                  >{{ d.rustsec.advisory.id }}</a
-                ></strong
+            <span v-if="d.rustsec">
+              <div
+                v-for="rustsec in d.rustsec"
+                :key="rustsec.advisory.id"
+                v-b-popover.hover.top="clean_rustsec(rustsec)"
               >
+                <strong
+                  ><a
+                    :href="
+                      'https://rustsec.org/advisories/' +
+                      rustsec.advisory.id +
+                      '.html'
+                    "
+                    target="_blank"
+                    >{{ rustsec.advisory.id }}</a
+                  ></strong
+                >
+              </div>
             </span>
           </td>
           <!-- create PR -->
@@ -201,9 +204,9 @@ export default {
     },
     clean_rustsec(rustsec) {
       let title = rustsec.advisory.title;
-      let desc = rustsec.advisory.description;
+      //      let desc = rustsec.advisory.description;
 
-      let result = `${title}, ${desc}`;
+      let result = `${title}`;
 
       if (rustsec.versions.patched.length > 0) {
         let patched = rustsec.versions.patched.join(", ");
