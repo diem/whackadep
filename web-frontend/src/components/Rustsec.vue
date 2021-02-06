@@ -20,7 +20,16 @@
           </td>
           <td>
             <span v-if="d.rustsec" :title="JSON.stringify(d.rustsec)">
-              <strong>{{ d.rustsec.advisory.id }}</strong
+              <strong
+                ><a
+                  :href="
+                    'https://rustsec.org/advisories/' +
+                    d.rustsec.advisory.id +
+                    '.html'
+                  "
+                  target="_blank"
+                  >{{ d.rustsec.advisory.id }}</a
+                ></strong
               >: {{ d.rustsec.advisory.title }}.
 
               <span v-if="d.rustsec.versions.patched.length > 0">

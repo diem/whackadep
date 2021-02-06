@@ -54,7 +54,17 @@
               v-if="d.rustsec"
               v-b-popover.hover.top="clean_rustsec(d.rustsec)"
             >
-              <strong>{{ d.rustsec.advisory.id }}</strong>
+              <strong
+                ><a
+                  :href="
+                    'https://rustsec.org/advisories/' +
+                    d.rustsec.advisory.id +
+                    '.html'
+                  "
+                  target="_blank"
+                  >{{ d.rustsec.advisory.id }}</a
+                ></strong
+              >
             </span>
           </td>
           <!-- create PR -->
