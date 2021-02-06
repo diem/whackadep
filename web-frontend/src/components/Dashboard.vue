@@ -142,8 +142,11 @@ function calculate_priority_score(dep) {
     priority_score += 10;
     priority_reasons.push("MAJOR version change");
   } else if (type_of_change == "minor") {
-    priority_score += 2;
+    priority_score += 3;
     priority_reasons.push("MINOR version change");
+  } else if (type_of_change == "patch") {
+    priority_score += 1;
+    priority_reasons.push("PATCH version change");
   }
 
   // RUSTSEC
