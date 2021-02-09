@@ -335,7 +335,11 @@ impl RustAnalysis {
 
     /// 5. risk engine
     async fn risk(&mut self) -> Result<()> {
-        for dependency in &mut self.dependencies {
+        // fetch versions for each dependency in that list
+        let iterator = stream::iter(&mut self.dependencies)
+        .map(|dependency| async move {
+            // get all versions for that dependency
+
             if let Some(update) = &mut dependency.update {
                 let original_dep_name = &dependency.name;
                 let original_dep_version = &dependency.version;
@@ -353,12 +357,19 @@ impl RustAnalysis {
                     format!("{}=={}", original_dep_name, original_dep_version);
                 let cargo_crate_new_version = format!("{}=={}", original_dep_name, latest_version);
 
-                update.build_rs = diff::is_diff_in_buildrs(
+                match diff::is_diff_in_buildrs(
                     &cargo_crate_original_version,
                     &cargo_crate_new_version,
-                ).await?;
+                ).await
+                {
+                    Ok(update_build_rs) => update.build_rs = update_build_rs,
+                    Err(e) => {error!("error checking build.rs diff")}
+                };
             }
-        }
+            ()
+            })
+            .buffer_unordered(10);
+        iterator.collect::<()>().await;
         Ok(())
     }
 }
