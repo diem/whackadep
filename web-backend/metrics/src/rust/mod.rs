@@ -109,7 +109,7 @@ impl RustAnalysis {
 
         // 5. risk
         info!("5. risk engine running...");
-        rust_analysis.risk()?;
+        rust_analysis.risk().await?;
 
         // 6. summary of changes since last analysis
         if let Some(old) = previous_analysis {
@@ -334,7 +334,7 @@ impl RustAnalysis {
     }
 
     /// 5. risk engine
-    fn risk(&mut self) -> Result<()> {
+    async fn risk(&mut self) -> Result<()> {
         for dependency in &mut self.dependencies {
             if let Some(update) = &mut dependency.update {
                 let original_dep_name = &dependency.name;
@@ -356,7 +356,7 @@ impl RustAnalysis {
                 update.build_rs = diff::is_diff_in_buildrs(
                     &cargo_crate_original_version,
                     &cargo_crate_new_version,
-                )?;
+                ).await?;
             }
         }
         Ok(())

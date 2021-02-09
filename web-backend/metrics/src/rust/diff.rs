@@ -8,11 +8,11 @@ use anyhow::{bail, ensure, Result};
 use regex::Regex;
 use std::fs;
 use std::path::Path;
-use std::process::Command;
 use tempfile::tempdir;
+use tokio::process::Command;
 use tracing::info;
 
-fn download_cargo_crate(crate_with_version: &str, extract_dir: &Path) -> Result<()> {
+async fn download_cargo_crate(crate_with_version: &str, extract_dir: &Path) -> Result<()> {
     // return path to downloaded crate
     // cargo download cargo-download==0.1.2
     let extract_path = extract_dir.join(crate_with_version);
@@ -23,7 +23,8 @@ fn download_cargo_crate(crate_with_version: &str, extract_dir: &Path) -> Result<
         .args(&["download", "-x", "-o"])
         .arg(extract_path)
         .arg(crate_with_version)
-        .output()?;
+        .output()
+        .await?;
 
     ensure!(
         output.status.success(),
@@ -33,12 +34,13 @@ fn download_cargo_crate(crate_with_version: &str, extract_dir: &Path) -> Result<
     Ok(())
 }
 
-fn diff_cargo_crates(path_to_original_crate: &Path, path_to_new_crate: &Path) -> Result<bool> {
+async fn diff_cargo_crates(path_to_original_crate: &Path, path_to_new_crate: &Path) -> Result<bool> {
     let diff_output = Command::new("git")
         .args(&["diff", "--no-index", "--name-only"])
         .arg(path_to_original_crate)
         .arg(path_to_new_crate)
-        .output()?;
+        .output()
+        .await?;
 
     // returns '1' if no difference found, '0' if difference found
     if !matches!(diff_output.status.code(), Some(1) | Some(0)) {
@@ -61,7 +63,7 @@ fn diff_cargo_crates(path_to_original_crate: &Path, path_to_new_crate: &Path) ->
 pub async fn init_cargo_download() -> Result<()> {
     //! install cargo-download crate
     info!("Installing cargo-download crate");
-    let output = tokio::process::Command::new("cargo")
+    let output = Command::new("cargo")
         .args(&["install", "cargo-download"])
         .output()
         .await?;
@@ -73,7 +75,7 @@ pub async fn init_cargo_download() -> Result<()> {
     Ok(())
 }
 
-pub fn is_diff_in_buildrs(
+pub async fn is_diff_in_buildrs(
     cargo_crate_original_version: &str,
     cargo_crate_new_version: &str,
 ) -> Result<bool> {
@@ -82,8 +84,8 @@ pub fn is_diff_in_buildrs(
     let out_dir = tempdir()?;
     let out_dir = out_dir.path();
 
-    download_cargo_crate(cargo_crate_original_version, &out_dir)?;
-    download_cargo_crate(cargo_crate_new_version, &out_dir)?;
+    download_cargo_crate(cargo_crate_original_version, &out_dir).await?;
+    download_cargo_crate(cargo_crate_new_version, &out_dir).await?;
 
     let original_crate = out_dir.join(cargo_crate_original_version);
     let original_crate = original_crate.as_path();
@@ -91,31 +93,31 @@ pub fn is_diff_in_buildrs(
     let latest_crate = out_dir.join(cargo_crate_new_version);
     let latest_crate = latest_crate.as_path();
 
-    diff_cargo_crates(original_crate, latest_crate)
+    diff_cargo_crates(original_crate, latest_crate).await
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_download_cargo_crate() {
+    #[tokio::test]
+    async fn test_download_cargo_crate() {
         let out_dir = tempdir().unwrap();
         let out_dir = out_dir.path();
-        download_cargo_crate("cargo-download==0.1.2", &out_dir);
+        download_cargo_crate("cargo-download==0.1.2", &out_dir).await;
         assert!(out_dir.join("cargo-download==0.1.2").exists());
     }
 
-    #[test]
-    fn test_diff_cargo_crates() {
+    #[tokio::test]
+    async fn test_diff_cargo_crates() {
         let out_dir = tempdir().unwrap();
         let out_dir = out_dir.path();
         // tiny-keccak-2.0.0 does not have build.rs
         // tiny-keccak-2.0.1 does have build.rs
         // tiny-keccak-2.0.2 has diff from 2.0.1
-        download_cargo_crate("tiny-keccak==2.0.0", &out_dir);
-        download_cargo_crate("tiny-keccak==2.0.1", &out_dir);
-        download_cargo_crate("tiny-keccak==2.0.2", &out_dir);
+        download_cargo_crate("tiny-keccak==2.0.0", &out_dir).await;
+        download_cargo_crate("tiny-keccak==2.0.1", &out_dir).await;
+        download_cargo_crate("tiny-keccak==2.0.2", &out_dir).await;
 
         let t_k_0 = out_dir.join("tiny-keccak==2.0.0");
         let t_k_0 = t_k_0.as_path();
@@ -126,15 +128,15 @@ mod tests {
         let t_k_2 = out_dir.join("tiny-keccak==2.0.2");
         let t_k_2 = t_k_2.as_path();
 
-        assert_eq!(diff_cargo_crates(t_k_0, t_k_0).unwrap(), false);
-        assert!(diff_cargo_crates(t_k_0, t_k_1).unwrap());
-        assert!(diff_cargo_crates(t_k_1, t_k_2).unwrap());
+        assert_eq!(diff_cargo_crates(t_k_0, t_k_0).await.unwrap(), false);
+        assert!(diff_cargo_crates(t_k_0, t_k_1).await.unwrap());
+        assert!(diff_cargo_crates(t_k_1, t_k_2).await.unwrap());
     }
 
-    #[test]
-    fn test_is_diff_in_buildrs() {
-        assert!(is_diff_in_buildrs("tiny-keccak==2.0.0", "tiny-keccak==2.0.1").unwrap());
-        assert!(is_diff_in_buildrs("tiny-keccak==2.0.1", "tiny-keccak==2.0.2").unwrap());
+    #[tokio::test]
+    async fn test_is_diff_in_buildrs() {
+        assert!(is_diff_in_buildrs("tiny-keccak==2.0.0", "tiny-keccak==2.0.1").await.unwrap());
+        assert!(is_diff_in_buildrs("tiny-keccak==2.0.1", "tiny-keccak==2.0.2").await.unwrap());
     }
 
     #[tokio::test]
