@@ -190,84 +190,117 @@ export default {
     };
   },
   mounted() {
-    axios.get("/dependencies").then((response) => {
-      // retrieve commit
-      this.commit = response.data.commit;
+    axios
+      .get("/dependencies?repo=https://github.com/diem/diem.git")
+      .then((response) => {
+        // retrieve commit
+        this.commit = response.data.commit;
 
-      // retrieve datetime
-      this.date = new Date(response.data.timestamp);
+        // retrieve datetime
+        this.date = new Date(response.data.timestamp);
 
-      // retrieve change summary
-      this.change_summary = response.data.rust_dependencies.change_summary;
+        // retrieve change summary
+        this.change_summary = response.data.rust_dependencies.change_summary;
 
-      // retrieve all rust dependencies
-      this.dependencies = response.data.rust_dependencies.dependencies;
-      console.log("all deps", this.dependencies);
+        // retrieve all rust dependencies
+        this.dependencies = response.data.rust_dependencies.dependencies;
+        console.log("all deps", this.dependencies);
 
-      // filter for dependencies that have a RUSTSEC but no updates
-      this.rustsec = response.data.rust_dependencies.dependencies.filter(
-        (dependency) => dependency.rustsec != null && dependency.update == null
-      );
+        // filter for dependencies that have a RUSTSEC but no updates
+        this.rustsec = response.data.rust_dependencies.dependencies.filter(
+          (dependency) =>
+            dependency.rustsec != null && dependency.update == null
+        );
 
-      // filter for dependencies that have updates
-      var updatable_dependencies = response.data.rust_dependencies.dependencies
-        .filter((dependency) => dependency.update != null)
-        .map((dependency) => {
-          let { priority_score, priority_reasons } = calculate_priority_score(
-            dependency
-          );
-          dependency.priority_score = priority_score;
-          dependency.priority_reasons = priority_reasons;
+        // filter for dependencies that have updates
+        var updatable_dependencies = response.data.rust_dependencies.dependencies
+          .filter((dependency) => dependency.update != null)
+          .map((dependency) => {
+            let { priority_score, priority_reasons } = calculate_priority_score(
+              dependency
+            );
+            dependency.priority_score = priority_score;
+            dependency.priority_reasons = priority_reasons;
 
-          let { risk_score, risk_reasons } = calculate_risk_score(dependency);
-          dependency.risk_score = risk_score;
-          dependency.risk_reasons = risk_reasons;
+            let { risk_score, risk_reasons } = calculate_risk_score(dependency);
+            dependency.risk_score = risk_score;
+            dependency.risk_reasons = risk_reasons;
 
-          return dependency;
-        });
+            return dependency;
+          });
 
-      var can_update_dependencies = updatable_dependencies.filter(
-        (dependency) => {
-          if (!dependency.direct) {
-            return this.update_allowed(dependency);
-          } else {
-            return true;
+        var can_update_dependencies = updatable_dependencies.filter(
+          (dependency) => {
+            if (!dependency.direct) {
+              return this.update_allowed(dependency);
+            } else {
+              return true;
+            }
           }
-        }
-      );
+        );
 
-      // filter for non-dev dependencies that have an update
-      this.non_dev_updatable_deps = can_update_dependencies.filter(
-        (dependency) => !dependency.dev
-      );
-      this.non_dev_updatable_deps = this.non_dev_updatable_deps.sort(
-        sort_priority
-      );
-      console.log("non-dev update deps", this.non_dev_updatable_deps);
+        // filter for non-dev dependencies that have an update
+        this.non_dev_updatable_deps = can_update_dependencies.filter(
+          (dependency) => !dependency.dev
+        );
+        this.non_dev_updatable_deps = this.non_dev_updatable_deps.sort(
+          sort_priority
+        );
+        console.log("non-dev update deps", this.non_dev_updatable_deps);
 
-      // filter for dev dependencies that have an update
-      this.dev_updatable_deps = can_update_dependencies.filter(
-        (dependency) => dependency.dev
-      );
-      this.dev_updatable_deps = this.dev_updatable_deps.sort(sort_priority);
+        // filter for dev dependencies that have an update
+        this.dev_updatable_deps = can_update_dependencies.filter(
+          (dependency) => dependency.dev
+        );
+        this.dev_updatable_deps = this.dev_updatable_deps.sort(sort_priority);
 
-      // finally, retrieve dependencies that have updates and _can't_ be updated
-      // just in case we made a mistake above...
-      this.cant_update_deps = updatable_dependencies.filter((dependency) => {
-        if (!dependency.direct) {
-          return !this.update_allowed(dependency);
+        // finally, retrieve dependencies that have updates and _can't_ be updated
+        // just in case we made a mistake above...
+        this.cant_update_deps = updatable_dependencies.filter((dependency) => {
+          if (!dependency.direct) {
+            return !this.update_allowed(dependency);
+          } else {
+            return false;
+          }
+        });
+        this.cant_update_deps = this.cant_update_deps.sort(sort_priority);
+      })
+      .catch((error) => {
+        console.log(error);
+        if (error.response) {
+          // The request was made and the server responded with a status code
+          // that falls out of the range of 2xx
+          this.toast("Error from the server", error.message);
+        } else if (error.request) {
+          // The request was made but no response was received
+          // `error.request` is an instance of XMLHttpRequest in the browser and an instance of
+          // http.ClientRequest in node.js
+          this.toast(
+            "server unavailable",
+            `more information: ${JSON.stringify(error.message)}`
+          );
         } else {
-          return false;
+          // Something happened in setting up the request that triggered an Error
+          this.toast(
+            "unknown error",
+            `more informatino: ${JSON.stringify(error.message)}`
+          );
         }
+        console.log(error.config);
       });
-      this.cant_update_deps = this.cant_update_deps.sort(sort_priority);
-    });
   },
   components: {
     DependenciesTable,
     RustsecTable,
   },
   methods: {
+    toast(title, msg) {
+      this.$bvToast.toast(msg, {
+        title: title,
+        autoHideDelay: 5000,
+        appendToast: true,
+      });
+    },
     count(deps) {
       if (deps != null) {
         // there will be redundant dependencies

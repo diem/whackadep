@@ -12,7 +12,6 @@ reqwest = "0.11.0" # http client
 tempfile = "3.2.0" # temporary folder helper
 serde = { version = "1.0", features = ["derive"] } # bson serialization
 serde_json = "1.0" # bson serialization
-old_tokio = { package = "tokio", version = "0.2.18", features = ["full"] } # old version because of mongodb driver...
 tokio = { version = "1.1.0", features = ["full"] } # old version because of mongodb driver...
 futures = "0.3.12" # async stuff
 tracing = "0.1.22" # logging
@@ -20,10 +19,10 @@ regex = "1.4.3" # used for checking diff output
 chrono = "0.4" # used for datetime of mongodb document
 
 # driver
-mongodb = "1.1.1" # database used to store result of cronjobs
+mongodb = "2.0.0-alpha" # database used to store result of cronjobs
 
 # app-specific
-guppy = "0.6.3" # library to analyze deps
+guppy = "0.7.0" # library to analyze deps
 guppy-summaries = "0.3.1" # guppy summaries
 semver = "0.11.0" # semver of dependencies
 octocrab = "0.8.11"  # interact with github API

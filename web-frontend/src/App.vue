@@ -48,13 +48,15 @@ export default {
   },
   methods: {
     refresh() {
-      axios.get("/refresh").then((response) => {
-        this.$bvToast.toast(`response from the server: ${response.data}`, {
-          title: "Refresh requested",
-          autoHideDelay: 5000,
-          appendToast: true,
+      axios
+        .get("/refresh?repo=https://github.com/diem/diem.git")
+        .then((response) => {
+          this.$bvToast.toast(`response from the server: ${response.data}`, {
+            title: "Refresh requested",
+            autoHideDelay: 5000,
+            appendToast: true,
+          });
         });
-      });
     },
   },
 };
