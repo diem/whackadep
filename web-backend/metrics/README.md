@@ -13,9 +13,9 @@ Current directory structure at the time of this writing:
 * [resources](resources). Contains results of guppy execution for test or to populate the database with some data.
 * [src/bin](src/bin). Contains CLIs to populate the database with test data.
 * [src/common](src/common). Analysis code relevant for any languages (e.g. querying github.com).
+* [src/model](src/model). Abstraction around the mongodb database.
 * [src/rust](src/rust). Code that handles parsing and fetching dependencies in different languages or types of file.
 * [src/analysis.rs](src/analysis.rs). The main analysis code
-* [src/db.rs](src/db.rs). Abstraction around the mongodb database. Perhaps this should be a "model" thing.
 * [src/git.rs](src/git.rs). Abstraction around the `git` tool.
 * [src/lib.rs](src/lib.rs). A service component that can be started and receive one request at a time.
 
