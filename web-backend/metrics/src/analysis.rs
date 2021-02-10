@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 use chrono::prelude::*;
-use mongodb::bson;
+use crypto::{digest::Digest, md5::Md5};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tracing::{error, info};
@@ -59,14 +59,17 @@ impl MetricsApp {
     /// 3. It records the commit pointed by the HEAD of the repository.
     /// 4. It runs language-dependent analysis to "extract" information about our dependencies (this step only works for Rust dependencies stuff at the moment).
     /// 5. It stores the results in the database.
-    pub async fn refresh(&self, repo_url: &str, repo_path: &Path) -> Result<()> {
+    pub async fn refresh(&self, repo_url: &str, repo_dir: &Path) -> Result<()> {
         // 1. initialize repo if not done
+        let mut md5 = Md5::new();
+        md5.input_str(repo_url);
+        let repo_path = repo_dir.join(&md5.result_str());
         info!("getting diem/diem repo");
-        let repo = match Repo::new(repo_path) {
+        let repo = match Repo::new(&repo_path) {
             Ok(repo) => repo,
             Err(_) => {
                 info!("cloning {} into {}", repo_url, repo_path.to_string_lossy());
-                Repo::clone(repo_url, repo_path).await?
+                Repo::clone(repo_url, &repo_path).await?
             }
         };
 

@@ -2,7 +2,7 @@
 //! It can also be used to run a Metrics service, with the function [`start()`].
 
 use anyhow::Result;
-use std::path::Path;
+use std::path::PathBuf;
 use std::sync::mpsc::Receiver;
 use tracing::{error, info};
 
@@ -26,8 +26,6 @@ pub enum MetricsRequest {
 /// and will prevent any queries from being sent when busy.
 /// For this reason, you should call the sender with [`std::sync::mpsc::SyncSender::try_send()`].
 pub async fn start(receiver: Receiver<MetricsRequest>) -> Result<()> {
-    let repo_path = Path::new("diem_repo");
-
     info!("initializing cargo tree");
     rust::cargotree::CargoTree::init_cargo_tree().await?;
 
@@ -40,10 +38,13 @@ pub async fn start(receiver: Receiver<MetricsRequest>) -> Result<()> {
     let metrics = MetricsApp::new().await?;
 
     info!("metrics service started!");
+    let mut repo_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    repo_dir.push("repos");
+
     for request in receiver {
         match request {
             MetricsRequest::StartAnalysis { repo_url } => {
-                match metrics.refresh(&repo_url, &repo_path).await {
+                match metrics.refresh(&repo_url, &repo_dir).await {
                     Ok(()) => info!("analyze finished successfuly"),
                     Err(e) => {
                         error!("metrics failed to terminate: {}", e);

@@ -17,6 +17,7 @@ futures = "0.3.12" # async stuff
 tracing = "0.1.22" # logging
 regex = "1.4.3" # used for checking diff output
 chrono = "0.4" # used for datetime of mongodb document
+rust-crypto = "0.2" # used to hash the repo url (to derive a folder dir)
 
 # driver
 mongodb = "2.0.0-alpha" # database used to store result of cronjobs
