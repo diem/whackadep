@@ -3,7 +3,10 @@
 #[macro_use]
 extern crate rocket;
 
-use metrics::{db::Db, MetricsRequest};
+use metrics::{
+    model::{Db, Dependencies},
+    MetricsRequest,
+};
 use rocket::State;
 use std::sync::mpsc::{sync_channel, SyncSender};
 use std::sync::Mutex;
@@ -20,14 +23,12 @@ fn index() -> &'static str {
     "/refresh\n/dependencies"
 }
 
-#[get("/refresh")]
+#[get("/refresh/<repo>")]
 // TODO: does anyhow result implement Responder?
-fn refresh(state: State<App>) -> &'static str {
+fn refresh(state: State<App>, repo: String) -> &'static str {
     let sender = state.metrics_requester.lock().unwrap();
     if sender
-        .try_send(MetricsRequest::RustDependencies {
-            repo_url: "https://github.com/diem/diem.git".to_string(),
-        })
+        .try_send(MetricsRequest::StartAnalysis { repo_url: repo })
         .is_err()
     {
         return "metrics service is busy";
@@ -36,9 +37,10 @@ fn refresh(state: State<App>) -> &'static str {
     "ok"
 }
 
-#[get("/dependencies")]
-fn dependencies() -> String {
-    match Db::get_last_analysis() {
+#[get("/dependencies/<repo>")]
+async fn dependencies(state: State<App, '_>, repo: String) -> String {
+    let dependencies = Dependencies::new(state.db.clone());
+    match dependencies.get_last_analysis(&repo).await {
         Ok(Some(analysis)) => match serde_json::to_string(&analysis) {
             Ok(dependencies) => return dependencies,
             Err(e) => {
@@ -60,14 +62,16 @@ fn dependencies() -> String {
 struct App {
     // to send requests to the metric service
     metrics_requester: Mutex<SyncSender<MetricsRequest>>,
+    db: Db,
 }
 
 #[launch]
-fn rocket() -> rocket::Rocket {
+async fn rocket() -> rocket::Rocket {
     // init logging
     tracing_subscriber::fmt::init();
     info!("logging initialized");
 
+    // TODO: run this on the main runtimes
     // start metric server
     let (sender, receiver) = sync_channel::<MetricsRequest>(0);
     thread::spawn(move || {
@@ -79,6 +83,7 @@ fn rocket() -> rocket::Rocket {
     // configure app state
     let state = App {
         metrics_requester: Mutex::new(sender),
+        db: Db::new(None, None, None, None).await.unwrap(),
     };
 
     // start server

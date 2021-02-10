@@ -8,16 +8,16 @@ use tracing::{error, info};
 
 pub mod analysis;
 pub mod common;
-pub mod db;
 pub mod git;
+pub mod model;
 pub mod rust;
 
-use analysis::analyze;
+use analysis::MetricsApp;
 
 /// A request that can be sent to the Metrics service (see [`start()`]).
 pub enum MetricsRequest {
     /// A request to refresh the list of rust dependencies, given a git repository.
-    RustDependencies { repo_url: String },
+    StartAnalysis { repo_url: String },
 }
 
 /// Initializes a metrics service with a channel [`Receiver`] and wait for requests to process.
@@ -37,11 +37,13 @@ pub async fn start(receiver: Receiver<MetricsRequest>) -> Result<()> {
     info!("initializing cargo download");
     rust::diff::init_cargo_download().await?;
 
+    let metrics = MetricsApp::new().await?;
+
     info!("metrics service started!");
     for request in receiver {
         match request {
-            MetricsRequest::RustDependencies { repo_url } => {
-                match analyze(&repo_url, &repo_path).await {
+            MetricsRequest::StartAnalysis { repo_url } => {
+                match metrics.refresh(&repo_url, &repo_path).await {
                     Ok(()) => info!("analyze finished successfuly"),
                     Err(e) => {
                         error!("metrics failed to terminate: {}", e);
