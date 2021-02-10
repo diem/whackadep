@@ -18,6 +18,7 @@ use tokio::runtime::Runtime;
 //
 
 #[get("/")]
+/// displays all the routes
 fn index() -> &'static str {
     // TODO: print other routes?
     "/refresh\n/dependencies"
@@ -25,6 +26,7 @@ fn index() -> &'static str {
 
 #[get("/refresh/<repo>")]
 // TODO: does anyhow result implement Responder?
+/// starts an analysis for the repo given (if one is not already ongoing)
 fn refresh(state: State<App>, repo: String) -> &'static str {
     let sender = state.metrics_requester.lock().unwrap();
     if sender
@@ -38,6 +40,7 @@ fn refresh(state: State<App>, repo: String) -> &'static str {
 }
 
 #[get("/dependencies/<repo>")]
+/// obtains latest analysis result for a repository
 async fn dependencies(state: State<App, '_>, repo: String) -> String {
     let dependencies = Dependencies::new(state.db.clone());
     match dependencies.get_last_analysis(&repo).await {
