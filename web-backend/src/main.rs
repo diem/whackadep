@@ -21,10 +21,10 @@ use tokio::runtime::Runtime;
 /// displays all the routes
 fn index() -> &'static str {
     // TODO: print other routes?
-    "/refresh\n/dependencies"
+    "/refresh?repo=<REPO>\n/dependencies?repo=<REPO>"
 }
 
-#[get("/refresh/<repo>")]
+#[get("/refresh?<repo>")]
 // TODO: does anyhow result implement Responder?
 /// starts an analysis for the repo given (if one is not already ongoing)
 fn refresh(state: State<App>, repo: String) -> &'static str {
@@ -39,7 +39,7 @@ fn refresh(state: State<App>, repo: String) -> &'static str {
     "ok"
 }
 
-#[get("/dependencies/<repo>")]
+#[get("/dependencies?<repo>")]
 /// obtains latest analysis result for a repository
 async fn dependencies(state: State<App, '_>, repo: String) -> String {
     let dependencies = Dependencies::new(state.db.clone());

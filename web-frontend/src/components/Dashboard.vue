@@ -191,7 +191,7 @@ export default {
   },
   mounted() {
     axios
-      .get("/dependencies")
+      .get("/dependencies?repo=https://github.com/diem/diem.git")
       .then((response) => {
         // retrieve commit
         this.commit = response.data.commit;
