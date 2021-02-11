@@ -12,10 +12,3 @@ export default {
   },
 };
 </script>
-
-<style scoped>
-nav {
-  margin-bottom: 10px;
-}
-</style>
-

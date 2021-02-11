@@ -3,14 +3,14 @@
 
 use super::Db;
 use anyhow::Result;
-use mongodb::bson::{self, doc, Document};
+use mongodb::bson::{self, doc};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
 pub struct Repo {
-    repo: String,
-    trusted_crates: Vec<String>,
-    snoozed_crates: Vec<String>,
+    pub repo: String,
+    pub trusted_crates: Vec<String>,
+    pub snoozed_crates: Vec<String>,
 }
 
 pub struct Config(Db);

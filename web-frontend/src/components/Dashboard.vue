@@ -1,7 +1,7 @@
 <template>
   <div class="container">
     <!-- header/nav -->
-    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
       <span class="navbar-brand mb-0 h1">Whack-a-dep!</span>
       <button
         class="navbar-toggler"
@@ -275,10 +275,7 @@ export default {
 
       // repo mgmt
       current_repo: "https://github.com/diem/diem.git",
-      repos: [
-        "https://github.com/diem/diem.git",
-        "https://github.com/diem/operations.git",
-      ],
+      repos: [],
       form: {
         repo: "",
       },
@@ -295,18 +292,21 @@ export default {
   methods: {
     onSubmit(event) {
       event.preventDefault();
-      console.log(JSON.stringify(this.form));
+      console.log("sending", JSON.stringify(this.form));
       this.hideModal();
-      this.onReset();
       axios
-        .post("/add_repo", JSON.stringify(this.form))
+        .post("/add_repo", this.form)
         .then((response) => {
           // TODO: return an error code from the server instead?
           if (response.data == "ok") {
-            this.toast("Git repository added", "success");
+            this.toast("Git repository added", "success", "success");
             this.get_repos();
           } else {
-            this.toast("Problem adding git repository", response.data);
+            this.toast(
+              "Problem adding git repository",
+              response.data,
+              "danger"
+            );
           }
         })
         .catch((error) => {
@@ -314,24 +314,27 @@ export default {
           if (error.response) {
             // The request was made and the server responded with a status code
             // that falls out of the range of 2xx
-            this.toast("Error from the server", error.message);
+            this.toast("Error from the server", error.message, "danger");
           } else if (error.request) {
             // The request was made but no response was received
             // `error.request` is an instance of XMLHttpRequest in the browser and an instance of
             // http.ClientRequest in node.js
             this.toast(
               "server unavailable",
-              `more information: ${JSON.stringify(error.message)}`
+              `more information: ${JSON.stringify(error.message)}`,
+              "danger"
             );
           } else {
             // Something happened in setting up the request that triggered an Error
             this.toast(
               "unknown error",
-              `more information: ${JSON.stringify(error.message)}`
+              `more information: ${JSON.stringify(error.message)}`,
+              "danger"
             );
           }
           console.log(error.config);
         });
+      this.onReset();
     },
     onReset() {
       // Reset our form values
@@ -357,27 +360,29 @@ export default {
       axios
         .get("/repos")
         .then((response) => {
-          console.log(response);
+          this.repos = response.data;
         })
         .catch((error) => {
           console.log(error);
           if (error.response) {
             // The request was made and the server responded with a status code
             // that falls out of the range of 2xx
-            this.toast("Error from the server", error.message);
+            this.toast("Error from the server", error.message, "danger");
           } else if (error.request) {
             // The request was made but no response was received
             // `error.request` is an instance of XMLHttpRequest in the browser and an instance of
             // http.ClientRequest in node.js
             this.toast(
               "server unavailable",
-              `more information: ${JSON.stringify(error.message)}`
+              `more information: ${JSON.stringify(error.message)}`,
+              "danger"
             );
           } else {
             // Something happened in setting up the request that triggered an Error
             this.toast(
               "unknown error",
-              `more information: ${JSON.stringify(error.message)}`
+              `more information: ${JSON.stringify(error.message)}`,
+              "danger"
             );
           }
           console.log(error.config);
@@ -389,7 +394,7 @@ export default {
         .then((response) => {
           // TODO: return an error code from the server instead?
           if (response.data.constructor == String) {
-            this.toast("Error from server", response.data);
+            this.toast("Error from server", response.data, "danger");
             return;
           }
           // retrieve commit
@@ -474,20 +479,22 @@ export default {
           if (error.response) {
             // The request was made and the server responded with a status code
             // that falls out of the range of 2xx
-            this.toast("Error from the server", error.message);
+            this.toast("Error from the server", error.message, "danger");
           } else if (error.request) {
             // The request was made but no response was received
             // `error.request` is an instance of XMLHttpRequest in the browser and an instance of
             // http.ClientRequest in node.js
             this.toast(
               "server unavailable",
-              `more information: ${JSON.stringify(error.message)}`
+              `more information: ${JSON.stringify(error.message)}`,
+              "danger"
             );
           } else {
             // Something happened in setting up the request that triggered an Error
             this.toast(
               "unknown error",
-              `more information: ${JSON.stringify(error.message)}`
+              `more information: ${JSON.stringify(error.message)}`,
+              "danger"
             );
           }
           console.log(error.config);
@@ -495,14 +502,16 @@ export default {
     },
     refresh() {
       axios.get("/refresh?repo=" + this.current_repo).then((response) => {
-        this.toast("Refresh requested", response.data);
+        this.toast("Refresh requested", response.data, "info");
       });
     },
-    toast(title, msg) {
+    toast(title, msg, variant = null) {
       this.$bvToast.toast(msg, {
         title: title,
         autoHideDelay: 5000,
         appendToast: true,
+        variant: variant,
+        solid: true,
       });
     },
     count(deps) {
@@ -575,7 +584,12 @@ export default {
 };
 </script>
 
+
 <style scoped>
+nav {
+  margin-bottom: 20px;
+}
+
 #stats {
   text-align: center;
   margin-bottom: 20px;

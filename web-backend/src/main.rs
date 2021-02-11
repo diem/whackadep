@@ -8,6 +8,8 @@ use metrics::{
     MetricsRequest,
 };
 use rocket::State;
+use rocket_contrib::json::Json;
+use serde::Deserialize;
 use std::sync::mpsc::{sync_channel, SyncSender};
 use std::sync::Mutex;
 use std::thread;
@@ -67,17 +69,27 @@ async fn repos(state: State<App, '_>) -> String {
         Err(e) => return format!("error: {}", e),
         Ok(repos) => repos,
     };
+    let repos: Vec<String> = repos.into_iter().map(|repo| repo.repo).collect();
     match serde_json::to_string(&repos) {
         Err(e) => return format!("error: {}", e),
         Ok(repos) => repos,
     }
 }
 
-#[post("/add_repo", data = "<repo>")]
+#[derive(Deserialize)]
+struct RepoForm {
+    repo: String,
+}
+
+#[post("/add_repo", format = "json", data = "<repo_form>")]
 /// obtains latest analysis result for a repository
-async fn add_repo(state: State<App, '_>, repo: String) -> String {
+async fn add_repo(state: State<App, '_>, repo_form: Json<RepoForm>) -> String {
+    if repo_form.repo == "" {
+        return "error, the repo url sent is empty".to_string();
+    }
+    info!("adding repository: {}", repo_form.repo);
     let config = Config::new(state.db.clone());
-    match config.add_new_repo(&repo).await {
+    match config.add_new_repo(&repo_form.repo).await {
         Ok(()) => "ok".to_string(),
         Err(e) => format!("error: {}", e),
     }
