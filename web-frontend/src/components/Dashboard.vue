@@ -27,16 +27,19 @@
         </ul>
       </div>
 
-      <b-dropdown id="dropdown-repo" :text="current_repo" class="m-md-2">
+      <b-dropdown id="dropdownrepo" :text="current_repo" class="m-md-2">
         <b-dropdown-item
           v-for="repo in repos"
           v-bind:key="repo"
           :disabled="repo == current_repo"
+          @click="switch_repo(repo)"
         >
           {{ repo }}
         </b-dropdown-item>
         <b-dropdown-divider></b-dropdown-divider>
-        <b-dropdown-item>add a new rust repository</b-dropdown-item>
+        <b-dropdown-item @click="showModal"
+          >add a new rust repository</b-dropdown-item
+        >
       </b-dropdown>
     </nav>
 
@@ -172,6 +175,28 @@
       <DependenciesTable v-bind:dependencies="cant_update_deps" />
     </section>
     <!-- /container -->
+
+    <!-- modal -->
+    <b-modal ref="modal" hide-footer title="Adding a new repo">
+      <div>
+        <b-form @submit="onSubmit" @reset="onReset">
+          <b-form-group
+            id="repo-group"
+            label="Git repository:"
+            label-for="input-1"
+            description="We only support Rust repositories at the moment."
+          >
+            <b-form-input
+              id="repo"
+              v-model="form.repo"
+              placeholder="Enter git repository"
+              required
+            ></b-form-input>
+          </b-form-group>
+          <b-button type="submit" variant="primary">Add</b-button>
+        </b-form>
+      </div>
+    </b-modal>
   </div>
 </template>
 
@@ -254,117 +279,220 @@ export default {
         "https://github.com/diem/diem.git",
         "https://github.com/diem/operations.git",
       ],
+      form: {
+        repo: "",
+      },
     };
   },
   mounted() {
-    axios
-      .get("/dependencies?repo=" + this.current_repo)
-      .then((response) => {
-        // retrieve commit
-        this.commit = response.data.commit;
-
-        // retrieve datetime
-        this.date = new Date(response.data.timestamp);
-
-        // retrieve change summary
-        this.change_summary = response.data.rust_dependencies.change_summary;
-
-        // retrieve all rust dependencies
-        this.dependencies = response.data.rust_dependencies.dependencies;
-        console.log("all deps", this.dependencies);
-
-        // filter for dependencies that have a RUSTSEC but no updates
-        this.rustsec = response.data.rust_dependencies.dependencies.filter(
-          (dependency) =>
-            dependency.rustsec != null && dependency.update == null
-        );
-
-        // filter for dependencies that have updates
-        var updatable_dependencies = response.data.rust_dependencies.dependencies
-          .filter((dependency) => dependency.update != null)
-          .map((dependency) => {
-            let { priority_score, priority_reasons } = calculate_priority_score(
-              dependency
-            );
-            dependency.priority_score = priority_score;
-            dependency.priority_reasons = priority_reasons;
-
-            let { risk_score, risk_reasons } = calculate_risk_score(dependency);
-            dependency.risk_score = risk_score;
-            dependency.risk_reasons = risk_reasons;
-
-            return dependency;
-          });
-
-        var can_update_dependencies = updatable_dependencies.filter(
-          (dependency) => {
-            if (!dependency.direct) {
-              return this.update_allowed(dependency);
-            } else {
-              return true;
-            }
-          }
-        );
-
-        // filter for non-dev dependencies that have an update
-        this.non_dev_updatable_deps = can_update_dependencies.filter(
-          (dependency) => !dependency.dev
-        );
-        this.non_dev_updatable_deps = this.non_dev_updatable_deps.sort(
-          sort_priority
-        );
-        console.log("non-dev update deps", this.non_dev_updatable_deps);
-
-        // filter for dev dependencies that have an update
-        this.dev_updatable_deps = can_update_dependencies.filter(
-          (dependency) => dependency.dev
-        );
-        this.dev_updatable_deps = this.dev_updatable_deps.sort(sort_priority);
-
-        // finally, retrieve dependencies that have updates and _can't_ be updated
-        // just in case we made a mistake above...
-        this.cant_update_deps = updatable_dependencies.filter((dependency) => {
-          if (!dependency.direct) {
-            return !this.update_allowed(dependency);
-          } else {
-            return false;
-          }
-        });
-        this.cant_update_deps = this.cant_update_deps.sort(sort_priority);
-      })
-      .catch((error) => {
-        console.log(error);
-        if (error.response) {
-          // The request was made and the server responded with a status code
-          // that falls out of the range of 2xx
-          this.toast("Error from the server", error.message);
-        } else if (error.request) {
-          // The request was made but no response was received
-          // `error.request` is an instance of XMLHttpRequest in the browser and an instance of
-          // http.ClientRequest in node.js
-          this.toast(
-            "server unavailable",
-            `more information: ${JSON.stringify(error.message)}`
-          );
-        } else {
-          // Something happened in setting up the request that triggered an Error
-          this.toast(
-            "unknown error",
-            `more informatino: ${JSON.stringify(error.message)}`
-          );
-        }
-        console.log(error.config);
-      });
-
-    this.$root.$on("bv::dropdown::show", (bvEvent) => {
-      console.log("Dropdown is about to be shown", bvEvent);
-    });
+    this.get_repos();
+    this.get_dependencies();
   },
   components: {
     DependenciesTable,
     RustsecTable,
   },
   methods: {
+    onSubmit(event) {
+      event.preventDefault();
+      console.log(JSON.stringify(this.form));
+      this.hideModal();
+      this.onReset();
+      axios
+        .post("/add_repo", JSON.stringify(this.form))
+        .then((response) => {
+          // TODO: return an error code from the server instead?
+          if (response.data == "ok") {
+            this.toast("Git repository added", "success");
+            this.get_repos();
+          } else {
+            this.toast("Problem adding git repository", response.data);
+          }
+        })
+        .catch((error) => {
+          console.log(error);
+          if (error.response) {
+            // The request was made and the server responded with a status code
+            // that falls out of the range of 2xx
+            this.toast("Error from the server", error.message);
+          } else if (error.request) {
+            // The request was made but no response was received
+            // `error.request` is an instance of XMLHttpRequest in the browser and an instance of
+            // http.ClientRequest in node.js
+            this.toast(
+              "server unavailable",
+              `more information: ${JSON.stringify(error.message)}`
+            );
+          } else {
+            // Something happened in setting up the request that triggered an Error
+            this.toast(
+              "unknown error",
+              `more information: ${JSON.stringify(error.message)}`
+            );
+          }
+          console.log(error.config);
+        });
+    },
+    onReset() {
+      // Reset our form values
+      this.form.repo = "";
+    },
+    create_repo() {
+      this.showModal();
+    },
+    showModal() {
+      this.$refs["modal"].show();
+    },
+    hideModal() {
+      this.$refs["modal"].hide();
+      this.modal_text = "";
+    },
+    switch_repo(repo) {
+      console.log(repo);
+      this.current_repo = repo;
+      //      this.$refs.dropdownrepo.text(repo);
+      this.get_dependencies();
+    },
+    get_repos() {
+      axios
+        .get("/repos")
+        .then((response) => {
+          console.log(response);
+        })
+        .catch((error) => {
+          console.log(error);
+          if (error.response) {
+            // The request was made and the server responded with a status code
+            // that falls out of the range of 2xx
+            this.toast("Error from the server", error.message);
+          } else if (error.request) {
+            // The request was made but no response was received
+            // `error.request` is an instance of XMLHttpRequest in the browser and an instance of
+            // http.ClientRequest in node.js
+            this.toast(
+              "server unavailable",
+              `more information: ${JSON.stringify(error.message)}`
+            );
+          } else {
+            // Something happened in setting up the request that triggered an Error
+            this.toast(
+              "unknown error",
+              `more information: ${JSON.stringify(error.message)}`
+            );
+          }
+          console.log(error.config);
+        });
+    },
+    get_dependencies() {
+      axios
+        .get("/dependencies?repo=" + this.current_repo)
+        .then((response) => {
+          // TODO: return an error code from the server instead?
+          if (response.data.constructor == String) {
+            this.toast("Error from server", response.data);
+            return;
+          }
+          // retrieve commit
+          this.commit = response.data.commit;
+
+          // retrieve datetime
+          this.date = new Date(response.data.timestamp);
+
+          // retrieve change summary
+          this.change_summary = response.data.rust_dependencies.change_summary;
+
+          // retrieve all rust dependencies
+          this.dependencies = response.data.rust_dependencies.dependencies;
+          console.log("all deps", this.dependencies);
+
+          // filter for dependencies that have a RUSTSEC but no updates
+          this.rustsec = response.data.rust_dependencies.dependencies.filter(
+            (dependency) =>
+              dependency.rustsec != null && dependency.update == null
+          );
+
+          // filter for dependencies that have updates
+          var updatable_dependencies = response.data.rust_dependencies.dependencies
+            .filter((dependency) => dependency.update != null)
+            .map((dependency) => {
+              let {
+                priority_score,
+                priority_reasons,
+              } = calculate_priority_score(dependency);
+              dependency.priority_score = priority_score;
+              dependency.priority_reasons = priority_reasons;
+
+              let { risk_score, risk_reasons } = calculate_risk_score(
+                dependency
+              );
+              dependency.risk_score = risk_score;
+              dependency.risk_reasons = risk_reasons;
+
+              return dependency;
+            });
+
+          var can_update_dependencies = updatable_dependencies.filter(
+            (dependency) => {
+              if (!dependency.direct) {
+                return this.update_allowed(dependency);
+              } else {
+                return true;
+              }
+            }
+          );
+
+          // filter for non-dev dependencies that have an update
+          this.non_dev_updatable_deps = can_update_dependencies.filter(
+            (dependency) => !dependency.dev
+          );
+          this.non_dev_updatable_deps = this.non_dev_updatable_deps.sort(
+            sort_priority
+          );
+          console.log("non-dev update deps", this.non_dev_updatable_deps);
+
+          // filter for dev dependencies that have an update
+          this.dev_updatable_deps = can_update_dependencies.filter(
+            (dependency) => dependency.dev
+          );
+          this.dev_updatable_deps = this.dev_updatable_deps.sort(sort_priority);
+
+          // finally, retrieve dependencies that have updates and _can't_ be updated
+          // just in case we made a mistake above...
+          this.cant_update_deps = updatable_dependencies.filter(
+            (dependency) => {
+              if (!dependency.direct) {
+                return !this.update_allowed(dependency);
+              } else {
+                return false;
+              }
+            }
+          );
+          this.cant_update_deps = this.cant_update_deps.sort(sort_priority);
+        })
+        .catch((error) => {
+          console.log(error);
+          if (error.response) {
+            // The request was made and the server responded with a status code
+            // that falls out of the range of 2xx
+            this.toast("Error from the server", error.message);
+          } else if (error.request) {
+            // The request was made but no response was received
+            // `error.request` is an instance of XMLHttpRequest in the browser and an instance of
+            // http.ClientRequest in node.js
+            this.toast(
+              "server unavailable",
+              `more information: ${JSON.stringify(error.message)}`
+            );
+          } else {
+            // Something happened in setting up the request that triggered an Error
+            this.toast(
+              "unknown error",
+              `more information: ${JSON.stringify(error.message)}`
+            );
+          }
+          console.log(error.config);
+        });
+    },
     refresh() {
       axios.get("/refresh?repo=" + this.current_repo).then((response) => {
         this.toast("Refresh requested", response.data);

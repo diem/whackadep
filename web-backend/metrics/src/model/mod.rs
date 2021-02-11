@@ -1,7 +1,7 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use mongodb::{
     bson::Document,
-    options::{ClientOptions, FindOneOptions},
+    options::{ClientOptions, DeleteOptions, FindOneOptions, FindOptions},
     Client, Database,
 };
 use std::env;
@@ -10,6 +10,7 @@ use tracing::info;
 mod config;
 mod dependencies;
 
+pub use config::Config;
 pub use dependencies::Dependencies;
 
 #[derive(Clone)]
@@ -47,10 +48,10 @@ impl Db {
         Ok(Db(db))
     }
 
-    pub async fn write(&self, document: Document) -> Result<()> {
+    pub async fn write(&self, collection: &str, document: Document) -> Result<()> {
         let insert_result = self
             .0
-            .collection("dependencies")
+            .collection(collection)
             .insert_one(document, None)
             .await
             .map_err(anyhow::Error::msg)?;
@@ -61,7 +62,7 @@ impl Db {
     pub async fn find_one(
         &self,
         collection: &str,
-        filter: Document,
+        filter: Option<Document>,
         options: Option<FindOneOptions>,
     ) -> Result<Option<Document>> {
         self.0
@@ -69,5 +70,45 @@ impl Db {
             .find_one(filter, options)
             .await
             .map_err(anyhow::Error::msg)
+    }
+
+    pub async fn find(
+        &self,
+        collection: &str,
+        filter: Option<Document>,
+        options: Option<FindOptions>,
+    ) -> Result<Vec<Document>> {
+        use futures::StreamExt;
+        let cursor = self
+            .0
+            .collection(collection)
+            .find(filter, options)
+            .await
+            .map_err(anyhow::Error::msg)?;
+        let res: Vec<mongodb::error::Result<Document>> = cursor.collect().await;
+        // TODO: log the Err
+        let res: Vec<Document> = res.into_iter().filter_map(Result::ok).collect();
+        Ok(res)
+    }
+
+    pub async fn delete_one(
+        &self,
+        collection: &str,
+        filter: Document,
+        options: Option<DeleteOptions>,
+    ) -> Result<()> {
+        let res = self
+            .0
+            .collection(collection)
+            .delete_one(filter, options)
+            .await
+            .map_err(anyhow::Error::msg)?;
+        if res.deleted_count != 1 {
+            return Err(anyhow!(
+                "deleted inconsistent number of repo config: {}",
+                res.deleted_count
+            ));
+        }
+        Ok(())
     }
 }

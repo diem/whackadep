@@ -12,6 +12,8 @@ use mongodb::{
 pub struct Dependencies(Db);
 
 impl Dependencies {
+    const COLLECTION: &'static str = "dependencies";
+
     pub fn new(db: Db) -> Self {
         Self(db)
     }
@@ -20,7 +22,7 @@ impl Dependencies {
     pub async fn write_analysis(&self, analysis: Analysis) -> Result<()> {
         let analysis = bson::to_bson(&analysis).unwrap();
         let document = analysis.as_document().unwrap();
-        self.0.write(document.to_owned()).await
+        self.0.write(Self::COLLECTION, document.to_owned()).await
     }
 
     /// find an analysis by repo and commit
@@ -29,7 +31,7 @@ impl Dependencies {
             "repository": repo,
             "commit": commit,
         };
-        self.0.find_one("dependencies", filter, None).await
+        self.0.find_one(Self::COLLECTION, Some(filter), None).await
     }
 
     /// get the last analysis for a specific repo
@@ -45,7 +47,7 @@ impl Dependencies {
 
         let analysis = self
             .0
-            .find_one("dependencies", filter, Some(find_options))
+            .find_one(Self::COLLECTION, Some(filter), Some(find_options))
             .await;
 
         // did we find anything?
@@ -58,14 +60,5 @@ impl Dependencies {
         bson::from_document(analysis)
             .map(|analysis| Some(analysis))
             .map_err(anyhow::Error::msg)
-    }
-
-    // config should return:
-    // {
-    // trusted_dependencies: HashMap<name, reasons>,
-    // paused_dependencies: ...
-    // }
-    pub fn get_config() -> Result<Document> {
-        unimplemented!();
     }
 }

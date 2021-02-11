@@ -4,7 +4,7 @@
 extern crate rocket;
 
 use metrics::{
-    model::{Db, Dependencies},
+    model::{Config, Db, Dependencies},
     MetricsRequest,
 };
 use rocket::State;
@@ -58,6 +58,31 @@ async fn dependencies(state: State<App, '_>, repo: String) -> String {
     "an error happened while retrieving dependencies".to_string()
 }
 
+#[get("/repos")]
+/// obtains latest analysis result for a repository
+async fn repos(state: State<App, '_>) -> String {
+    let config = Config::new(state.db.clone());
+    let repos = config.get_repos().await;
+    let repos = match repos {
+        Err(e) => return format!("error: {}", e),
+        Ok(repos) => repos,
+    };
+    match serde_json::to_string(&repos) {
+        Err(e) => return format!("error: {}", e),
+        Ok(repos) => repos,
+    }
+}
+
+#[post("/add_repo", data = "<repo>")]
+/// obtains latest analysis result for a repository
+async fn add_repo(state: State<App, '_>, repo: String) -> String {
+    let config = Config::new(state.db.clone());
+    match config.add_new_repo(&repo).await {
+        Ok(()) => "ok".to_string(),
+        Err(e) => format!("error: {}", e),
+    }
+}
+
 //
 // App
 //
@@ -93,5 +118,5 @@ async fn rocket() -> rocket::Rocket {
     info!("starting rocket server");
     rocket::ignite()
         .manage(state)
-        .mount("/", routes![index, refresh, dependencies])
+        .mount("/", routes![index, refresh, dependencies, repos, add_repo])
 }
