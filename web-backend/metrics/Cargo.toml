@@ -23,19 +23,10 @@ rust-crypto = "0.2" # used to hash the repo url (to derive a folder dir)
 mongodb = "2.0.0-alpha" # database used to store result of cronjobs
 
 # app-specific
-guppy = "0.7.0" # library to analyze deps
+guppy = { version = "0.7.0", features = ["summaries"] } # library to analyze deps
 guppy-summaries = "0.3.1" # guppy summaries
 semver = "0.11.0" # semver of dependencies
 octocrab = "0.8.11"  # interact with github API
 
 # bin-specific
 jsonwebtoken = "7.2.0"
-
-
-#
-# Binaries
-#
-
-# helper to populate database with test data
-[[bin]]
-name = "populate_test_data"
