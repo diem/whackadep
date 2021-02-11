@@ -18,10 +18,12 @@ use tracing::{debug, info};
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug, Eq, Hash)]
 /// A [RUSTSEC Advisory](https://rustsec.org/).
 pub struct RustSec {
+    /// yanked, unmaintained, etc.
+    kind: String,
     /// The advisory information (id, description, date, etc.)
-    advisory: Advisory,
+    advisory: Option<Advisory>,
     /// The versions patched and the versions unaffected.
-    versions: VersionInfo,
+    versions: Option<VersionInfo>,
 }
 
 //
@@ -48,11 +50,12 @@ struct Vulnerability {
 }
 
 #[derive(Deserialize, Clone)]
+/// Warning can be "yanked", "unmaintained", ...
 struct Warning {
     kind: String,
     package: PackageInfo,
-    advisory: Advisory,
-    versions: VersionInfo,
+    advisory: Option<Advisory>,    // null if "yanked"
+    versions: Option<VersionInfo>, // null if "yanked"
 }
 
 #[derive(Deserialize, Clone)]
@@ -132,8 +135,9 @@ impl CargoAudit {
                 let name = vulnerability.package.name.clone();
                 let version = Version::parse(&vulnerability.package.version)?;
                 let vuln = RustSec {
-                    advisory: vulnerability.advisory,
-                    versions: vulnerability.versions,
+                    kind: "vulnerability".to_string(),
+                    advisory: Some(vulnerability.advisory),
+                    versions: Some(vulnerability.versions),
                 };
                 result
                     .entry((name, version))
@@ -151,6 +155,7 @@ impl CargoAudit {
             let name = warning.package.name.clone();
             let version = Version::parse(&warning.package.version)?;
             let vuln = RustSec {
+                kind: warning.kind,
                 advisory: warning.advisory,
                 versions: warning.versions,
             };
