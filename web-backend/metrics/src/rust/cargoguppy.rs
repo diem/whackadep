@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{ensure, Context, Result};
 use guppy::graph::summaries::Summary;
 use std::fs::File;
 use std::io::BufReader;
@@ -23,12 +23,11 @@ impl CargoGuppy {
             .output()
             .await?;
 
-        if !output.status.success() {
-            bail!(
-                "couldn't run cargo-guppy: {}",
-                String::from_utf8_lossy(&output.stderr)
-            );
-        }
+        ensure!(
+            output.status.success(),
+            "couldn't run cargo-guppy: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
 
         Ok(())
     }
