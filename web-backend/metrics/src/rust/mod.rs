@@ -12,6 +12,7 @@
 use anyhow::Result;
 use futures::{stream, StreamExt};
 use guppy_summaries::{PackageStatus, SummarySource};
+use rustsec::report::{VulnerabilityInfo, WarningInfo};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -28,6 +29,7 @@ pub mod cargotree;
 pub mod cratesio;
 pub mod diff;
 pub mod guppy;
+pub mod rustsec;
 
 use crate::common::dependabot::{self, UpdateMetadata};
 use cargoaudit::{CargoAudit, RustSec};
@@ -44,8 +46,17 @@ pub struct RustAnalysis {
     /// This is due to different versions being used or/and being used directly and indirectly (transitively).
     dependencies: Vec<DependencyInfo>,
 
+    /// the result of running cargo-audit
+    rustsec: RustSec,
+
     /// A summary of the changes since last analysis
     change_summary: Option<ChangeSummary>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct RustSec {
+    vulnerabilities: VulnerabilityInfo,
+    warnings: WarningInfo,
 }
 
 /// DependencyInfo contains the information obtained from a dependency.
