@@ -1,119 +1,178 @@
 <template>
-  <section>
-    <section class="alert alert-warning">
-      <h2 class="alert-heading">Information</h2>
-      date: {{ date }}
-      <br />
-      commit:
-      <a :href="'https://github.com/diem/diem/commit/' + commit" target="_blank"
-        ><code>{{ commit }}</code></a
-      ><br />
-      <div v-if="change_summary">
-        <div v-if="change_summary.new_updates.length > 0">
-          <hr />
-          new updates:
-          <ul>
-            <li
-              v-for="d in change_summary.new_updates"
-              v-bind:key="d.name + d.version + d.direct + d.dev"
-            >
-              [{{ d.direct ? "direct" : "transitive" }}]
-              <a :href="'#' + d.name + d.version + d.direct + d.dev">{{
-                d.name
-              }}</a>
-              (<small
-                >{{ d.version }} → {{ d.update.versions.join(" → ") }}</small
-              >)
-            </li>
-          </ul>
-        </div>
-
-        <div v-if="change_summary.new_rustsec.length > 0">
-          <hr />
-          new RUSTSEC advisories:
-          <li
-            v-for="r in change_summary.new_rustsec"
-            v-bind:key="r.advisory.id"
-          >
-            <strong>{{ r.advisory.id }}</strong> - {{ r.advisory.title }}
+  <div class="container">
+    <!-- header/nav -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+      <span class="navbar-brand mb-0 h1">Whack-a-dep!</span>
+      <button
+        class="navbar-toggler"
+        type="button"
+        data-toggle="collapse"
+        data-target="#navbarText"
+        aria-controls="navbarText"
+        aria-expanded="false"
+        aria-label="Toggle navigation"
+      >
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarText">
+        <ul class="navbar-nav mr-auto">
+          <li class="nav-item active">
+            <a class="nav-link" href="/">
+              Home <span class="sr-only">(current)</span>
+            </a>
           </li>
+          <li class="nav-item">
+            <a class="nav-link" @click.prevent="refresh" href="#">Refresh</a>
+          </li>
+        </ul>
+      </div>
+
+      <b-dropdown id="dropdown-repo" :text="current_repo" class="m-md-2">
+        <b-dropdown-item
+          v-for="repo in repos"
+          v-bind:key="repo"
+          :disabled="repo == current_repo"
+        >
+          {{ repo }}
+        </b-dropdown-item>
+        <b-dropdown-divider></b-dropdown-divider>
+        <b-dropdown-item>add a new rust repository</b-dropdown-item>
+      </b-dropdown>
+    </nav>
+
+    <!-- information -->
+    <section>
+      <section class="alert alert-warning">
+        <h2 class="alert-heading">Information</h2>
+        date: {{ date }}
+        <br />
+        commit:
+        <a
+          :href="'https://github.com/diem/diem/commit/' + commit"
+          target="_blank"
+          ><code>{{ commit }}</code></a
+        ><br />
+        <div v-if="change_summary">
+          <div v-if="change_summary.new_updates.length > 0">
+            <hr />
+            new updates:
+            <ul>
+              <li
+                v-for="d in change_summary.new_updates"
+                v-bind:key="d.name + d.version + d.direct + d.dev"
+              >
+                [{{ d.direct ? "direct" : "transitive" }}]
+                <a :href="'#' + d.name + d.version + d.direct + d.dev">{{
+                  d.name
+                }}</a>
+                (<small
+                  >{{ d.version }} → {{ d.update.versions.join(" → ") }}</small
+                >)
+              </li>
+            </ul>
+          </div>
+
+          <div v-if="change_summary.new_rustsec.length > 0">
+            <hr />
+            new RUSTSEC advisories:
+            <li
+              v-for="r in change_summary.new_rustsec"
+              v-bind:key="r.advisory.id"
+            >
+              <strong>{{ r.advisory.id }}</strong> - {{ r.advisory.title }}
+            </li>
+          </div>
+        </div>
+      </section>
+
+      <hr />
+
+      <!-- statistics -->
+      <div class="row" id="stats">
+        <div class="col-sm bg-light bg-gradient p-5">
+          <strong>{{ direct_dependencies }} </strong>
+          <small> non-dev direct dependencies</small>
+        </div>
+        <div class="col-sm p-5 bg-light bg-gradient">
+          <strong>{{ transitive_dependencies }} </strong>
+          <small> non-dev transitive dependencies</small>
+        </div>
+        <div class="col-sm bg-light bg-gradient p-5">
+          <strong>{{ dev_dependencies }} </strong>
+          <small> direct dev dependencies</small>
         </div>
       </div>
+
+      <hr />
+
+      <!-- rustsec advisories -->
+      <h2>RUSTSEC advisories without updates</h2>
+      <div class="alert alert-info">
+        These are dependencies that have RUST advisories associated to them, but
+        no updates available to "fix" the advisory. Usually, the advisory comes
+        with a recommendation on what crate can be used in place of the current
+        one.
+      </div>
+      <RustsecTable v-bind:dependencies="rustsec" />
+
+      <hr />
+
+      <h2>
+        Updates available for non-dev dependencies ({{
+          count(non_dev_updatable_deps)
+        }})
+      </h2>
+      <div class="alert alert-info">
+        These are non-dev dependencies that can be updated either because they
+        are direct dependencies or because they are transitive and do not have
+        breaking changes (according to
+        <a
+          href="https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#caret-requirements"
+          >Rust semantic</a
+        >
+        about semver).
+      </div>
+      <DependenciesTable v-bind:dependencies="non_dev_updatable_deps" />
+
+      <hr />
+
+      <h2>
+        Updates available for dev dependencies ({{ count(dev_updatable_deps) }})
+      </h2>
+      <div class="alert alert-info">
+        These are dev dependencies that can be updated either because they are
+        direct dependencies or because they are transitive and do not have
+        breaking changes (according to
+        <a
+          href="https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#caret-requirements"
+          >Rust semantic</a
+        >
+        about semver).
+      </div>
+      <DependenciesTable v-bind:dependencies="dev_updatable_deps" />
+
+      <hr />
+
+      <h2>
+        Updates that can't be applied for dependencies ({{
+          count(cant_update_deps)
+        }})
+      </h2>
+      <div class="alert alert-info">
+        These are dependencies that have an update, but can't be updated because
+        they are transitive dependencies and don't respect
+        <a
+          href="https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#caret-requirements"
+          >Rust semantic</a
+        >
+        about semver ("An update is allowed if the new version number does not
+        modify the left-most non-zero digit in the major, minor, patch
+        grouping").
+      </div>
+      <DependenciesTable v-bind:dependencies="cant_update_deps" />
     </section>
-    <hr />
-    <div class="row" id="stats">
-      <div class="col-sm bg-light bg-gradient p-5">
-        <strong>{{ direct_dependencies }} </strong>
-        <small> non-dev direct dependencies</small>
-      </div>
-      <div class="col-sm p-5 bg-light bg-gradient">
-        <strong>{{ transitive_dependencies }} </strong>
-        <small> non-dev transitive dependencies</small>
-      </div>
-      <div class="col-sm bg-light bg-gradient p-5">
-        <strong>{{ dev_dependencies }} </strong>
-        <small> direct dev dependencies</small>
-      </div>
-    </div>
-    <hr />
-    <h2>RUSTSEC advisories without updates</h2>
-    <div class="alert alert-info">
-      These are dependencies that have RUST advisories associated to them, but
-      no updates available to "fix" the advisory. Usually, the advisory comes
-      with a recommendation on what crate can be used in place of the current
-      one.
-    </div>
-    <RustsecTable v-bind:dependencies="rustsec" />
-    <hr />
-    <h2>
-      Updates available for non-dev dependencies ({{
-        count(non_dev_updatable_deps)
-      }})
-    </h2>
-    <div class="alert alert-info">
-      These are non-dev dependencies that can be updated either because they are
-      direct dependencies or because they are transitive and do not have
-      breaking changes (according to
-      <a
-        href="https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#caret-requirements"
-        >Rust semantic</a
-      >
-      about semver).
-    </div>
-    <DependenciesTable v-bind:dependencies="non_dev_updatable_deps" />
-    <hr />
-    <h2>
-      Updates available for dev dependencies ({{ count(dev_updatable_deps) }})
-    </h2>
-    <div class="alert alert-info">
-      These are dev dependencies that can be updated either because they are
-      direct dependencies or because they are transitive and do not have
-      breaking changes (according to
-      <a
-        href="https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#caret-requirements"
-        >Rust semantic</a
-      >
-      about semver).
-    </div>
-    <DependenciesTable v-bind:dependencies="dev_updatable_deps" />
-    <hr />
-    <h2>
-      Updates that can't be applied for dependencies ({{
-        count(cant_update_deps)
-      }})
-    </h2>
-    <div class="alert alert-info">
-      These are dependencies that have an update, but can't be updated because
-      they are transitive dependencies and don't respect
-      <a
-        href="https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#caret-requirements"
-        >Rust semantic</a
-      >
-      about semver ("An update is allowed if the new version number does not
-      modify the left-most non-zero digit in the major, minor, patch grouping").
-    </div>
-    <DependenciesTable v-bind:dependencies="cant_update_deps" />
-  </section>
+    <!-- /container -->
+  </div>
 </template>
 
 <script>
@@ -179,6 +238,7 @@ export default {
   name: "Dashboard",
   data() {
     return {
+      // analysis to display
       commit: "",
       date: "",
       change_summary: null,
@@ -187,11 +247,18 @@ export default {
       non_dev_updatable_deps: [],
       cant_update_deps: [],
       rustsec: [],
+
+      // repo mgmt
+      current_repo: "https://github.com/diem/diem.git",
+      repos: [
+        "https://github.com/diem/diem.git",
+        "https://github.com/diem/operations.git",
+      ],
     };
   },
   mounted() {
     axios
-      .get("/dependencies?repo=https://github.com/diem/diem.git")
+      .get("/dependencies?repo=" + this.current_repo)
       .then((response) => {
         // retrieve commit
         this.commit = response.data.commit;
@@ -288,12 +355,21 @@ export default {
         }
         console.log(error.config);
       });
+
+    this.$root.$on("bv::dropdown::show", (bvEvent) => {
+      console.log("Dropdown is about to be shown", bvEvent);
+    });
   },
   components: {
     DependenciesTable,
     RustsecTable,
   },
   methods: {
+    refresh() {
+      axios.get("/refresh?repo=" + this.current_repo).then((response) => {
+        this.toast("Refresh requested", response.data);
+      });
+    },
     toast(title, msg) {
       this.$bvToast.toast(msg, {
         title: title,

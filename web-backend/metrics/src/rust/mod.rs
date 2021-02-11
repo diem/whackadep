@@ -23,7 +23,6 @@ use tracing::{error, info};
 //
 
 pub mod cargoaudit;
-pub mod cargoguppy;
 pub mod cargotree;
 pub mod cratesio;
 pub mod diff;
@@ -125,16 +124,16 @@ impl RustAnalysis {
         // (only transitive dependencies used in release)
         info!("parsing Cargo.toml with guppy...");
         let manifest_path = repo_dir.join("Cargo.toml");
-        let (summary, dev_summary) = guppy::get_dependencies(&manifest_path)?;
+        let (no_dev_summary, all_summary) = guppy::get_guppy_summaries(&manifest_path)?;
 
         info!("filter result...");
         let mut dependencies = Vec::new();
 
         // merge target + host (build-time) dependencies
-        let all_deps = summary
+        let all_deps = all_summary
             .target_packages
             .iter()
-            .chain(summary.host_packages.iter());
+            .chain(all_summary.host_packages.iter());
 
         for (summary_id, package_info) in all_deps {
             // ignore workspace/internal packages
@@ -152,8 +151,8 @@ impl RustAnalysis {
             }
 
             // dev
-            let dev = !dev_summary.host_packages.contains_key(summary_id)
-                && !dev_summary.target_packages.contains_key(summary_id);
+            let dev = !no_dev_summary.host_packages.contains_key(summary_id)
+                && !no_dev_summary.target_packages.contains_key(summary_id);
 
             // direct dependency?
             let direct = matches!(package_info.status, PackageStatus::Direct);
