@@ -9,29 +9,27 @@
 //! so this might not matter...
 //!
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use futures::{stream, StreamExt};
-use guppy_summaries::{PackageStatus, SummarySource, SummaryWithMetadata};
+use guppy_summaries::{PackageStatus, SummarySource};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
-use tempfile::tempdir;
-use tracing::{debug, error, info};
+use tracing::{error, info};
 
 //
 // Modules
 //
 
 pub mod cargoaudit;
-pub mod cargoguppy;
 pub mod cargotree;
 pub mod cratesio;
 pub mod diff;
+pub mod guppy;
 
 use crate::common::dependabot::{self, UpdateMetadata};
 use cargoaudit::{CargoAudit, RustSec};
-use cargoguppy::CargoGuppy;
 
 //
 // Structures
@@ -91,27 +89,23 @@ impl RustAnalysis {
         repo_dir: &Path,
         previous_analysis: Option<&Self>,
     ) -> Result<Self> {
-        // 1. fetch
+        // 1. fetch & filter
         info!("1. fetching dependencies...");
-        let (all_deps, release_deps) = Self::fetch(repo_dir).await?;
+        let mut rust_analysis = Self::fetch(repo_dir).await?;
 
-        // 2. filter
-        info!("2. filtering dependencies...");
-        let mut rust_analysis = Self::filter(all_deps, release_deps)?;
-
-        // 3. updatable
+        // 2. updatable
         info!("3. checking for updates...");
         rust_analysis.updatable().await?;
 
-        // 4. priority
+        // 3. priority
         info!("4. priority engine running...");
         rust_analysis.priority(repo_dir).await?;
 
-        // 5. risk
+        // 4. risk
         info!("5. risk engine running...");
         rust_analysis.risk().await?;
 
-        // 6. summary of changes since last analysis
+        // 5. summary of changes since last analysis
         if let Some(old) = previous_analysis {
             let change_summary = ChangeSummary::new(old, &rust_analysis)?;
             rust_analysis.change_summary = Some(change_summary);
@@ -121,47 +115,27 @@ impl RustAnalysis {
         Ok(rust_analysis)
     }
 
-    /// 1. fetch
-    async fn fetch(repo_dir: &Path) -> Result<(SummaryWithMetadata, SummaryWithMetadata)> {
-        // 1. this will produce a json file containing no dev dependencies
-        // (only transitive dependencies used in release)
-
-        let out_dir = tempdir()?;
-        debug!("tempdir: {:?}", out_dir);
-
-        CargoGuppy::run_cargo_guppy(repo_dir, out_dir.path()).await?;
-
-        // 2. deserialize the release and the full summary
-        info!("deserialize result...");
-        let path = out_dir.path().join("summary-release.json");
-        let release_deps = CargoGuppy::parse_dependencies(&path)
-            .with_context(|| format!("couldn't open {:?}", path))?;
-
-        let path = out_dir.path().join("summary-full.json"); // this will contain the dev dependencies
-        let all_deps = CargoGuppy::parse_dependencies(&path)
-            .with_context(|| format!("couldn't open {:?}", path))?;
-
-        //
-        Ok((all_deps, release_deps))
-    }
-
-    /// 2. filter
+    /// 1. fetch & filter
     /// - filters out internal workspace packages
     /// - might have the same dependency several times but with different version, or as a dev dependency or not (dev), or imported directly or transitively (direct), or with a different repository (repo)
     /// - we filter out duplicates that have the same dependency/version/dev/direct/repo tuple, which happens when the same dependency is imported in different places with different features (in other words, we don't care about features)
-    pub fn filter(
-        all_deps: SummaryWithMetadata,
-        release_deps: SummaryWithMetadata,
-    ) -> Result<Self> {
+    async fn fetch(repo_dir: &Path) -> Result<RustAnalysis> {
+        // 1. this will produce a json file containing no dev dependencies
+        // (only transitive dependencies used in release)
+        info!("parsing Cargo.toml with guppy...");
+        let manifest_path = repo_dir.join("Cargo.toml");
+        let (no_dev_summary, all_summary) = guppy::get_guppy_summaries(&manifest_path)?;
+
         info!("filter result...");
         let mut dependencies = Vec::new();
 
-        let all_deps_iter = all_deps
+        // merge target + host (build-time) dependencies
+        let all_deps = all_summary
             .target_packages
             .iter()
-            .chain(all_deps.host_packages.iter()); // "host" point to build-time dependencies
+            .chain(all_summary.host_packages.iter());
 
-        for (summary_id, package_info) in all_deps_iter {
+        for (summary_id, package_info) in all_deps {
             // ignore workspace/internal packages
             if matches!(
                 summary_id.source,
@@ -177,8 +151,8 @@ impl RustAnalysis {
             }
 
             // dev
-            let dev = !release_deps.host_packages.contains_key(summary_id)
-                && !release_deps.target_packages.contains_key(summary_id);
+            let dev = !no_dev_summary.host_packages.contains_key(summary_id)
+                && !no_dev_summary.target_packages.contains_key(summary_id);
 
             // direct dependency?
             let direct = matches!(package_info.status, PackageStatus::Direct);
