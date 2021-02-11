@@ -72,3 +72,15 @@ Note that for steps 2 and 3, [dependabot](https://github.com/dependabot/dependab
 While we do use it, we want to perform more granular analysis on our Rust dependency.
 For example, we want to understand what updates are more urgent than others based on semver, breaking changes, [RUSTSEC advisories](https://rustsec.org/), Github statistics, dev dependency, etc.
 For this reason, we use custom code (built on top of [guppy](https://github.com/facebookincubator/cargo-guppy/)) to analyze parts of Rust dependencies.
+
+## How to add rules to the priority engine
+
+* [web-backend/metrics/src/rust/mod.rs](web-backend/metrics/src/rust/mod.rs) contains a `priority()` function that runs all the priority rules, and modify the vector of dependencies in place according to what it finds.
+* You might have to modify fields of the `RustAnalysis` structure to store these signals. This will invalidate previous analysis, but it is not a big deal.
+* [web-frontend/src/components/Dashboard.vue](web-frontend/src/components/Dashboard.vue) contains a `calculate_priority_score()` function that you can modify to increase (or decrease) the score depending on your signal, and to display a reason to the user (which will appear when they over the priority column of the UI's tables).
+
+## How to add rules to the risk engine
+
+* [web-backend/metrics/src/rust/mod.rs](web-backend/metrics/src/rust/mod.rs) contains a `risk()` function that runs all the priority rules, and modify the vector of dependencies in place according to what it finds.
+* You might have to modify fields of the `RustAnalysis` structure to store these signals. This will invalidate previous analysis, but it is not a big deal.
+* [web-frontend/src/components/Dashboard.vue](web-frontend/src/components/Dashboard.vue) contains a `calculate_risk_score()` function that you can modify to increase (or decrease) the score depending on your signal, and to display a reason to the user (which will appear when they over the priority column of the UI's tables).
