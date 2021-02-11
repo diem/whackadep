@@ -34,7 +34,10 @@ async fn download_cargo_crate(crate_with_version: &str, extract_dir: &Path) -> R
     Ok(())
 }
 
-async fn diff_cargo_crates(path_to_original_crate: &Path, path_to_new_crate: &Path) -> Result<bool> {
+async fn diff_cargo_crates(
+    path_to_original_crate: &Path,
+    path_to_new_crate: &Path,
+) -> Result<bool> {
     let diff_output = Command::new("git")
         .args(&["diff", "--no-index", "--name-only"])
         .arg(path_to_original_crate)
@@ -115,9 +118,15 @@ mod tests {
         // tiny-keccak-2.0.0 does not have build.rs
         // tiny-keccak-2.0.1 does have build.rs
         // tiny-keccak-2.0.2 has diff from 2.0.1
-        download_cargo_crate("tiny-keccak==2.0.0", &out_dir).await;
-        download_cargo_crate("tiny-keccak==2.0.1", &out_dir).await;
-        download_cargo_crate("tiny-keccak==2.0.2", &out_dir).await;
+        download_cargo_crate("tiny-keccak==2.0.0", &out_dir)
+            .await
+            .unwrap();
+        download_cargo_crate("tiny-keccak==2.0.1", &out_dir)
+            .await
+            .unwrap();
+        download_cargo_crate("tiny-keccak==2.0.2", &out_dir)
+            .await
+            .unwrap();
 
         let t_k_0 = out_dir.join("tiny-keccak==2.0.0");
         let t_k_0 = t_k_0.as_path();
@@ -135,8 +144,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_is_diff_in_buildrs() {
-        assert!(is_diff_in_buildrs("tiny-keccak==2.0.0", "tiny-keccak==2.0.1").await.unwrap());
-        assert!(is_diff_in_buildrs("tiny-keccak==2.0.1", "tiny-keccak==2.0.2").await.unwrap());
+        assert!(
+            is_diff_in_buildrs("tiny-keccak==2.0.0", "tiny-keccak==2.0.1")
+                .await
+                .unwrap()
+        );
+        assert!(
+            is_diff_in_buildrs("tiny-keccak==2.0.1", "tiny-keccak==2.0.2")
+                .await
+                .unwrap()
+        );
     }
 
     #[tokio::test]

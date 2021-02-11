@@ -704,6 +704,7 @@ checksum = "63cc63895eaea7ace65b2818019602b5d150556954e25048e5a1b56c0b0da4af"
 dependencies = [
  "cargo_metadata",
  "fixedbitset",
+ "guppy-summaries",
  "indexmap",
  "itertools 0.10.0",
  "nested",
@@ -2471,6 +2472,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "956c2aeccd9cc67a543e04559d46aedc8aa9cda15e5884bcfabb8217fd130e2a"
 dependencies = [
  "cfg-expr",
+ "serde",
 ]
 
 [[package]]

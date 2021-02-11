@@ -130,7 +130,10 @@ mod tests {
     #[tokio::test]
     async fn test_analysis() {
         let temp_dir = tempdir().unwrap();
-        analyze("https://github.com/diem/diem.git", temp_dir.path())
+        MetricsApp::new()
+            .await
+            .unwrap()
+            .refresh("https://github.com/diem/diem.git", temp_dir.path())
             .await
             .unwrap();
     }
