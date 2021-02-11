@@ -1,5 +1,7 @@
 .PHONY: all fast frontend backend database restart-frontend restart-backend doc refresh ssh-frontend ssh-backend
 
+args = `arg="$(filter-out $@,$(MAKECMDGOALS))" && echo $${arg:-${1}}`
+
 #
 # everything in this section uses the main docker-compose.yml file
 #
@@ -48,3 +50,27 @@ database:
 
 doc:
 	cd web-backend/metrics && cargo doc && open target/doc/metrics/index.html
+
+port-forward-backend:
+	kubectl port-forward svc/backend 8081:8081
+
+port-forward-frontend:
+	kubectl port-forward svc/frontend 8080:8008
+
+port-forward-mongo:
+	kubectl port-forward svc/frontend 27017:27017
+
+port-forward-mongo-express:
+	kubectl port-forward svc/frontend 8082:8082
+
+launch-local-kind-cluster:
+	./scripts/create-kind-cluster-with-local-registry.sh
+
+create-docker-images:
+	./scripts/create-docker-images.sh
+
+push-docker-images:
+	./scripts/push-docker-images.sh
+
+apply-k8s:
+	kubectl apply -f k8s
