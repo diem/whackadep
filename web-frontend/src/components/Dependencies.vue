@@ -203,19 +203,24 @@ export default {
       return type_change;
     },
     clean_rustsec(rustsec) {
-      let title = rustsec.advisory.title;
-      //      let desc = rustsec.advisory.description;
+      let result = "yanked";
+      if (rustsec.advisory) {
+        let title = rustsec.advisory.title;
+        //      let desc = rustsec.advisory.description;
 
-      let result = `${title}`;
-
-      if (rustsec.versions.patched.length > 0) {
-        let patched = rustsec.versions.patched.join(", ");
-        result += `, versions patched: ${patched}.`;
+        result = `${title}`;
       }
 
-      if (rustsec.versions.unaffected.length > 0) {
-        let unaffected = rustsec.versions.unaffected.join(", ");
-        result += `, versions unaffected: ${unaffected}.`;
+      if (rustsec.versions) {
+        if (rustsec.versions.patched.length > 0) {
+          let patched = rustsec.versions.patched.join(", ");
+          result += `, versions patched: ${patched}.`;
+        }
+
+        if (rustsec.versions.unaffected.length > 0) {
+          let unaffected = rustsec.versions.unaffected.join(", ");
+          result += `, versions unaffected: ${unaffected}.`;
+        }
       }
 
       return result;

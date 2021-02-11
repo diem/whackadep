@@ -25,7 +25,7 @@ impl Repo {
     // clone
     pub async fn clone(url: &str, repo_folder: &Path) -> Result<Self> {
         let output = Command::new("git")
-            .args(&["clone", url])
+            .args(&["clone", "--depth", "1", url])
             .arg(&repo_folder)
             .output()
             .await?;

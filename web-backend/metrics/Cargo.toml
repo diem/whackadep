@@ -24,7 +24,8 @@ mongodb = "2.0.0-alpha" # database used to store result of cronjobs
 
 # app-specific
 guppy = { version = "0.7.0", features = ["summaries"] } # library to analyze deps
-guppy-summaries = "0.3.1" # guppy summaries
+guppy-summaries = "0.3.2" # guppy summaries
+target-spec = "0.6.0" # guppy stuff
 semver = "0.11.0" # semver of dependencies
 octocrab = "0.8.11"  # interact with github API
 

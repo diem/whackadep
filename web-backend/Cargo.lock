@@ -720,10 +720,11 @@ dependencies = [
 
 [[package]]
 name = "guppy-summaries"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e44283a7f83c77582b47e14e03d93a556fe06eefc3a0b32a65426f453d10c4d"
+checksum = "811b7332020d2a53cfe64049a52fd46d0761082b12d8b6b8f2c5b702f8bb2a24"
 dependencies = [
+ "cfg-if 1.0.0",
  "diffus",
  "semver 0.11.0",
  "serde",
@@ -1167,6 +1168,7 @@ dependencies = [
  "semver 0.11.0",
  "serde",
  "serde_json",
+ "target-spec",
  "tempfile",
  "tokio",
  "tracing",

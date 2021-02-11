@@ -97,8 +97,10 @@ impl MetricsApp {
         // 5. run analysis for different languages
         // (at the moment we only have Rust)
         let previous_rust_analysis = previous_analysis.as_ref().map(|x| &x.rust_dependencies);
+        let is_diem = (repo_url == "https://github.com/diem/diem.git");
         let rust_analysis =
-            RustAnalysis::get_dependencies(&repo.repo_folder, previous_rust_analysis).await?;
+            RustAnalysis::get_dependencies(&repo.repo_folder, previous_rust_analysis, is_diem)
+                .await?;
 
         // 6. store analysis in db
         info!("analysis done, storing in db...");

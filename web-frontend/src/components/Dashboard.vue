@@ -394,7 +394,7 @@ export default {
         .then((response) => {
           // TODO: return an error code from the server instead?
           if (response.data.constructor == String) {
-            this.toast("Error from server", response.data, "danger");
+            this.toast("Information", response.data, "info");
             return;
           }
           // retrieve commit

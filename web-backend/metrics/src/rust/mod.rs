@@ -23,6 +23,7 @@ use tracing::{error, info};
 //
 
 pub mod cargoaudit;
+pub mod cargoguppy;
 pub mod cargotree;
 pub mod cratesio;
 pub mod diff;
@@ -30,6 +31,7 @@ pub mod guppy;
 
 use crate::common::dependabot::{self, UpdateMetadata};
 use cargoaudit::{CargoAudit, RustSec};
+use cargoguppy::CargoGuppy;
 
 //
 // Structures
@@ -88,10 +90,11 @@ impl RustAnalysis {
     pub async fn get_dependencies(
         repo_dir: &Path,
         previous_analysis: Option<&Self>,
+        is_diem: bool,
     ) -> Result<Self> {
         // 1. fetch & filter
         info!("1. fetching dependencies...");
-        let mut rust_analysis = Self::fetch(repo_dir).await?;
+        let mut rust_analysis = Self::fetch(repo_dir, is_diem).await?;
 
         // 2. updatable
         info!("3. checking for updates...");
@@ -119,12 +122,16 @@ impl RustAnalysis {
     /// - filters out internal workspace packages
     /// - might have the same dependency several times but with different version, or as a dev dependency or not (dev), or imported directly or transitively (direct), or with a different repository (repo)
     /// - we filter out duplicates that have the same dependency/version/dev/direct/repo tuple, which happens when the same dependency is imported in different places with different features (in other words, we don't care about features)
-    async fn fetch(repo_dir: &Path) -> Result<RustAnalysis> {
+    async fn fetch(repo_dir: &Path, is_diem: bool) -> Result<RustAnalysis> {
         // 1. this will produce a json file containing no dev dependencies
         // (only transitive dependencies used in release)
         info!("parsing Cargo.toml with guppy...");
         let manifest_path = repo_dir.join("Cargo.toml");
-        let (no_dev_summary, all_summary) = guppy::get_guppy_summaries(&manifest_path)?;
+        let (no_dev_summary, all_summary) = if is_diem {
+            CargoGuppy::fetch(repo_dir).await?
+        } else {
+            guppy::get_guppy_summaries(&manifest_path)?
+        };
 
         info!("filter result...");
         let mut dependencies = Vec::new();
