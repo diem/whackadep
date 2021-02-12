@@ -449,6 +449,15 @@ export default {
           //
 
           // collect all the rustsec in one table
+          if (this.rustsec.vulnerabilities.length > 0) {
+            this.toast(
+              "RUSTSEC",
+              `vulnerabilities found: ${this.rustsec.vulnerabilities
+                .map((vuln) => vuln.advisory.id)
+                .join(", ")}`,
+              "danger"
+            );
+          }
           this.all_rustsec = [...this.rustsec.vulnerabilities];
           for (const warnings of Object.values(this.rustsec.warnings)) {
             this.all_rustsec = this.all_rustsec.concat(warnings);
