@@ -1,0 +1,18 @@
+on: [push, pull_request]
+name: Clippy
+jobs:
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          components: clippy
+          override: true
+      # Note that there is no release tag available yet
+      # and the following code will use master branch HEAD
+      # all the time.
+      - uses: actions-rs/clippy@master
+        with:
+          args: --all-features --all-targets --manifest-path=./web-backend
