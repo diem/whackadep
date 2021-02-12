@@ -12,10 +12,10 @@
 use anyhow::Result;
 use futures::{stream, StreamExt};
 use guppy_summaries::{PackageStatus, SummarySource};
-use rustsec::{report::WarningInfo, Vulnerability};
+use rustsec::{report::WarningInfo, Vulnerability, Warning};
 use semver::Version;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 use tracing::{error, info};
 
@@ -379,7 +379,7 @@ pub struct ChangeSummary {
     /// new updates available
     new_updates: Vec<DependencyInfo>,
     /// new RUSTSEC advisories
-    new_rustsec: Vec<RustSec>,
+    new_rustsec: RustSec,
 }
 
 impl ChangeSummary {
@@ -449,25 +449,41 @@ impl ChangeSummary {
         // check for new rustsec advisories
         //
 
-        /*
-        TODO: RE-IMPLEMENT THIS
-        // create hashset of rustsec
-        let mut set = HashSet::new();
-        for dependency in &old.dependencies {
-            if let Some(rustsec) = &dependency.rustsec {
-                set.insert(rustsec.clone());
-            }
-        }
+        // new vulns
+        let new_vulnerabilities: Vec<Vulnerability> = new
+            .rustsec
+            .vulnerabilities
+            .iter()
+            // remove what is contained in the previous vulns
+            .filter(|v| !old.rustsec.vulnerabilities.contains(&v))
+            .cloned()
+            .collect();
+        rust_changes.new_rustsec.vulnerabilities = new_vulnerabilities;
 
-        // figure out if anything is not in that set
-        for dependency in &new.dependencies {
-            if let Some(rustsec) = &dependency.rustsec {
-                if !set.contains(rustsec) {
-                    rust_changes.new_rustsec.extend_from_slice(&rustsec);
+        // new warnings
+        let mut new_warnings: WarningInfo = BTreeMap::new();
+        // (there can be different kinds of warnings)
+        for (kind, warnings) in &new.rustsec.warnings {
+            if let Some(old_warnings) = old.rustsec.warnings.get(kind) {
+                let warnings: Vec<Warning> = warnings
+                    .iter()
+                    // remove warnings for packages that have
+                    .filter(|&w| {
+                        old_warnings
+                            .iter()
+                            // TODO: theoretically, we can have a new advisory for the same package...
+                            .find(|old_w| old_w.package.name == w.package.name)
+                            .is_none()
+                    })
+                    .cloned()
+                    .collect();
+                // any new warnings for this kind?
+                if warnings.len() > 0 {
+                    new_warnings.insert(*kind, warnings);
                 }
             }
         }
-        */
+        rust_changes.new_rustsec.warnings = new_warnings;
 
         //
         Ok(rust_changes)
