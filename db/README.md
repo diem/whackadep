@@ -59,7 +59,7 @@ struct RustAnalysis {
 
 For example, a dependency document in MongoDB looks like:
 
-```json
+```rust
 {
     _id: ObjectId('6026301b006ce0a900d836af'),
     repository: 'https://github.com/diem/diem.git',
