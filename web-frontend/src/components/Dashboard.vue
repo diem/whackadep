@@ -109,7 +109,9 @@
       <hr />
 
       <!-- rustsec advisories -->
-      <h2>RUSTSEC advisories without updates</h2>
+      <h2>
+        RUSTSEC advisories without updates ({{ rustsec_no_updates.length }})
+      </h2>
       <div class="alert alert-info">
         These are dependencies that have RUST advisories associated to them, but
         no updates available to "fix" the advisory. Usually, the advisory comes
@@ -122,7 +124,7 @@
 
       <h2>
         Updates available for non-dev dependencies ({{
-          count(non_dev_updatable_deps)
+          non_dev_updatable_deps.length
         }})
       </h2>
       <div class="alert alert-info">
@@ -140,7 +142,7 @@
       <hr />
 
       <h2>
-        Updates available for dev dependencies ({{ count(dev_updatable_deps) }})
+        Updates available for dev dependencies ({{ dev_updatable_deps.length }})
       </h2>
       <div class="alert alert-info">
         These are dev dependencies that can be updated either because they are
@@ -158,7 +160,7 @@
 
       <h2>
         Updates that can't be applied for dependencies ({{
-          count(cant_update_deps)
+          cant_update_deps.length
         }})
       </h2>
       <div class="alert alert-info">
@@ -371,12 +373,14 @@ export default {
       this.$refs["modal"].hide();
       this.modal_text = "";
     },
+    // change the repository we're looking at
     switch_repo(repo) {
       console.log(repo);
       this.current_repo = repo;
       //      this.$refs.dropdownrepo.text(repo);
       this.get_dependencies();
     },
+    // obtain the repositories installed (from configuration)
     get_repos() {
       axios
         .get("/repos")
@@ -599,11 +603,21 @@ export default {
           console.log(error.config);
         });
     },
+    // attempts to start an analysis on a given repo
     refresh() {
       axios.get("/refresh?repo=" + this.current_repo).then((response) => {
-        this.toast("Refresh requested", response.data, "info");
+        if (response.data == "ok") {
+          this.toast(
+            "Refresh requested",
+            "analysis started, please refresh the page in a bit...",
+            "success"
+          );
+        } else {
+          this.toast("Refresh requested", response.data, "info");
+        }
       });
     },
+    // create a toast (a notification on the top right of the screen)
     toast(title, msg, variant = null) {
       this.$bvToast.toast(msg, {
         title: title,
@@ -612,13 +626,6 @@ export default {
         variant: variant,
         solid: true,
       });
-    },
-    count(deps) {
-      if (deps != null) {
-        // there will be redundant dependencies
-        return deps.length;
-      }
-      return 0;
     },
     // This checks if a dependency can be updated in several senses:
     // - if it's a direct dependency, can it be updated easily (no breaking changes, if the developers respected Rust variant of semver)
