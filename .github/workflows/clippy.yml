@@ -12,7 +12,7 @@ jobs:
           override: true
       - uses: actions-rs/clippy@master
         with:
-          args: --all-features --all-targets --manifest-path=./web-backend/Cargo.toml -- -W clippy:integer_arithmetic -W clippy::indexing_slicing -W clippy::panic_in_result_function -W clippy::unwrap_in_result -W clippy::as_conversions -W clippy::checked_conversions
+          args: --all-features --all-targets --manifest-path=./web-backend/Cargo.toml -- -W clippy::integer_arithmetic -W clippy::indexing_slicing -W clippy::panic_in_result_function -W clippy::unwrap_in_result -W clippy::as_conversions -W clippy::checked_conversions
       - uses: actions-rs/clippy@master
         with:
-          args: --all-features --all-targets --manifest-path=./web-backend/metrics/Cargo.toml -- -W clippy:integer_arithmetic -W clippy::indexing_slicing -W clippy::panic_in_result_function -W clippy::unwrap_in_result -W clippy::as_conversions -W clippy::checked_conversions
+          args: --all-features --all-targets --manifest-path=./web-backend/metrics/Cargo.toml -- -W clippy::integer_arithmetic -W clippy::indexing_slicing -W clippy::panic_in_result_function -W clippy::unwrap_in_result -W clippy::as_conversions -W clippy::checked_conversions
