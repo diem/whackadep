@@ -105,8 +105,9 @@
                 v-b-popover.hover.top="
                   clean_changelog(d.update.update_metadata.changelog_text)
                 "
-                >preview</a
               >
+                preview
+              </a>
               (<a :href="d.update.update_metadata.changelog_url">link</a>)
             </span>
           </td>

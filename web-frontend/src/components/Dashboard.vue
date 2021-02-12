@@ -298,6 +298,20 @@ export default {
     RustsecTable,
   },
   methods: {
+    // reset data
+    reset_data() {
+      this.commit = "";
+      this.date = "";
+      this.change_summary = null;
+      this.dependencies = [];
+      this.dev_updatable_deps = [];
+      this.non_dev_updatable_deps = [];
+      this.cant_update_deps = [];
+
+      this.rustsec = [];
+      this.all_rustsec = [];
+      this.rustsec_no_updates = [];
+    },
     onSubmit(event) {
       event.preventDefault();
       this.hideModal();
@@ -407,6 +421,7 @@ export default {
           // TODO: return an error code from the server instead?
           if (response.data.constructor == String) {
             this.toast("Information", response.data, "info");
+            this.reset_data();
             return;
           }
 
