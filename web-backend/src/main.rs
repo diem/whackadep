@@ -23,7 +23,11 @@ use tokio::runtime::Runtime;
 /// displays all the routes
 fn index() -> &'static str {
     // TODO: print other routes?
-    "/refresh?repo=<REPO>\n/dependencies?repo=<REPO>"
+    "/\n
+    /refresh?repo=<REPO>\n
+    /dependencies?repo=<REPO>\n
+    /repos\n
+    /add_repo"
 }
 
 #[get("/refresh?<repo>")]
