@@ -400,11 +400,19 @@ export default {
       axios
         .get("/dependencies?repo=" + this.current_repo)
         .then((response) => {
+          //
+          // Error handling
+          //
+
           // TODO: return an error code from the server instead?
           if (response.data.constructor == String) {
             this.toast("Information", response.data, "info");
             return;
           }
+
+          //
+          // Retrieving data
+          //
 
           // retrieve commit
           this.commit = response.data.commit;
@@ -415,34 +423,25 @@ export default {
           // retrieve change summary
           this.change_summary = response.data.rust_dependencies.change_summary;
 
-          // retrieve rust dependencies
-          let all_dependencies = response.data.rust_dependencies.dependencies;
+          // retrieve all rust dependencies
+          this.dependencies = response.data.rust_dependencies.dependencies;
 
           // retrieve rustsec
-          /*
-          pub struct Vulnerability {
-    /// Security advisory for which the package is vulnerable
-    pub advisory: advisory::Metadata,
-
-    /// Versions impacted by this vulnerability
-    pub versions: advisory::Versions,
-
-    /// More specific information about what this advisory affects (if available)
-    pub affected: Option<advisory::Affected>,
-
-    /// Vulnerable package
-    pub package: Package,
-}
-*/
           this.rustsec = response.data.rust_dependencies.rustsec;
+
+          //
+          // Transforming data
+          //
+
+          // collect all the rustsec in one table
           this.all_rustsec = [...this.rustsec.vulnerabilities];
           for (const warnings of Object.values(this.rustsec.warnings)) {
             this.all_rustsec = this.all_rustsec.concat(warnings);
           }
 
-          // add rustsec vulnerabilities to the relevant dependencies
-          all_dependencies.forEach((dependency) => {
-            // vulns
+          // add new fields to all dependencies
+          this.dependencies.forEach((dependency) => {
+            // add rustsec vulnerabilities to the relevant dependencies
             this.rustsec.vulnerabilities.forEach((vuln) => {
               if (vuln.package.name == dependency.name) {
                 let patched = vuln.versions.patched;
@@ -459,7 +458,8 @@ export default {
                 }
               }
             });
-            // warnings
+
+            // add rustsec warnings to the relevant dependencies
             for (const warnings of Object.values(this.rustsec.warnings)) {
               warnings.forEach((warning) => {
                 if (warning.package.name == dependency.name) {
@@ -471,25 +471,17 @@ export default {
                 }
               });
             }
-          });
 
-          // retrieve all rust dependencies
-          this.dependencies = all_dependencies;
+            // only modify dependencies that have update now
+            if (dependency.update != null) {
+              // can we update this?
+              if (dependency.direct || this.update_allowed(dependency)) {
+                dependency.update_allowed = true;
+              } else {
+                dependency.update_allowed = false;
+              }
 
-          // filter for dependencies that have a RUSTSEC advisory but can't be updated
-          this.rustsec_no_updates = all_dependencies.filter((dependency) => {
-            return (
-              (dependency.vulnerabilities != null ||
-                dependency.warnings != null) &&
-              dependency.update == null
-            );
-          });
-          console.log("yo:", this.rustsec_no_updates);
-
-          // filter for dependencies that have updates
-          var updatable_dependencies = all_dependencies
-            .filter((dependency) => dependency.update != null)
-            .map((dependency) => {
+              // priority score
               let {
                 priority_score,
                 priority_reasons,
@@ -497,23 +489,37 @@ export default {
               dependency.priority_score = priority_score;
               dependency.priority_reasons = priority_reasons;
 
+              // risk score
               let { risk_score, risk_reasons } = calculate_risk_score(
                 dependency
               );
               dependency.risk_score = risk_score;
               dependency.risk_reasons = risk_reasons;
-
-              return dependency;
-            });
-
-          var can_update_dependencies = updatable_dependencies.filter(
-            (dependency) => {
-              if (!dependency.direct) {
-                return this.update_allowed(dependency);
-              } else {
-                return true;
-              }
             }
+
+            // end of adding new fields to all dependencies
+          });
+
+          //
+          // Filter
+          //
+
+          var updatable_dependencies = this.dependencies.filter(
+            (dependency) => dependency.update != null
+          );
+
+          // filter for dependencies that have a RUSTSEC advisory but can't be updated
+          this.rustsec_no_updates = this.dependencies.filter((dependency) => {
+            return (
+              (dependency.vulnerabilities != null ||
+                dependency.warnings != null) &&
+              dependency.update == null
+            );
+          });
+
+          // filter for dependencies that have updates
+          var can_update_dependencies = updatable_dependencies.filter(
+            (dependency) => dependency.update_allowed
           );
 
           // filter for non-dev dependencies that have an update
@@ -531,17 +537,17 @@ export default {
           this.dev_updatable_deps = this.dev_updatable_deps.sort(sort_priority);
 
           // finally, retrieve dependencies that have updates and _can't_ be updated
-          // just in case we made a mistake above...
           this.cant_update_deps = updatable_dependencies.filter(
-            (dependency) => {
-              if (!dependency.direct) {
-                return !this.update_allowed(dependency);
-              } else {
-                return false;
-              }
-            }
+            (dependency) => !dependency.update_allowed
           );
           this.cant_update_deps = this.cant_update_deps.sort(sort_priority);
+
+          // notification
+          this.toast(
+            "Retrieving analysis",
+            `latest analysis successfuly retrieved for ${this.current_repo}`,
+            "success"
+          );
         })
         .catch((error) => {
           console.log(error);

@@ -88,7 +88,7 @@
           </td>
           <!-- create PR -->
           <td class="text-center">
-            <a v-if="d.update" href="#" @click.prevent="create_PR(d)"
+            <a v-if="d.update_allowed" href="#" @click.prevent="create_PR(d)"
               >create a PR</a
             >
             <span class="invisible">{{ d.create_PR }}</span>
