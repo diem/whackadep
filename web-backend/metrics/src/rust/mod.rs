@@ -12,7 +12,7 @@
 use anyhow::Result;
 use futures::{stream, StreamExt};
 use guppy_summaries::{PackageStatus, SummarySource};
-use rustsec::report::{VulnerabilityInfo, WarningInfo};
+use rustsec::{report::WarningInfo, Vulnerability};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -29,10 +29,8 @@ pub mod cargotree;
 pub mod cratesio;
 pub mod diff;
 pub mod guppy;
-pub mod rustsec;
 
 use crate::common::dependabot::{self, UpdateMetadata};
-use cargoaudit::{CargoAudit, RustSec};
 use cargoguppy::CargoGuppy;
 
 //
@@ -53,9 +51,9 @@ pub struct RustAnalysis {
     change_summary: Option<ChangeSummary>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct RustSec {
-    vulnerabilities: VulnerabilityInfo,
+    vulnerabilities: Vec<Vulnerability>,
     warnings: WarningInfo,
 }
 
@@ -73,8 +71,6 @@ pub struct DependencyInfo {
     dev: bool,
     /// Is it a direct, or a transitive dependency?
     direct: bool,
-    /// An optional RUSTSEC advisory associated with the dependency and its version.
-    rustsec: Option<Vec<RustSec>>,
     /// An optional update available for the dependency.
     update: Option<Update>,
 }
@@ -183,7 +179,6 @@ impl RustAnalysis {
                 update: None,
                 dev: dev,
                 direct: direct,
-                rustsec: None,
             });
         }
 
@@ -198,6 +193,7 @@ impl RustAnalysis {
         //
         Ok(Self {
             dependencies: dependencies,
+            rustsec: RustSec::default(),
             change_summary: None,
         })
     }
@@ -273,11 +269,9 @@ impl RustAnalysis {
     async fn priority(&mut self, repo_dir: &Path) -> Result<()> {
         // 1. get cargo-audit results
         info!("running cargo-audit");
-        let audit = CargoAudit::run_cargo_audit(repo_dir).await?;
-        for dependency in &mut self.dependencies {
-            let key = (dependency.name.clone(), dependency.version.clone());
-            dependency.rustsec = audit.get(&key).cloned();
-        }
+        let report = cargoaudit::audit(repo_dir).await?;
+        self.rustsec.vulnerabilities = report.vulnerabilities.list;
+        self.rustsec.warnings = report.warnings;
 
         // 2. fetch every changelog via dependabot
         if std::env::var("GITHUB_TOKEN").is_err()
@@ -455,6 +449,8 @@ impl ChangeSummary {
         // check for new rustsec advisories
         //
 
+        /*
+        TODO: RE-IMPLEMENT THIS
         // create hashset of rustsec
         let mut set = HashSet::new();
         for dependency in &old.dependencies {
@@ -471,6 +467,7 @@ impl ChangeSummary {
                 }
             }
         }
+        */
 
         //
         Ok(rust_changes)

@@ -29,9 +29,6 @@ pub async fn start(receiver: Receiver<MetricsRequest>) -> Result<()> {
     info!("initializing cargo tree");
     rust::cargotree::CargoTree::init_cargo_tree().await?;
 
-    info!("initializing cargo audit");
-    rust::cargoaudit::CargoAudit::init_cargo_audit().await?;
-
     info!("initializing cargo download");
     rust::diff::init_cargo_download().await?;
 

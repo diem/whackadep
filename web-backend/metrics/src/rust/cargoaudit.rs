@@ -3,188 +3,82 @@
 //! - there is no patch
 //! - there are versions that are unaffected
 
-use anyhow::{bail, Context, Result};
-use semver::Version;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use anyhow::{ensure, Context, Result};
+use rustsec::{advisory::Informational, lockfile::Lockfile, registry, warning, Report, Warning};
 use std::path::Path;
 use tokio::process::Command;
-use tracing::{debug, info};
+use tracing::info;
 
-//
-// Internal structure
-//
+/// performs an audit of the Cargo.lock file with rustsec
+pub async fn audit(repo_path: &Path) -> Result<Report> {
+    // config
+    let advisory_db_url = rustsec::repository::git::DEFAULT_URL;
+    // TODO: do we want to use a custom path here?
+    let advisory_db_path = rustsec::GitRepository::default_path();
 
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug, Eq, Hash)]
-/// A [RUSTSEC Advisory](https://rustsec.org/).
-pub struct RustSec {
-    /// yanked, unmaintained, etc.
-    kind: String,
-    /// The advisory information (id, description, date, etc.)
-    advisory: Option<Advisory>,
-    /// The versions patched and the versions unaffected.
-    versions: Option<VersionInfo>,
-}
+    // fetch latest changes from the advisory + load
+    info!("fetching latest version of RUSTSEC advisory...");
+    let advisory_db_repo = rustsec::GitRepository::fetch(advisory_db_url, &advisory_db_path, true)
+        .with_context(|| "couldn't fetch RUSTSEC advisory database")?;
+    let advisory_db = rustsec::Database::load_from_repo(&advisory_db_repo)
+        .with_context(|| "couldn't open RUSTSEC repo")?;
 
-//
-// Structures to deserialize cargo-audit
-//
+    // make sure a Carg.lock file is there
+    generate_lockfile(repo_path).await?;
 
-#[derive(Deserialize)]
-pub struct CargoAudit {
-    vulnerabilities: Vulnerabilities,
-    warnings: HashMap<String, Vec<Warning>>,
-}
+    // open Cargo.lock file
+    let lockfile_path = repo_path.join("Cargo.lock");
+    let lockfile = Lockfile::load(&lockfile_path)?;
 
-#[derive(Deserialize)]
-struct Vulnerabilities {
-    found: bool,
-    list: Vec<Vulnerability>,
-}
+    // run audit
+    info!("generating rustsec report...");
+    let mut settings = rustsec::report::Settings::default();
+    settings.informational_warnings = vec![
+        Informational::Unmaintained,
+        Informational::Notice,
+        Informational::Unsound,
+    ]; // these are the only three informational advisories at the moment
+    info!("settings: {:#?}", settings);
+    let mut report = rustsec::Report::generate(&advisory_db, &lockfile, &settings);
 
-#[derive(Deserialize, Clone)]
-struct Vulnerability {
-    advisory: Advisory,
-    versions: VersionInfo,
-    package: PackageInfo,
-}
+    // check for yanked versions as well
+    // TODO: move this elsewhere in priority engine? (especially as we are not leveraging guppy's results here)
+    info!("fetching latest crates.io index to check for yanked versions...");
+    let registry_index = registry::Index::fetch()?; // refresh crates.io index
 
-#[derive(Deserialize, Clone)]
-/// Warning can be "yanked", "unmaintained", ...
-struct Warning {
-    kind: String,
-    package: PackageInfo,
-    advisory: Option<Advisory>,    // null if "yanked"
-    versions: Option<VersionInfo>, // null if "yanked"
-}
-
-#[derive(Deserialize, Clone)]
-struct PackageInfo {
-    name: String,
-    version: String,
-}
-
-#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Advisory {
-    id: String,
-    title: String,
-    description: String,
-    date: String,
-    url: String,
-}
-
-#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct VersionInfo {
-    patched: Vec<String>,
-    unaffected: Vec<String>,
-}
-
-//
-// Logic
-//
-
-impl CargoAudit {
-    pub async fn init_cargo_audit() -> Result<()> {
-        // make sure cargo-tree is installed
-        // this seems necessary because cargo-audit might have had an update, or because of the rust-toolchain?
-        let output = Command::new("cargo")
-            .args(&["install", "cargo-audit"]) // TODO: use --force to force upgrade?
-            .output()
-            .await?;
-        if !output.status.success() {
-            bail!(
-                "couldn't install cargo-audit: {}",
-                String::from_utf8_lossy(&output.stderr)
-            );
-        }
-        Ok(())
-    }
-
-    pub async fn run_cargo_audit(
-        repo_dir: &Path,
-    ) -> Result<HashMap<(String, Version), Vec<RustSec>>> {
-        // cargo audit --json
-        let output = Command::new("cargo")
-            .current_dir(repo_dir)
-            .args(&["audit", "--json"])
-            .output()
-            .await?;
-
-        // seems like cargo audit returns 0 and 1 when the stdout output is clean
-        match output.status.code() {
-            Some(0) => (),
-            Some(1) => info!("vulnerability found!"),
-            _ => bail!(
-                "couldn't run cargo-audit, error code: {:?}, error: {}",
-                output.status.code(),
-                String::from_utf8_lossy(&output.stderr)
-            ),
-        };
-
-        // load the json
-        debug!("{:?}", String::from_utf8_lossy(&output.stdout));
-        let audit: CargoAudit = serde_json::from_slice(&output.stdout)
-            .map_err(anyhow::Error::msg)
-            .context("Failed to deserialize cargo-audit output")?;
-
-        // extract all the vulnerabilities
-        let mut result: HashMap<(String, Version), Vec<RustSec>> = HashMap::new();
-
-        if audit.vulnerabilities.found {
-            for vulnerability in audit.vulnerabilities.list {
-                let name = vulnerability.package.name.clone();
-                let version = Version::parse(&vulnerability.package.version)?;
-                let vuln = RustSec {
-                    kind: "vulnerability".to_string(),
-                    advisory: Some(vulnerability.advisory),
-                    versions: Some(vulnerability.versions),
-                };
-                result
-                    .entry((name, version))
-                    .and_modify(|res| res.push(vuln.clone()))
-                    .or_insert_with(|| {
-                        let mut res = Vec::new();
-                        res.push(vuln);
-                        res
-                    });
+    info!("finding yanked versions...");
+    use std::collections::btree_map::Entry;
+    for package in &lockfile.packages {
+        if let Ok(pkg) = registry_index.find(&package.name, &package.version) {
+            if pkg.is_yanked {
+                let warning = Warning::new(warning::Kind::Yanked, package, None, None);
+                match report.warnings.entry(warning::Kind::Yanked) {
+                    Entry::Occupied(entry) => (*entry.into_mut()).push(warning),
+                    Entry::Vacant(entry) => {
+                        entry.insert(vec![warning]);
+                    }
+                }
             }
         }
-
-        // extract all the warnings
-        for warning in audit.warnings.values().cloned().flatten() {
-            let name = warning.package.name.clone();
-            let version = Version::parse(&warning.package.version)?;
-            let vuln = RustSec {
-                kind: warning.kind,
-                advisory: warning.advisory,
-                versions: warning.versions,
-            };
-            result
-                .entry((name, version))
-                .and_modify(|res| res.push(vuln.clone()))
-                .or_insert_with(|| {
-                    let mut res = Vec::new();
-                    res.push(vuln);
-                    res
-                });
-        }
-
-        //
-        Ok(result)
     }
+
+    //
+    info!("rustsec audit done");
+    Ok(report)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::path::PathBuf;
+pub async fn generate_lockfile(repo_path: &Path) -> Result<()> {
+    let output = Command::new("cargo")
+        .current_dir(repo_path)
+        .arg("generate-lockfile")
+        .output()
+        .await?;
 
-    #[tokio::test]
-    #[ignore]
-    async fn test_cargo_audit() {
-        let mut repo_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        repo_dir.push("../diem_repo");
-        let res = CargoAudit::run_cargo_audit(repo_dir.as_path()).await;
-        println!("{:?}", res);
-    }
+    ensure!(
+        output.status.success(),
+        "couldn't run cargo generate-lockfile: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    Ok(())
 }

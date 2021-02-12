@@ -406,15 +406,13 @@ export default {
           // retrieve change summary
           this.change_summary = response.data.rust_dependencies.change_summary;
 
+          // retrieve rustsec
+          this.rustsec = response.data.rust_dependencies.rustsec;
+          console.log(JSON.stringify(this.rustsec));
+
           // retrieve all rust dependencies
           this.dependencies = response.data.rust_dependencies.dependencies;
           console.log("all deps", this.dependencies);
-
-          // filter for dependencies that have a RUSTSEC but no updates
-          this.rustsec = response.data.rust_dependencies.dependencies.filter(
-            (dependency) =>
-              dependency.rustsec != null && dependency.update == null
-          );
 
           // filter for dependencies that have updates
           var updatable_dependencies = response.data.rust_dependencies.dependencies

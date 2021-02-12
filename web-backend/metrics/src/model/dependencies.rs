@@ -3,7 +3,7 @@
 
 use super::Db;
 use crate::analysis::Analysis;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use mongodb::{
     bson::{self, doc, Document},
     options::FindOneOptions,
@@ -20,8 +20,11 @@ impl Dependencies {
 
     /// write an analysis to storage
     pub async fn write_analysis(&self, analysis: Analysis) -> Result<()> {
-        let analysis = bson::to_bson(&analysis).unwrap();
-        let document = analysis.as_document().unwrap();
+        let analysis =
+            bson::to_bson(&analysis).with_context(|| "couldn't BSON serialize an analysis")?;
+        let document = analysis
+            .as_document()
+            .with_context(|| "couldn't convert analysis to document")?;
         self.0.write(Self::COLLECTION, document.to_owned()).await
     }
 

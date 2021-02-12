@@ -20,7 +20,7 @@ chrono = "0.4" # used for datetime of mongodb document
 rust-crypto = "0.2" # used to hash the repo url (to derive a folder dir)
 
 # driver
-mongodb = "2.0.0-alpha" # database used to store result of cronjobs
+mongodb = "2.0.0-alpha" # database used to store result of cronjobs (note: alpha supports latest tokio)
 
 # app-specific
 guppy = { version = "0.7.0", features = ["summaries"] } # library to analyze deps
@@ -28,8 +28,7 @@ guppy-summaries = "0.3.2" # guppy summaries
 target-spec = "0.6.0" # guppy stuff
 semver = "0.11.0" # semver of dependencies
 octocrab = "0.8.11"  # interact with github API
-cargo-audit = "0.13.1" # to get RUSTSEC advisories
-rustsec = "0.23.0" # the RUSTSEC types
+rustsec = "0.22.2" # RUSTSEC advisory stuff
 
 # bin-specific
 jsonwebtoken = "7.2.0"
