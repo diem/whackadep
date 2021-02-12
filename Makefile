@@ -51,6 +51,10 @@ database:
 doc:
 	cd web-backend/metrics && cargo doc && open target/doc/metrics/index.html
 
+#
+# Kubernetes-specific commands
+#
+
 port-forward-backend:
 	kubectl port-forward svc/backend 8081:8081
 

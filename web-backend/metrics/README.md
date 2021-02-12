@@ -27,9 +27,9 @@ In the root folder this command will generate and open doc:
 make doc
 ```
 
-## Testing
+## Running without Docker
 
-Some of the tests might require dependabot, here's how you set it up:
+This will require dependabot
 
 ```
 cd dependabot
