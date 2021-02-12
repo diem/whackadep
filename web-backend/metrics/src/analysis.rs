@@ -19,16 +19,14 @@ use crate::rust::RustAnalysis;
 /// An analysis result. It contains the commit that was analyzed, as well as the results of the analysis on dependencies.
 /// At the moment it only contains analysis results for Rust dependencies.
 pub struct Analysis {
-    // The full repository link (e.g. https://github.com/diem/diem.git)
+    /// The full repository link (e.g. https://github.com/diem/diem.git)
     repository: String,
     /// The SHA-1 hash indicating the exact commit used to analyze the given repository.
     commit: String,
-    // the time at which the analysis was done
+    /// the time at which the analysis was done
     timestamp: DateTime<Utc>,
-    // previous analysis
+    /// metadata about previous analysis
     previous_analysis: Option<PreviousAnalysis>,
-
-    // per-languages results
     /// The result of the rust dependencies analysis
     rust_dependencies: RustAnalysis,
 }

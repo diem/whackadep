@@ -12,7 +12,8 @@ To run the whole thing for development (requires [docker-compose](https://docs.d
 GITHUB_TOKEN=<PAT> make
 ```
 
-where PAT is a personnal access token for Github ([see steps here on how to create one](https://github.com/mimoo/cargo-dephell#usage))
+where PAT is an optional personnal access token for Github ([see steps here on how to create one](https://github.com/mimoo/cargo-dephell#usage)).
+If you do not specify the PAT then some features won't work (for example, changelogs).
 
 This will re-build everything all the time, if you know there hasn't been any changes lately you can simply run:
 
@@ -27,12 +28,14 @@ These commands will run the following four services:
 * a mongodb server on http://localhost:27017
 * a mongodb UI on http://localhost:8082
 
+### Advanced usage
+
 This dev setup has hot reload for the front end (you can change front end files, and it'll get reflected) but not for the backend.
 
 To rebuild the backend (or frontend) you can use:
 
 ```sh
-make restart-backend
+GITHUB_TOKEN=<PAT> make restart-backend
 ```
 
 To SSH into the backend (or frontend) you can use:
