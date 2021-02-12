@@ -177,7 +177,7 @@ impl RustAnalysis {
                 version: summary_id.version.clone(),
                 repo: summary_id.source.clone(),
                 update: None,
-                dev: dev,
+                dev,
                 direct: direct,
             });
         }
@@ -192,7 +192,7 @@ impl RustAnalysis {
 
         //
         Ok(Self {
-            dependencies: dependencies,
+            dependencies,
             rustsec: RustSec::default(),
             change_summary: None,
         })
@@ -309,7 +309,6 @@ impl RustAnalysis {
                             }
                         };
                     }
-                    ()
                 })
                 .buffer_unordered(10);
             iterator.collect::<()>().await;
@@ -356,7 +355,6 @@ impl RustAnalysis {
                         }
                     };
                 }
-                ()
             })
             .buffer_unordered(10);
         iterator.collect::<()>().await;

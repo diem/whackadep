@@ -48,7 +48,7 @@ pub struct MetricsApp {
 impl MetricsApp {
     pub async fn new() -> Result<Self> {
         let db = Db::new(None, None, None, None).await?;
-        Ok(Self { db: db })
+        Ok(Self { db })
     }
 
     /// The analyze function does the following:
@@ -113,10 +113,10 @@ impl MetricsApp {
             None
         };
         let analysis = Analysis {
-            commit: commit,
+            commit,
             repository: repo_url.to_string(),
             timestamp: Utc::now(),
-            previous_analysis: previous_analysis,
+            previous_analysis,
             rust_dependencies: rust_analysis,
         };
         db.write_analysis(analysis).await
