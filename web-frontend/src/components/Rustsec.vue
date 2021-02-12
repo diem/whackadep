@@ -19,31 +19,67 @@
             {{ d.direct ? "direct" : "transitive" }}
           </td>
           <td>
-            <span v-if="d.rustsec">
-              <div v-for="rustsec in d.rustsec" :key="rustsec.advisory.id">
-                <strong
-                  ><a
+            <!-- vulnerabilities -->
+            <div v-for="vuln in d.vulnerabilities" :key="vuln.advisory.id">
+              <strong>
+                <a
+                  :href="
+                    'https://rustsec.org/advisories/' +
+                    vuln.advisory.id +
+                    '.html'
+                  "
+                  target="_blank"
+                >
+                  {{ vuln.advisory.id }}
+                </a>
+              </strong>
+              : {{ vuln.advisory.title }}.
+
+              <div v-if="vuln.versions.patched.length > 0">
+                <br />versions patched: {{ vuln.versions.patched.join(", ") }}.
+              </div>
+
+              <div v-if="vuln.versions.unaffected.length > 0">
+                <br />versions unaffected:
+                {{ vuln.versions.unaffected.join(", ") }}
+              </div>
+            </div>
+            <!-- warnings -->
+            <div v-for="warning in d.warnings" :key="warning.package.name">
+              <span v-if="warning.advisory">
+                <strong>
+                  <a
                     :href="
                       'https://rustsec.org/advisories/' +
-                      rustsec.advisory.id +
+                      warning.advisory.id +
                       '.html'
                     "
                     target="_blank"
-                    >{{ rustsec.advisory.id }}</a
-                  ></strong
-                >: {{ rustsec.advisory.title }}.
+                  >
+                    {{ warning.advisory.id }}
+                  </a>
+                </strong>
+                : {{ warning.advisory.title }}.
+              </span>
 
-                <span v-if="rustsec.versions.patched.length > 0">
-                  <br />versions patched:
-                  {{ rustsec.versions.patched.join(", ") }}.
-                </span>
+              <div v-if="warning.kind != 'unmaintained'">
+                <div
+                  v-if="warning.versions && warning.versions.patched.length > 0"
+                >
+                  versions patched:
+                  {{ warning.versions.patched.join(", ") }}.
+                </div>
 
-                <span v-if="rustsec.versions.unaffected.length > 0">
-                  <br />versions unaffected:
-                  {{ rustsec.versions.unaffected.join(", ") }}
-                </span>
+                <div
+                  v-if="
+                    warning.versions && warning.versions.unaffected.length > 0
+                  "
+                >
+                  versions unaffected:
+                  {{ warning.versions.unaffected.join(", ") }}
+                </div>
               </div>
-            </span>
+            </div>
           </td>
         </tr>
       </tbody>

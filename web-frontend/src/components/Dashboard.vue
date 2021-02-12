@@ -116,7 +116,7 @@
         with a recommendation on what crate can be used in place of the current
         one.
       </div>
-      <RustsecTable v-bind:dependencies="rustsec" />
+      <RustsecTable v-bind:dependencies="rustsec_no_updates" />
 
       <hr />
 
@@ -234,9 +234,14 @@ function calculate_priority_score(dep) {
   }
 
   // RUSTSEC
-  if (dep.rustsec) {
+  if (dep.vulnerabilities) {
+    priority_score += 30;
+    priority_reasons.push("RUSTSEC vulnerability associated");
+  }
+
+  if (dep.warnings) {
     priority_score += 20;
-    priority_reasons.push("RUSTSEC associated");
+    priority_reasons.push("RUSTSEC warning associated");
   }
 
   //
@@ -271,7 +276,10 @@ export default {
       dev_updatable_deps: [],
       non_dev_updatable_deps: [],
       cant_update_deps: [],
+
       rustsec: [],
+      all_rustsec: [],
+      rustsec_no_updates: [],
 
       // repo mgmt
       current_repo: "https://github.com/diem/diem.git",
@@ -292,7 +300,6 @@ export default {
   methods: {
     onSubmit(event) {
       event.preventDefault();
-      console.log("sending", JSON.stringify(this.form));
       this.hideModal();
       axios
         .post("/add_repo", this.form)
@@ -388,6 +395,7 @@ export default {
           console.log(error.config);
         });
     },
+    // obtains the latest analysis result for a repo
     get_dependencies() {
       axios
         .get("/dependencies?repo=" + this.current_repo)
@@ -397,6 +405,7 @@ export default {
             this.toast("Information", response.data, "info");
             return;
           }
+
           // retrieve commit
           this.commit = response.data.commit;
 
@@ -406,16 +415,79 @@ export default {
           // retrieve change summary
           this.change_summary = response.data.rust_dependencies.change_summary;
 
+          // retrieve rust dependencies
+          let all_dependencies = response.data.rust_dependencies.dependencies;
+
           // retrieve rustsec
+          /*
+          pub struct Vulnerability {
+    /// Security advisory for which the package is vulnerable
+    pub advisory: advisory::Metadata,
+
+    /// Versions impacted by this vulnerability
+    pub versions: advisory::Versions,
+
+    /// More specific information about what this advisory affects (if available)
+    pub affected: Option<advisory::Affected>,
+
+    /// Vulnerable package
+    pub package: Package,
+}
+*/
           this.rustsec = response.data.rust_dependencies.rustsec;
-          console.log(JSON.stringify(this.rustsec));
+          this.all_rustsec = [...this.rustsec.vulnerabilities];
+          for (const warnings of Object.values(this.rustsec.warnings)) {
+            this.all_rustsec = this.all_rustsec.concat(warnings);
+          }
+
+          // add rustsec vulnerabilities to the relevant dependencies
+          all_dependencies.forEach((dependency) => {
+            // vulns
+            this.rustsec.vulnerabilities.forEach((vuln) => {
+              if (vuln.package.name == dependency.name) {
+                let patched = vuln.versions.patched;
+                let unaffected = vuln.versions.unaffected;
+                let affected =
+                  !semver.satisfies(dependency.version, patched) &&
+                  !semver.satisfies(dependency.version, unaffected);
+                if (affected) {
+                  if (Array.isArray(dependency["vulnerabilities"])) {
+                    dependency.vulnerabilities.push(vuln);
+                  } else {
+                    dependency.vulnerabilities = [vuln];
+                  }
+                }
+              }
+            });
+            // warnings
+            for (const warnings of Object.values(this.rustsec.warnings)) {
+              warnings.forEach((warning) => {
+                if (warning.package.name == dependency.name) {
+                  if (Array.isArray(dependency["warnings"])) {
+                    dependency.warnings.push(warning);
+                  } else {
+                    dependency.warnings = [warning];
+                  }
+                }
+              });
+            }
+          });
 
           // retrieve all rust dependencies
-          this.dependencies = response.data.rust_dependencies.dependencies;
-          console.log("all deps", this.dependencies);
+          this.dependencies = all_dependencies;
+
+          // filter for dependencies that have a RUSTSEC advisory but can't be updated
+          this.rustsec_no_updates = all_dependencies.filter((dependency) => {
+            return (
+              (dependency.vulnerabilities != null ||
+                dependency.warnings != null) &&
+              dependency.update == null
+            );
+          });
+          console.log("yo:", this.rustsec_no_updates);
 
           // filter for dependencies that have updates
-          var updatable_dependencies = response.data.rust_dependencies.dependencies
+          var updatable_dependencies = all_dependencies
             .filter((dependency) => dependency.update != null)
             .map((dependency) => {
               let {
@@ -451,7 +523,6 @@ export default {
           this.non_dev_updatable_deps = this.non_dev_updatable_deps.sort(
             sort_priority
           );
-          console.log("non-dev update deps", this.non_dev_updatable_deps);
 
           // filter for dev dependencies that have an update
           this.dev_updatable_deps = can_update_dependencies.filter(

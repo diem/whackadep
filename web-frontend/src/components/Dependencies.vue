@@ -50,25 +50,41 @@
           </td>
           <!-- RUSTSEC -->
           <td>
-            <span v-if="d.rustsec">
-              <div
-                v-for="rustsec in d.rustsec"
-                :key="rustsec.advisory.id"
-                v-b-popover.hover.top="clean_rustsec(rustsec)"
-              >
-                <strong
-                  ><a
+            <div v-if="d.vulnerabilities">
+              <div v-for="vuln in d.vulnerabilities" :key="vuln.advisory.id">
+                <strong>
+                  <a
                     :href="
                       'https://rustsec.org/advisories/' +
-                      rustsec.advisory.id +
+                      vuln.advisory.id +
                       '.html'
                     "
                     target="_blank"
-                    >{{ rustsec.advisory.id }}</a
-                  ></strong
-                >
+                  >
+                    {{ vuln.advisory.id }}
+                  </a>
+                </strong>
               </div>
-            </span>
+            </div>
+
+            <div v-if="d.warnings">
+              <div v-for="warning in d.warnings" :key="warning.package.name">
+                <strong>
+                  <a
+                    v-if="warning.advisory"
+                    :href="
+                      'https://rustsec.org/advisories/' +
+                      warning.advisory.id +
+                      '.html'
+                    "
+                    target="_blank"
+                  >
+                    {{ warning.advisory.id }}
+                  </a>
+                  {{ warning.kind }}
+                </strong>
+              </div>
+            </div>
           </td>
           <!-- create PR -->
           <td class="text-center">
