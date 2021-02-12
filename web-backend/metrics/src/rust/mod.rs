@@ -12,9 +12,10 @@
 use anyhow::Result;
 use futures::{stream, StreamExt};
 use guppy_summaries::{PackageStatus, SummarySource};
+use rustsec::{report::WarningInfo, Vulnerability, Warning};
 use semver::Version;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 use tracing::{error, info};
 
@@ -30,7 +31,6 @@ pub mod diff;
 pub mod guppy;
 
 use crate::common::dependabot::{self, UpdateMetadata};
-use cargoaudit::{CargoAudit, RustSec};
 use cargoguppy::CargoGuppy;
 
 //
@@ -44,8 +44,17 @@ pub struct RustAnalysis {
     /// This is due to different versions being used or/and being used directly and indirectly (transitively).
     dependencies: Vec<DependencyInfo>,
 
+    /// the result of running cargo-audit
+    rustsec: RustSec,
+
     /// A summary of the changes since last analysis
     change_summary: Option<ChangeSummary>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct RustSec {
+    vulnerabilities: Vec<Vulnerability>,
+    warnings: WarningInfo,
 }
 
 /// DependencyInfo contains the information obtained from a dependency.
@@ -62,8 +71,6 @@ pub struct DependencyInfo {
     dev: bool,
     /// Is it a direct, or a transitive dependency?
     direct: bool,
-    /// An optional RUSTSEC advisory associated with the dependency and its version.
-    rustsec: Option<Vec<RustSec>>,
     /// An optional update available for the dependency.
     update: Option<Update>,
 }
@@ -172,7 +179,6 @@ impl RustAnalysis {
                 update: None,
                 dev: dev,
                 direct: direct,
-                rustsec: None,
             });
         }
 
@@ -187,6 +193,7 @@ impl RustAnalysis {
         //
         Ok(Self {
             dependencies: dependencies,
+            rustsec: RustSec::default(),
             change_summary: None,
         })
     }
@@ -262,11 +269,9 @@ impl RustAnalysis {
     async fn priority(&mut self, repo_dir: &Path) -> Result<()> {
         // 1. get cargo-audit results
         info!("running cargo-audit");
-        let audit = CargoAudit::run_cargo_audit(repo_dir).await?;
-        for dependency in &mut self.dependencies {
-            let key = (dependency.name.clone(), dependency.version.clone());
-            dependency.rustsec = audit.get(&key).cloned();
-        }
+        let report = cargoaudit::audit(repo_dir).await?;
+        self.rustsec.vulnerabilities = report.vulnerabilities.list;
+        self.rustsec.warnings = report.warnings;
 
         // 2. fetch every changelog via dependabot
         if std::env::var("GITHUB_TOKEN").is_err()
@@ -374,7 +379,7 @@ pub struct ChangeSummary {
     /// new updates available
     new_updates: Vec<DependencyInfo>,
     /// new RUSTSEC advisories
-    new_rustsec: Vec<RustSec>,
+    new_rustsec: RustSec,
 }
 
 impl ChangeSummary {
@@ -444,22 +449,41 @@ impl ChangeSummary {
         // check for new rustsec advisories
         //
 
-        // create hashset of rustsec
-        let mut set = HashSet::new();
-        for dependency in &old.dependencies {
-            if let Some(rustsec) = &dependency.rustsec {
-                set.insert(rustsec.clone());
-            }
-        }
+        // new vulns
+        let new_vulnerabilities: Vec<Vulnerability> = new
+            .rustsec
+            .vulnerabilities
+            .iter()
+            // remove what is contained in the previous vulns
+            .filter(|v| !old.rustsec.vulnerabilities.contains(&v))
+            .cloned()
+            .collect();
+        rust_changes.new_rustsec.vulnerabilities = new_vulnerabilities;
 
-        // figure out if anything is not in that set
-        for dependency in &new.dependencies {
-            if let Some(rustsec) = &dependency.rustsec {
-                if !set.contains(rustsec) {
-                    rust_changes.new_rustsec.extend_from_slice(&rustsec);
+        // new warnings
+        let mut new_warnings: WarningInfo = BTreeMap::new();
+        // (there can be different kinds of warnings)
+        for (kind, warnings) in &new.rustsec.warnings {
+            if let Some(old_warnings) = old.rustsec.warnings.get(kind) {
+                let warnings: Vec<Warning> = warnings
+                    .iter()
+                    // remove warnings for packages that have
+                    .filter(|&w| {
+                        old_warnings
+                            .iter()
+                            // TODO: theoretically, we can have a new advisory for the same package...
+                            .find(|old_w| old_w.package.name == w.package.name)
+                            .is_none()
+                    })
+                    .cloned()
+                    .collect();
+                // any new warnings for this kind?
+                if warnings.len() > 0 {
+                    new_warnings.insert(*kind, warnings);
                 }
             }
         }
+        rust_changes.new_rustsec.warnings = new_warnings;
 
         //
         Ok(rust_changes)

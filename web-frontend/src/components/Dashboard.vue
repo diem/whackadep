@@ -116,7 +116,7 @@
         with a recommendation on what crate can be used in place of the current
         one.
       </div>
-      <RustsecTable v-bind:dependencies="rustsec" />
+      <RustsecTable v-bind:dependencies="rustsec_no_updates" />
 
       <hr />
 
@@ -234,9 +234,14 @@ function calculate_priority_score(dep) {
   }
 
   // RUSTSEC
-  if (dep.rustsec) {
+  if (dep.vulnerabilities) {
+    priority_score += 30;
+    priority_reasons.push("RUSTSEC vulnerability associated");
+  }
+
+  if (dep.warnings) {
     priority_score += 20;
-    priority_reasons.push("RUSTSEC associated");
+    priority_reasons.push("RUSTSEC warning associated");
   }
 
   //
@@ -271,7 +276,10 @@ export default {
       dev_updatable_deps: [],
       non_dev_updatable_deps: [],
       cant_update_deps: [],
+
       rustsec: [],
+      all_rustsec: [],
+      rustsec_no_updates: [],
 
       // repo mgmt
       current_repo: "https://github.com/diem/diem.git",
@@ -292,7 +300,6 @@ export default {
   methods: {
     onSubmit(event) {
       event.preventDefault();
-      console.log("sending", JSON.stringify(this.form));
       this.hideModal();
       axios
         .post("/add_repo", this.form)
@@ -388,15 +395,25 @@ export default {
           console.log(error.config);
         });
     },
+    // obtains the latest analysis result for a repo
     get_dependencies() {
       axios
         .get("/dependencies?repo=" + this.current_repo)
         .then((response) => {
+          //
+          // Error handling
+          //
+
           // TODO: return an error code from the server instead?
           if (response.data.constructor == String) {
             this.toast("Information", response.data, "info");
             return;
           }
+
+          //
+          // Retrieving data
+          //
+
           // retrieve commit
           this.commit = response.data.commit;
 
@@ -408,18 +425,63 @@ export default {
 
           // retrieve all rust dependencies
           this.dependencies = response.data.rust_dependencies.dependencies;
-          console.log("all deps", this.dependencies);
 
-          // filter for dependencies that have a RUSTSEC but no updates
-          this.rustsec = response.data.rust_dependencies.dependencies.filter(
-            (dependency) =>
-              dependency.rustsec != null && dependency.update == null
-          );
+          // retrieve rustsec
+          this.rustsec = response.data.rust_dependencies.rustsec;
 
-          // filter for dependencies that have updates
-          var updatable_dependencies = response.data.rust_dependencies.dependencies
-            .filter((dependency) => dependency.update != null)
-            .map((dependency) => {
+          //
+          // Transforming data
+          //
+
+          // collect all the rustsec in one table
+          this.all_rustsec = [...this.rustsec.vulnerabilities];
+          for (const warnings of Object.values(this.rustsec.warnings)) {
+            this.all_rustsec = this.all_rustsec.concat(warnings);
+          }
+
+          // add new fields to all dependencies
+          this.dependencies.forEach((dependency) => {
+            // add rustsec vulnerabilities to the relevant dependencies
+            this.rustsec.vulnerabilities.forEach((vuln) => {
+              if (vuln.package.name == dependency.name) {
+                let patched = vuln.versions.patched;
+                let unaffected = vuln.versions.unaffected;
+                let affected =
+                  !semver.satisfies(dependency.version, patched) &&
+                  !semver.satisfies(dependency.version, unaffected);
+                if (affected) {
+                  if (Array.isArray(dependency["vulnerabilities"])) {
+                    dependency.vulnerabilities.push(vuln);
+                  } else {
+                    dependency.vulnerabilities = [vuln];
+                  }
+                }
+              }
+            });
+
+            // add rustsec warnings to the relevant dependencies
+            for (const warnings of Object.values(this.rustsec.warnings)) {
+              warnings.forEach((warning) => {
+                if (warning.package.name == dependency.name) {
+                  if (Array.isArray(dependency["warnings"])) {
+                    dependency.warnings.push(warning);
+                  } else {
+                    dependency.warnings = [warning];
+                  }
+                }
+              });
+            }
+
+            // only modify dependencies that have update now
+            if (dependency.update != null) {
+              // can we update this?
+              if (dependency.direct || this.update_allowed(dependency)) {
+                dependency.update_allowed = true;
+              } else {
+                dependency.update_allowed = false;
+              }
+
+              // priority score
               let {
                 priority_score,
                 priority_reasons,
@@ -427,23 +489,37 @@ export default {
               dependency.priority_score = priority_score;
               dependency.priority_reasons = priority_reasons;
 
+              // risk score
               let { risk_score, risk_reasons } = calculate_risk_score(
                 dependency
               );
               dependency.risk_score = risk_score;
               dependency.risk_reasons = risk_reasons;
-
-              return dependency;
-            });
-
-          var can_update_dependencies = updatable_dependencies.filter(
-            (dependency) => {
-              if (!dependency.direct) {
-                return this.update_allowed(dependency);
-              } else {
-                return true;
-              }
             }
+
+            // end of adding new fields to all dependencies
+          });
+
+          //
+          // Filter
+          //
+
+          var updatable_dependencies = this.dependencies.filter(
+            (dependency) => dependency.update != null
+          );
+
+          // filter for dependencies that have a RUSTSEC advisory but can't be updated
+          this.rustsec_no_updates = this.dependencies.filter((dependency) => {
+            return (
+              (dependency.vulnerabilities != null ||
+                dependency.warnings != null) &&
+              dependency.update == null
+            );
+          });
+
+          // filter for dependencies that have updates
+          var can_update_dependencies = updatable_dependencies.filter(
+            (dependency) => dependency.update_allowed
           );
 
           // filter for non-dev dependencies that have an update
@@ -453,7 +529,6 @@ export default {
           this.non_dev_updatable_deps = this.non_dev_updatable_deps.sort(
             sort_priority
           );
-          console.log("non-dev update deps", this.non_dev_updatable_deps);
 
           // filter for dev dependencies that have an update
           this.dev_updatable_deps = can_update_dependencies.filter(
@@ -462,17 +537,17 @@ export default {
           this.dev_updatable_deps = this.dev_updatable_deps.sort(sort_priority);
 
           // finally, retrieve dependencies that have updates and _can't_ be updated
-          // just in case we made a mistake above...
           this.cant_update_deps = updatable_dependencies.filter(
-            (dependency) => {
-              if (!dependency.direct) {
-                return !this.update_allowed(dependency);
-              } else {
-                return false;
-              }
-            }
+            (dependency) => !dependency.update_allowed
           );
           this.cant_update_deps = this.cant_update_deps.sort(sort_priority);
+
+          // notification
+          this.toast(
+            "Retrieving analysis",
+            `latest analysis successfuly retrieved for ${this.current_repo}`,
+            "success"
+          );
         })
         .catch((error) => {
           console.log(error);

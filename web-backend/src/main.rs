@@ -54,7 +54,10 @@ async fn dependencies(state: State<App, '_>, repo: String) -> String {
         },
         Ok(None) => return "no dependency analysis found".to_string(),
         Err(e) => {
-            error!("couldn't get dependencies: {}", e);
+            error!(
+                "couldn't get dependencies (perhaps a breaking update was applied): {}",
+                e
+            );
         }
     };
     "an error happened while retrieving dependencies".to_string()

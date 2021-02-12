@@ -34,7 +34,9 @@ pub fn get_dependencies_inner(manifest_path: &Path, include_dev: bool) -> Result
 
     // cargo options
     let mut opts = CargoOptions::new();
-    // TODO: do we have to switch to v2 when rust will do the change?
+    info!("guppy cargo settings: {:#?}", opts);
+
+    // TODO: we have to switch to v2 when rust will do the switch?
     opts.set_version(CargoResolverVersion::V1)
         .set_include_dev(include_dev);
 
