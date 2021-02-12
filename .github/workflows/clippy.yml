@@ -15,4 +15,4 @@ jobs:
       # all the time.
       - uses: actions-rs/clippy@master
         with:
-          args: --all-features --all-targets --manifest-path=./web-backend
+          args: --all-features --all-targets --manifest-path=./web-backend -- -W clippy:integer_arithmetic -W clippy::indexing_slicing -W clippy::panic_in_result_function -W clippy::unwrap_in_result -W clippy::as_conversions -W clippy::checked_conversions
