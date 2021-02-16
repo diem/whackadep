@@ -8,6 +8,7 @@ args = `arg="$(filter-out $@,$(MAKECMDGOALS))" && echo $${arg:-${1}}`
 
 # run everything for dev
 all:
+	docker-compose down --volumes
 	docker-compose build --no-cache
 	docker-compose up
 
@@ -21,6 +22,9 @@ restart-backend:
 
 # after `make all`, you can run this to rebuild and restart the frontend
 restart-frontend:
+	docker-compose stop frontend
+	docker-compose rm -f frontend # needed to remove volume
+	docker volume rm whackadep_node_modules # needed to refresh new deps
 	docker-compose up --detach --build frontend
 
 # to SSH into the backend server
