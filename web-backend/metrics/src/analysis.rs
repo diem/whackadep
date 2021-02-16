@@ -62,7 +62,7 @@ impl MetricsApp {
         let mut md5 = Md5::new();
         md5.input_str(repo_url);
         let repo_path = repo_dir.join(&md5.result_str());
-        info!("getting diem/diem repo");
+        info!("getting {} repo", repo_url);
         let repo = match Repo::new(&repo_path) {
             Ok(repo) => repo,
             Err(_) => {

@@ -51,7 +51,7 @@
         <br />
         commit:
         <a
-          :href="'https://github.com/diem/diem/commit/' + commit"
+          :href="current_repo.replace('.git', '') + '/commit/' + commit"
           target="_blank"
           ><code>{{ commit }}</code></a
         ><br />
@@ -284,7 +284,7 @@ export default {
       rustsec_no_updates: [],
 
       // repo mgmt
-      current_repo: "https://github.com/diem/diem.git",
+      current_repo: "",
       repos: [],
       form: {
         repo: "",
