@@ -1,205 +1,134 @@
 <template>
-  <div class="container">
-    <!-- header/nav -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-      <span class="navbar-brand mb-0 h1">Whack-a-dep!</span>
-      <button
-        class="navbar-toggler"
-        type="button"
-        data-toggle="collapse"
-        data-target="#navbarText"
-        aria-controls="navbarText"
-        aria-expanded="false"
-        aria-label="Toggle navigation"
-      >
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <div class="collapse navbar-collapse" id="navbarText">
-        <ul class="navbar-nav mr-auto">
-          <li class="nav-item active">
-            <a class="nav-link" href="/">
-              Home <span class="sr-only">(current)</span>
-            </a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" @click.prevent="refresh" href="#">Refresh</a>
-          </li>
-        </ul>
-      </div>
-
-      <b-dropdown id="dropdownrepo" :text="current_repo" class="m-md-2">
-        <b-dropdown-item
-          v-for="repo in repos"
-          v-bind:key="repo"
-          :disabled="repo == current_repo"
-          @click="switch_repo(repo)"
-        >
-          {{ repo }}
-        </b-dropdown-item>
-        <b-dropdown-divider></b-dropdown-divider>
-        <b-dropdown-item @click="showModal"
-          >add a new rust repository</b-dropdown-item
-        >
-      </b-dropdown>
-    </nav>
-
-    <!-- information -->
-    <section>
-      <section class="alert alert-warning">
-        <h2 class="alert-heading">Information</h2>
-        date: {{ date }}
-        <br />
-        commit:
-        <a
-          :href="current_repo.replace('.git', '') + '/commit/' + commit"
-          target="_blank"
-          ><code>{{ commit }}</code></a
-        ><br />
-        <div v-if="change_summary">
-          <div v-if="change_summary.new_updates.length > 0">
-            <hr />
-            new updates:
-            <ul>
-              <li
-                v-for="d in change_summary.new_updates"
-                v-bind:key="d.name + d.version + d.direct + d.dev"
-              >
-                [{{ d.direct ? "direct" : "transitive" }}]
-                <a :href="'#' + d.name + d.version + d.direct + d.dev">{{
-                  d.name
-                }}</a>
-                (<small
-                  >{{ d.version }} → {{ d.update.versions.join(" → ") }}</small
-                >)
-              </li>
-            </ul>
-          </div>
-
-          <div v-if="change_summary.new_rustsec.length > 0">
-            <hr />
-            new RUSTSEC advisories:
+  <!-- information -->
+  <section>
+    <section class="alert alert-warning">
+      <h2 class="alert-heading">Information</h2>
+      date: {{ date }}
+      <br />
+      commit:
+      <a :href="repo.replace('.git', '') + '/commit/' + commit" target="_blank"
+        ><code>{{ commit }}</code></a
+      ><br />
+      <div v-if="change_summary">
+        <div v-if="change_summary.new_updates.length > 0">
+          <hr />
+          new updates:
+          <ul>
             <li
-              v-for="r in change_summary.new_rustsec"
-              v-bind:key="r.advisory.id"
+              v-for="d in change_summary.new_updates"
+              v-bind:key="d.name + d.version + d.direct + d.dev"
             >
-              <strong>{{ r.advisory.id }}</strong> - {{ r.advisory.title }}
+              [{{ d.direct ? "direct" : "transitive" }}]
+              <a :href="'#' + d.name + d.version + d.direct + d.dev">{{
+                d.name
+              }}</a>
+              (<small
+                >{{ d.version }} → {{ d.update.versions.join(" → ") }}</small
+              >)
             </li>
-          </div>
+          </ul>
         </div>
-      </section>
 
-      <hr />
-
-      <!-- statistics -->
-      <div class="row" id="stats">
-        <div class="col-sm bg-light bg-gradient p-5">
-          <strong>{{ direct_dependencies }} </strong>
-          <small> non-dev direct dependencies</small>
-        </div>
-        <div class="col-sm p-5 bg-light bg-gradient">
-          <strong>{{ transitive_dependencies }} </strong>
-          <small> non-dev transitive dependencies</small>
-        </div>
-        <div class="col-sm bg-light bg-gradient p-5">
-          <strong>{{ dev_dependencies }} </strong>
-          <small> direct dev dependencies</small>
-        </div>
-      </div>
-
-      <hr />
-
-      <!-- rustsec advisories -->
-      <h2>
-        RUSTSEC advisories without updates ({{ rustsec_no_updates.length }})
-      </h2>
-      <div class="alert alert-info">
-        These are dependencies that have RUST advisories associated to them, but
-        no updates available to "fix" the advisory. Usually, the advisory comes
-        with a recommendation on what crate can be used in place of the current
-        one.
-      </div>
-      <RustsecTable v-bind:dependencies="rustsec_no_updates" />
-
-      <hr />
-
-      <h2>
-        Updates available for non-dev dependencies ({{
-          non_dev_updatable_deps.length
-        }})
-      </h2>
-      <div class="alert alert-info">
-        These are non-dev dependencies that can be updated either because they
-        are direct dependencies or because they are transitive and do not have
-        breaking changes (according to
-        <a
-          href="https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#caret-requirements"
-          >Rust semantic</a
-        >
-        about semver).
-      </div>
-      <DependenciesTable v-bind:dependencies="non_dev_updatable_deps" />
-
-      <hr />
-
-      <h2>
-        Updates available for dev dependencies ({{ dev_updatable_deps.length }})
-      </h2>
-      <div class="alert alert-info">
-        These are dev dependencies that can be updated either because they are
-        direct dependencies or because they are transitive and do not have
-        breaking changes (according to
-        <a
-          href="https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#caret-requirements"
-          >Rust semantic</a
-        >
-        about semver).
-      </div>
-      <DependenciesTable v-bind:dependencies="dev_updatable_deps" />
-
-      <hr />
-
-      <h2>
-        Updates that can't be applied for dependencies ({{
-          cant_update_deps.length
-        }})
-      </h2>
-      <div class="alert alert-info">
-        These are dependencies that have an update, but can't be updated because
-        they are transitive dependencies and don't respect
-        <a
-          href="https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#caret-requirements"
-          >Rust semantic</a
-        >
-        about semver ("An update is allowed if the new version number does not
-        modify the left-most non-zero digit in the major, minor, patch
-        grouping").
-      </div>
-      <DependenciesTable v-bind:dependencies="cant_update_deps" />
-    </section>
-    <!-- /container -->
-
-    <!-- modal -->
-    <b-modal ref="modal" hide-footer title="Adding a new repo">
-      <div>
-        <b-form @submit="onSubmit" @reset="onReset">
-          <b-form-group
-            id="repo-group"
-            label="Git repository:"
-            label-for="input-1"
-            description="We only support Rust repositories at the moment."
+        <div v-if="change_summary.new_rustsec.length > 0">
+          <hr />
+          new RUSTSEC advisories:
+          <li
+            v-for="r in change_summary.new_rustsec"
+            v-bind:key="r.advisory.id"
           >
-            <b-form-input
-              id="repo"
-              v-model="form.repo"
-              placeholder="Enter git repository"
-              required
-            ></b-form-input>
-          </b-form-group>
-          <b-button type="submit" variant="primary">Add</b-button>
-        </b-form>
+            <strong>{{ r.advisory.id }}</strong> - {{ r.advisory.title }}
+          </li>
+        </div>
       </div>
-    </b-modal>
-  </div>
+    </section>
+
+    <hr />
+
+    <!-- statistics -->
+    <div class="row" id="stats">
+      <div class="col-sm bg-light bg-gradient p-5">
+        <strong>{{ direct_dependencies }} </strong>
+        <small> non-dev direct dependencies</small>
+      </div>
+      <div class="col-sm p-5 bg-light bg-gradient">
+        <strong>{{ transitive_dependencies }} </strong>
+        <small> non-dev transitive dependencies</small>
+      </div>
+      <div class="col-sm bg-light bg-gradient p-5">
+        <strong>{{ dev_dependencies }} </strong>
+        <small> direct dev dependencies</small>
+      </div>
+    </div>
+
+    <hr />
+
+    <!-- rustsec advisories -->
+    <h2>
+      RUSTSEC advisories without updates ({{ rustsec_no_updates.length }})
+    </h2>
+    <div class="alert alert-info">
+      These are dependencies that have RUST advisories associated to them, but
+      no updates available to "fix" the advisory. Usually, the advisory comes
+      with a recommendation on what crate can be used in place of the current
+      one.
+    </div>
+    <RustsecTable v-bind:dependencies="rustsec_no_updates" />
+
+    <hr />
+
+    <h2>
+      Updates available for non-dev dependencies ({{
+        non_dev_updatable_deps.length
+      }})
+    </h2>
+    <div class="alert alert-info">
+      These are non-dev dependencies that can be updated either because they are
+      direct dependencies or because they are transitive and do not have
+      breaking changes (according to
+      <a
+        href="https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#caret-requirements"
+        >Rust semantic</a
+      >
+      about semver).
+    </div>
+    <DependenciesTable v-bind:dependencies="non_dev_updatable_deps" />
+
+    <hr />
+
+    <h2>
+      Updates available for dev dependencies ({{ dev_updatable_deps.length }})
+    </h2>
+    <div class="alert alert-info">
+      These are dev dependencies that can be updated either because they are
+      direct dependencies or because they are transitive and do not have
+      breaking changes (according to
+      <a
+        href="https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#caret-requirements"
+        >Rust semantic</a
+      >
+      about semver).
+    </div>
+    <DependenciesTable v-bind:dependencies="dev_updatable_deps" />
+
+    <hr />
+
+    <h2>
+      Updates that can't be applied for dependencies ({{
+        cant_update_deps.length
+      }})
+    </h2>
+    <div class="alert alert-info">
+      These are dependencies that have an update, but can't be updated because
+      they are transitive dependencies and don't respect
+      <a
+        href="https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#caret-requirements"
+        >Rust semantic</a
+      >
+      about semver ("An update is allowed if the new version number does not
+      modify the left-most non-zero digit in the major, minor, patch grouping").
+    </div>
+    <DependenciesTable v-bind:dependencies="cant_update_deps" />
+  </section>
 </template>
 
 <script>
@@ -209,58 +138,8 @@ import axios from "axios";
 import DependenciesTable from "./Dependencies.vue";
 import RustsecTable from "./Rustsec.vue";
 
-function version_change(dep) {
-  var version = dep.version;
-  var new_version = dep.update.versions[dep.update.versions.length - 1];
-  // rust has the tendency to lie when
-
-  var type_change = semver.diff(version, new_version);
-  return type_change;
-}
-
-function calculate_priority_score(dep) {
-  var priority_score = 0;
-  var priority_reasons = [];
-
-  // version change
-  var type_of_change = version_change(dep);
-  if (type_of_change == "major") {
-    priority_score += 10;
-    priority_reasons.push("MAJOR version change");
-  } else if (type_of_change == "minor") {
-    priority_score += 3;
-    priority_reasons.push("MINOR version change");
-  } else if (type_of_change == "patch") {
-    priority_score += 1;
-    priority_reasons.push("PATCH version change");
-  }
-
-  // RUSTSEC
-  if (dep.vulnerabilities) {
-    priority_score += 30;
-    priority_reasons.push("RUSTSEC vulnerability associated");
-  }
-
-  if (dep.warnings) {
-    priority_score += 20;
-    priority_reasons.push("RUSTSEC warning associated");
-  }
-
-  //
-  return { priority_score, priority_reasons };
-}
-
-function calculate_risk_score(dep) {
-  var risk_score = 0;
-  var risk_reasons = [];
-
-  if (dep.update.build_rs) {
-    risk_score += 10;
-    risk_reasons.push("<code>build.rs</code> file Changed");
-  }
-
-  return { risk_score, risk_reasons };
-}
+import { calculate_priority_score } from "@/engines/priority";
+import { calculate_risk_score } from "@/engines/risk";
 
 function sort_priority(a, b) {
   return a.priority_score > b.priority_score ? -1 : 1;
@@ -282,17 +161,13 @@ export default {
       rustsec: [],
       all_rustsec: [],
       rustsec_no_updates: [],
-
-      // repo mgmt
-      current_repo: "",
-      repos: [],
-      form: {
-        repo: "",
-      },
     };
   },
+  props: {
+    repo: String,
+  },
   mounted() {
-    this.get_repos();
+    console.log(`dashboard mounted with repo: ${this.repo}`);
     this.get_dependencies();
   },
   components: {
@@ -314,109 +189,10 @@ export default {
       this.all_rustsec = [];
       this.rustsec_no_updates = [];
     },
-    onSubmit(event) {
-      event.preventDefault();
-      this.hideModal();
-      axios
-        .post("/add_repo", this.form)
-        .then((response) => {
-          // TODO: return an error code from the server instead?
-          if (response.data == "ok") {
-            this.toast("Git repository added", "success", "success");
-            this.get_repos();
-          } else {
-            this.toast(
-              "Problem adding git repository",
-              response.data,
-              "danger"
-            );
-          }
-        })
-        .catch((error) => {
-          console.log(error);
-          if (error.response) {
-            // The request was made and the server responded with a status code
-            // that falls out of the range of 2xx
-            this.toast("Error from the server", error.message, "danger");
-          } else if (error.request) {
-            // The request was made but no response was received
-            // `error.request` is an instance of XMLHttpRequest in the browser and an instance of
-            // http.ClientRequest in node.js
-            this.toast(
-              "server unavailable",
-              `more information: ${JSON.stringify(error.message)}`,
-              "danger"
-            );
-          } else {
-            // Something happened in setting up the request that triggered an Error
-            this.toast(
-              "unknown error",
-              `more information: ${JSON.stringify(error.message)}`,
-              "danger"
-            );
-          }
-          console.log(error.config);
-        });
-      this.onReset();
-    },
-    onReset() {
-      // Reset our form values
-      this.form.repo = "";
-    },
-    create_repo() {
-      this.showModal();
-    },
-    showModal() {
-      this.$refs["modal"].show();
-    },
-    hideModal() {
-      this.$refs["modal"].hide();
-      this.modal_text = "";
-    },
-    // change the repository we're looking at
-    switch_repo(repo) {
-      console.log(repo);
-      this.current_repo = repo;
-      //      this.$refs.dropdownrepo.text(repo);
-      this.get_dependencies();
-    },
-    // obtain the repositories installed (from configuration)
-    get_repos() {
-      axios
-        .get("/repos")
-        .then((response) => {
-          this.repos = response.data;
-        })
-        .catch((error) => {
-          console.log(error);
-          if (error.response) {
-            // The request was made and the server responded with a status code
-            // that falls out of the range of 2xx
-            this.toast("Error from the server", error.message, "danger");
-          } else if (error.request) {
-            // The request was made but no response was received
-            // `error.request` is an instance of XMLHttpRequest in the browser and an instance of
-            // http.ClientRequest in node.js
-            this.toast(
-              "server unavailable",
-              `more information: ${JSON.stringify(error.message)}`,
-              "danger"
-            );
-          } else {
-            // Something happened in setting up the request that triggered an Error
-            this.toast(
-              "unknown error",
-              `more information: ${JSON.stringify(error.message)}`,
-              "danger"
-            );
-          }
-          console.log(error.config);
-        });
-    },
     // obtains the latest analysis result for a repo
     get_dependencies() {
       axios
-        .get("/dependencies?repo=" + this.current_repo)
+        .get("/dependencies?repo=" + this.repo)
         .then((response) => {
           //
           // Error handling
@@ -573,7 +349,7 @@ export default {
           // notification
           this.toast(
             "Retrieving analysis",
-            `latest analysis successfuly retrieved for ${this.current_repo}`,
+            `latest analysis successfuly retrieved for ${this.repo}`,
             "success"
           );
         })
@@ -602,20 +378,6 @@ export default {
           }
           console.log(error.config);
         });
-    },
-    // attempts to start an analysis on a given repo
-    refresh() {
-      axios.get("/refresh?repo=" + this.current_repo).then((response) => {
-        if (response.data == "ok") {
-          this.toast(
-            "Refresh requested",
-            "analysis started, please refresh the page in a bit...",
-            "success"
-          );
-        } else {
-          this.toast("Refresh requested", response.data, "info");
-        }
-      });
     },
     // create a toast (a notification on the top right of the screen)
     toast(title, msg, variant = null) {

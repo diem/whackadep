@@ -33,12 +33,17 @@ fn index() -> &'static str {
 #[get("/refresh?<repo>")]
 // TODO: does anyhow result implement Responder?
 /// starts an analysis for the repo given (if one is not already ongoing)
-fn refresh(state: State<App>, repo: String) -> &'static str {
-    // sanitize
-    // TODO: check if it's a valid repo url
-    if repo == "" {
-        return "empty repo";
-    }
+async fn refresh(state: State<App, '_>, repo: String) -> &'static str {
+    // check if we have the repo in our config
+    let config = Config::new(state.db.clone());
+    match config.repo_exists(&repo).await {
+        Ok(true) => (),
+        Ok(false) => return "add the repository first",
+        Err(e) => {
+            error!("{}", e);
+            return "error, check the logs";
+        }
+    };
 
     // try to request metrics service
     let sender = state.metrics_requester.lock().unwrap();
@@ -55,11 +60,16 @@ fn refresh(state: State<App>, repo: String) -> &'static str {
 #[get("/dependencies?<repo>")]
 /// obtains latest analysis result for a repository
 async fn dependencies(state: State<App, '_>, repo: String) -> String {
-    // sanitize
-    // TODO: check if it's a valid repo url
-    if repo == "" {
-        return "empty repo".to_string();
-    }
+    // check if we have the repo in our config
+    let config = Config::new(state.db.clone());
+    match config.repo_exists(&repo).await {
+        Ok(true) => (),
+        Ok(false) => return "add the repository first".to_string(),
+        Err(e) => {
+            error!("{}", e);
+            return "error, check the logs".to_string();
+        }
+    };
 
     // read from db
     let dependencies = Dependencies::new(state.db.clone());
@@ -105,9 +115,12 @@ struct RepoForm {
 #[post("/add_repo", format = "json", data = "<repo_form>")]
 /// obtains latest analysis result for a repository
 async fn add_repo(state: State<App, '_>, repo_form: Json<RepoForm>) -> String {
+    // sanitize
     if repo_form.repo == "" {
         return "error, the repo url sent is empty".to_string();
     }
+
+    // add to storage
     info!("adding repository: {}", repo_form.repo);
     let config = Config::new(state.db.clone());
     match config.add_new_repo(&repo_form.repo).await {

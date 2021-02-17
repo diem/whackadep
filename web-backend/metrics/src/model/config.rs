@@ -25,21 +25,13 @@ impl Config {
         Self(db)
     }
 
-    /// add a new repository configuration
+    /// adds a new repository configuration
     pub async fn add_new_repo(&self, repo: &str) -> Result<()> {
         // check if the repo already exists
-        let filter = doc! {
-            "repo": repo.to_string(),
-        };
-        let found = self
-            .0
-            .find_one(Self::COLLECTION, Some(filter), None)
-            .await?;
-        info!("checking if repo {} already exists: {:?}", repo, found);
-
-        if found.is_some() {
+        if self.repo_exists(repo).await? {
             return Err(anyhow!("repo already exists"));
         }
+        // TODO: not that since the two queries are not done in a single transaction (or the read is not done with a "FOR UPDATE") this might not be true anymore at the time of the write
 
         // if not, create it
         let repo = Repo {
@@ -50,6 +42,18 @@ impl Config {
         let repo = bson::to_bson(&repo).unwrap();
         let document = repo.as_document().unwrap();
         self.0.write(Self::COLLECTION, document.to_owned()).await
+    }
+
+    /// checks if a repository is part of the config
+    pub async fn repo_exists(&self, repo: &str) -> Result<bool> {
+        let filter = doc! {
+            "repo": repo.to_string(),
+        };
+        let result = self
+            .0
+            .find_one(Self::COLLECTION, Some(filter), None)
+            .await?;
+        Ok(result.is_some())
     }
 
     /// remove a repository configuration
