@@ -11,11 +11,7 @@
     <hr />
 
     <!-- rustsec advisories -->
-    <h2>
-      RUSTSEC advisories without updates ({{
-        length($store.getters.rustsec_no_updates)
-      }})
-    </h2>
+    <h2>RUSTSEC advisories without updates</h2>
     <div class="alert alert-info">
       These are dependencies that have RUST advisories associated to them, but
       no updates available to "fix" the advisory. Usually, the advisory comes
@@ -29,11 +25,7 @@
 
     <hr />
 
-    <h2>
-      Updates available for non-dev dependencies ({{
-        length($store.getters.non_dev_updatable_deps)
-      }})
-    </h2>
+    <h2>Updates available for non-dev dependencies</h2>
     <div class="alert alert-info">
       These are non-dev dependencies that can be updated either because they are
       direct dependencies or because they are transitive and do not have
@@ -51,11 +43,7 @@
 
     <hr />
 
-    <h2>
-      Updates available for dev dependencies ({{
-        length($store.getters.dev_updatable_deps)
-      }})
-    </h2>
+    <h2>Updates available for dev dependencies</h2>
     <div class="alert alert-info">
       These are dev dependencies that can be updated either because they are
       direct dependencies or because they are transitive and do not have
@@ -73,11 +61,7 @@
 
     <hr />
 
-    <h2>
-      Updates that can't be applied for dependencies ({{
-        length($store.getters.cant_update_deps)
-      }})
-    </h2>
+    <h2>Updates that can't be applied for dependencies</h2>
     <div class="alert alert-info">
       These are dependencies that have an update, but can't be updated because
       they are transitive dependencies and don't respect
@@ -228,14 +212,6 @@ export default {
         variant: variant,
         solid: true,
       });
-    },
-    // length or 0 if undefined
-    length(thing) {
-      if (typeof thing == Array) {
-        return thing.length;
-      } else {
-        return 0;
-      }
     },
   },
 };

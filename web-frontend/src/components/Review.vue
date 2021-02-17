@@ -50,9 +50,7 @@ export default {
     if (this.repo != this.$store.state.repo) {
       alert("error, refresh repo analysis first");
     }
-    console.log("looking for dep", this.depkey);
     let dependency = this.$store.state.dependency_map[this.depkey];
-    console.log("found dependency:", dependency);
     this.dependency = dependency;
   },
 };
