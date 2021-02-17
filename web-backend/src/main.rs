@@ -116,7 +116,7 @@ struct RepoForm {
 /// obtains latest analysis result for a repository
 async fn add_repo(state: State<App, '_>, repo_form: Json<RepoForm>) -> String {
     // sanitize
-    if repo_form.repo == "" {
+    if !valid_repo_url(&repo_form.repo) {
         return "error, the repo url sent is empty".to_string();
     }
 
@@ -127,6 +127,14 @@ async fn add_repo(state: State<App, '_>, repo_form: Json<RepoForm>) -> String {
         Ok(()) => "ok".to_string(),
         Err(e) => format!("error: {}", e),
     }
+}
+
+// TODO: complete this function
+fn valid_repo_url(repo: &str) -> bool {
+    if repo == "" {
+        return false;
+    }
+    true
 }
 
 //

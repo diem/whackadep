@@ -171,7 +171,7 @@ export default {
           this.commit = response.data.commit;
 
           // retrieve datetime
-          this.date = new Date(response.data.timestamp);
+          this.date = new Date(response.data.timestamp).toString();
 
           // retrieve change summary
           this.change_summary = response.data.rust_dependencies.change_summary;

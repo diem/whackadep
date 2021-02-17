@@ -47,6 +47,10 @@
       </b-dropdown>
     </nav>
 
+    <template>
+      <b-breadcrumb :items="breadcrumbs"></b-breadcrumb>
+    </template>
+
     <!-- content -->
     <router-view :key="$route.path" />
 
@@ -81,6 +85,7 @@ export default {
   name: "App",
   data() {
     return {
+      breadcrumbs: [{ text: "home", to: { name: "landing" } }],
       current_repo: "select a repository",
       repos: [],
       form: {
@@ -205,15 +210,32 @@ export default {
         solid: true,
       });
     },
+
+    // route stuff
+    change_route(...crumbs) {
+      // add home
+      this.breadcrumbs = [{ text: "home", to: { name: "landing" } }];
+
+      // add other stuff
+      if (crumbs) {
+        crumbs.forEach((crumb) => {
+          this.breadcrumbs.push(crumb);
+        });
+      }
+    },
   },
 
-  // when mounting, get list of repos and update drop down
   mounted() {
+    // get a list of repos
     this.get_repos();
 
-    // current repo
+    // repo route?
     if (this.$route.name == "repo") {
       this.current_repo = this.$route.params.repo;
+      this.breadcrumbs.push({
+        text: this.current_repo,
+        to: this.$route.path,
+      });
     }
   },
 
@@ -225,11 +247,16 @@ export default {
       // landing page
       if (to.name == "landing") {
         this.current_repo = "select a repository";
+        this.change_route();
       }
 
       // new repo
       if (to.name == "repo") {
         this.current_repo = to.params.repo;
+        this.change_route({
+          text: this.current_repo,
+          to: { name: "repo", params: { repo: this.current_repo } },
+        });
       }
     },
   },
