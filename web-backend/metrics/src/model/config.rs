@@ -5,6 +5,7 @@ use super::Db;
 use anyhow::{anyhow, Result};
 use mongodb::bson::{self, doc};
 use serde::{Deserialize, Serialize};
+use tracing::info;
 
 #[derive(Deserialize, Serialize)]
 pub struct Repo {
@@ -28,14 +29,15 @@ impl Config {
     pub async fn add_new_repo(&self, repo: &str) -> Result<()> {
         // check if the repo already exists
         let filter = doc! {
-            repo: repo.to_string(),
+            "repo": repo.to_string(),
         };
         let found = self
             .0
             .find_one(Self::COLLECTION, Some(filter), None)
-            .await?
-            .is_some();
-        if found {
+            .await?;
+        info!("checking if repo {} already exists: {:?}", repo, found);
+
+        if found.is_some() {
             return Err(anyhow!("repo already exists"));
         }
 

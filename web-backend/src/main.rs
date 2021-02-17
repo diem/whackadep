@@ -34,6 +34,13 @@ fn index() -> &'static str {
 // TODO: does anyhow result implement Responder?
 /// starts an analysis for the repo given (if one is not already ongoing)
 fn refresh(state: State<App>, repo: String) -> &'static str {
+    // sanitize
+    // TODO: check if it's a valid repo url
+    if repo == "" {
+        return "empty repo";
+    }
+
+    // try to request metrics service
     let sender = state.metrics_requester.lock().unwrap();
     if sender
         .try_send(MetricsRequest::StartAnalysis { repo_url: repo })
@@ -48,6 +55,13 @@ fn refresh(state: State<App>, repo: String) -> &'static str {
 #[get("/dependencies?<repo>")]
 /// obtains latest analysis result for a repository
 async fn dependencies(state: State<App, '_>, repo: String) -> String {
+    // sanitize
+    // TODO: check if it's a valid repo url
+    if repo == "" {
+        return "empty repo".to_string();
+    }
+
+    // read from db
     let dependencies = Dependencies::new(state.db.clone());
     match dependencies.get_last_analysis(&repo).await {
         Ok(Some(analysis)) => match serde_json::to_string(&analysis) {
