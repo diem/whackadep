@@ -2,7 +2,7 @@
 //! by providing functions to read and write specific documents.
 
 use super::Db;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use mongodb::bson::{self, doc};
 use serde::{Deserialize, Serialize};
 
@@ -26,6 +26,20 @@ impl Config {
 
     /// add a new repository configuration
     pub async fn add_new_repo(&self, repo: &str) -> Result<()> {
+        // check if the repo already exists
+        let filter = doc! {
+            repo: repo.to_string(),
+        };
+        let found = self
+            .0
+            .find_one(Self::COLLECTION, Some(filter), None)
+            .await?
+            .is_some();
+        if found {
+            return Err(anyhow!("repo already exists"));
+        }
+
+        // if not, create it
         let repo = Repo {
             repo: repo.to_string(),
             trusted_crates: Vec::new(),
