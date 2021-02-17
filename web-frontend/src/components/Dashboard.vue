@@ -107,7 +107,7 @@ export default {
   props: {
     repo: String,
   },
-  mounted() {
+  created() {
     console.log(`dashboard mounted with repo: ${this.repo}`);
     this.get_dependencies();
   },
