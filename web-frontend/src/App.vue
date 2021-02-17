@@ -240,3 +240,9 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+nav {
+  margin-bottom: 20px;
+}
+</style>
