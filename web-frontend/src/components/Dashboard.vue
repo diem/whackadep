@@ -16,7 +16,7 @@
           <ul>
             <li
               v-for="d in change_summary.new_updates"
-              v-bind:key="d.name + d.version + d.direct + d.dev"
+              :key="d.name + d.version + d.direct + d.dev"
             >
               [{{ d.direct ? "direct" : "transitive" }}]
               <a :href="'#' + d.name + d.version + d.direct + d.dev">{{
@@ -32,10 +32,7 @@
         <div v-if="change_summary.new_rustsec.length > 0">
           <hr />
           new RUSTSEC advisories:
-          <li
-            v-for="r in change_summary.new_rustsec"
-            v-bind:key="r.advisory.id"
-          >
+          <li v-for="r in change_summary.new_rustsec" :key="r.advisory.id">
             <strong>{{ r.advisory.id }}</strong> - {{ r.advisory.title }}
           </li>
         </div>
@@ -45,20 +42,7 @@
     <hr />
 
     <!-- statistics -->
-    <div class="row" id="stats">
-      <div class="col-sm bg-light bg-gradient p-5">
-        <strong>{{ direct_dependencies }} </strong>
-        <small> non-dev direct dependencies</small>
-      </div>
-      <div class="col-sm p-5 bg-light bg-gradient">
-        <strong>{{ transitive_dependencies }} </strong>
-        <small> non-dev transitive dependencies</small>
-      </div>
-      <div class="col-sm bg-light bg-gradient p-5">
-        <strong>{{ dev_dependencies }} </strong>
-        <small> direct dev dependencies</small>
-      </div>
-    </div>
+    <Statistics :dependencies="dependencies" />
 
     <hr />
 
@@ -72,7 +56,7 @@
       with a recommendation on what crate can be used in place of the current
       one.
     </div>
-    <RustsecTable v-bind:dependencies="rustsec_no_updates" />
+    <RustsecTable :dependencies="rustsec_no_updates" />
 
     <hr />
 
@@ -91,7 +75,7 @@
       >
       about semver).
     </div>
-    <DependenciesTable v-bind:dependencies="non_dev_updatable_deps" />
+    <DependenciesTable :dependencies="non_dev_updatable_deps" />
 
     <hr />
 
@@ -108,7 +92,7 @@
       >
       about semver).
     </div>
-    <DependenciesTable v-bind:dependencies="dev_updatable_deps" />
+    <DependenciesTable :dependencies="dev_updatable_deps" />
 
     <hr />
 
@@ -127,7 +111,7 @@
       about semver ("An update is allowed if the new version number does not
       modify the left-most non-zero digit in the major, minor, patch grouping").
     </div>
-    <DependenciesTable v-bind:dependencies="cant_update_deps" />
+    <DependenciesTable :dependencies="cant_update_deps" />
   </section>
 </template>
 
@@ -136,6 +120,7 @@ import semver from "semver";
 import axios from "axios";
 
 import DependenciesTable from "./Dependencies.vue";
+import Statistics from "./Statistics.vue";
 import RustsecTable from "./Rustsec.vue";
 
 import { update_allowed } from "@/utils/dependencies";
@@ -174,6 +159,7 @@ export default {
   components: {
     DependenciesTable,
     RustsecTable,
+    Statistics,
   },
   methods: {
     // reset data
@@ -391,30 +377,6 @@ export default {
       });
     },
   },
-  computed: {
-    direct_dependencies() {
-      if (this.dependencies != null) {
-        // there will be redundant dependencies
-        return this.dependencies.filter((dep) => !dep.dev && dep.direct).length;
-      }
-      return 0;
-    },
-    transitive_dependencies() {
-      if (this.dependencies != null) {
-        // there will be redundant dependencies
-        return this.dependencies.filter((dep) => !dep.dev && !dep.direct)
-          .length;
-      }
-      return 0;
-    },
-    dev_dependencies() {
-      if (this.dependencies != null) {
-        // there will be redundant dependencies
-        return this.dependencies.filter((dep) => dep.dev && dep.direct).length;
-      }
-      return 0;
-    },
-  },
 };
 </script>
 
@@ -422,14 +384,6 @@ export default {
 <style scoped>
 nav {
   margin-bottom: 20px;
-}
-
-#stats {
-  text-align: center;
-  margin-bottom: 20px;
-}
-#stats div {
-  margin: 0 5px;
 }
 
 .header {
