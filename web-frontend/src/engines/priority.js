@@ -1,11 +1,11 @@
 import semver from "semver";
 
 export function calculate_priority_score(dep) {
-  var priority_score = 0;
-  var priority_reasons = [];
+  let priority_score = 0;
+  let priority_reasons = [];
 
   // version change
-  var type_of_change = version_change(dep);
+  let type_of_change = version_change(dep);
   if (type_of_change == "major") {
     priority_score += 10;
     priority_reasons.push("MAJOR version change");
@@ -33,11 +33,11 @@ export function calculate_priority_score(dep) {
 }
 
 export function version_change(dep) {
-  var version = dep.version;
-  var new_version = dep.update.versions[dep.update.versions.length - 1];
+  let version = dep.version;
+  let new_version = dep.update.versions[dep.update.versions.length - 1];
   // rust has the tendency to lie when
 
-  var type_change = semver.diff(version, new_version);
+  let type_change = semver.diff(version, new_version);
   return type_change;
 }
 

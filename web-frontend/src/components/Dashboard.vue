@@ -1,23 +1,20 @@
 <template>
   <!-- information -->
   <section>
-    <Information
-      :date="date"
-      :commit="commit"
-      :repo="repo"
-      :change_summary="change_summary"
-    />
+    <Information />
 
     <hr />
 
     <!-- statistics -->
-    <Statistics :dependencies="dependencies" />
+    <Statistics :dependencies="$store.state.dependencies" />
 
     <hr />
 
     <!-- rustsec advisories -->
     <h2>
-      RUSTSEC advisories without updates ({{ rustsec_no_updates.length }})
+      RUSTSEC advisories without updates ({{
+        length($store.getters.rustsec_no_updates)
+      }})
     </h2>
     <div class="alert alert-info">
       These are dependencies that have RUST advisories associated to them, but
@@ -25,13 +22,16 @@
       with a recommendation on what crate can be used in place of the current
       one.
     </div>
-    <RustsecTable :dependencies="rustsec_no_updates" />
+    <RustsecTable
+      :repo="repo"
+      :dependencies="$store.getters.rustsec_no_updates"
+    />
 
     <hr />
 
     <h2>
       Updates available for non-dev dependencies ({{
-        non_dev_updatable_deps.length
+        length($store.getters.non_dev_updatable_deps)
       }})
     </h2>
     <div class="alert alert-info">
@@ -44,12 +44,17 @@
       >
       about semver).
     </div>
-    <DependenciesTable :dependencies="non_dev_updatable_deps" />
+    <DependenciesTable
+      :repo="repo"
+      :dependencies="$store.getters.non_dev_updatable_deps"
+    />
 
     <hr />
 
     <h2>
-      Updates available for dev dependencies ({{ dev_updatable_deps.length }})
+      Updates available for dev dependencies ({{
+        length($store.getters.dev_updatable_deps)
+      }})
     </h2>
     <div class="alert alert-info">
       These are dev dependencies that can be updated either because they are
@@ -61,13 +66,16 @@
       >
       about semver).
     </div>
-    <DependenciesTable :dependencies="dev_updatable_deps" />
+    <DependenciesTable
+      :repo="repo"
+      :dependencies="$store.getters.dev_updatable_deps"
+    />
 
     <hr />
 
     <h2>
       Updates that can't be applied for dependencies ({{
-        cant_update_deps.length
+        length($store.getters.cant_update_deps)
       }})
     </h2>
     <div class="alert alert-info">
@@ -80,26 +88,20 @@
       about semver ("An update is allowed if the new version number does not
       modify the left-most non-zero digit in the major, minor, patch grouping").
     </div>
-    <DependenciesTable :dependencies="cant_update_deps" />
+    <DependenciesTable
+      :repo="repo"
+      :dependencies="$store.getters.cant_update_deps"
+    />
   </section>
 </template>
 
 <script>
-import semver from "semver";
 import axios from "axios";
 
 import DependenciesTable from "./Dependencies.vue";
 import Information from "./Information.vue";
 import Statistics from "./Statistics.vue";
 import RustsecTable from "./Rustsec.vue";
-
-import { update_allowed } from "@/utils/dependencies";
-import { calculate_priority_score } from "@/engines/priority";
-import { calculate_risk_score } from "@/engines/risk";
-
-function sort_priority(a, b) {
-  return a.priority_score > b.priority_score ? -1 : 1;
-}
 
 export default {
   name: "Dashboard",
@@ -115,7 +117,6 @@ export default {
       cant_update_deps: [],
 
       rustsec: [],
-      all_rustsec: [],
       rustsec_no_updates: [],
     };
   },
@@ -144,7 +145,6 @@ export default {
       this.cant_update_deps = [];
 
       this.rustsec = [];
-      this.all_rustsec = [];
       this.rustsec_no_updates = [];
     },
     // obtains the latest analysis result for a repo
@@ -167,27 +167,16 @@ export default {
           // Retrieving data
           //
 
-          // retrieve commit
-          this.commit = response.data.commit;
-
-          // retrieve datetime
-          this.date = new Date(response.data.timestamp).toString();
-
-          // retrieve change summary
-          this.change_summary = response.data.rust_dependencies.change_summary;
-
-          // retrieve all rust dependencies
-          this.dependencies = response.data.rust_dependencies.dependencies;
-
-          // retrieve rustsec
-          this.rustsec = response.data.rust_dependencies.rustsec;
+          // TODO: this vuex store will replace everything here
+          this.$store.dispatch("add_analysis", response.data);
 
           //
-          // Transforming data
+          // alert on vuln
           //
 
-          // collect all the rustsec in one table
-          if (this.rustsec.vulnerabilities.length > 0) {
+          if (
+            response.data.rust_dependencies.rustsec.vulnerabilities.length > 0
+          ) {
             this.toast(
               "RUSTSEC",
               `vulnerabilities found: ${this.rustsec.vulnerabilities
@@ -196,113 +185,6 @@ export default {
               "danger"
             );
           }
-          this.all_rustsec = [...this.rustsec.vulnerabilities];
-          for (const warnings of Object.values(this.rustsec.warnings)) {
-            this.all_rustsec = this.all_rustsec.concat(warnings);
-          }
-
-          // add new fields to all dependencies
-          this.dependencies.forEach((dependency) => {
-            // add rustsec vulnerabilities to the relevant dependencies
-            this.rustsec.vulnerabilities.forEach((vuln) => {
-              if (vuln.package.name == dependency.name) {
-                let patched = vuln.versions.patched;
-                let unaffected = vuln.versions.unaffected;
-                let affected =
-                  !semver.satisfies(dependency.version, patched) &&
-                  !semver.satisfies(dependency.version, unaffected);
-                if (affected) {
-                  if (Array.isArray(dependency["vulnerabilities"])) {
-                    dependency.vulnerabilities.push(vuln);
-                  } else {
-                    dependency.vulnerabilities = [vuln];
-                  }
-                }
-              }
-            });
-
-            // add rustsec warnings to the relevant dependencies
-            for (const warnings of Object.values(this.rustsec.warnings)) {
-              warnings.forEach((warning) => {
-                if (warning.package.name == dependency.name) {
-                  if (Array.isArray(dependency["warnings"])) {
-                    dependency.warnings.push(warning);
-                  } else {
-                    dependency.warnings = [warning];
-                  }
-                }
-              });
-            }
-
-            // only modify dependencies that have update now
-            if (dependency.update != null) {
-              // can we update this?
-              if (dependency.direct || update_allowed(dependency)) {
-                dependency.update_allowed = true;
-              } else {
-                dependency.update_allowed = false;
-              }
-
-              // priority score
-              let {
-                priority_score,
-                priority_reasons,
-              } = calculate_priority_score(dependency);
-              dependency.priority_score = priority_score;
-              dependency.priority_reasons = priority_reasons;
-
-              // risk score
-              let { risk_score, risk_reasons } = calculate_risk_score(
-                dependency
-              );
-              dependency.risk_score = risk_score;
-              dependency.risk_reasons = risk_reasons;
-            }
-
-            // end of adding new fields to all dependencies
-          });
-
-          //
-          // Filter
-          //
-
-          var updatable_dependencies = this.dependencies.filter(
-            (dependency) => dependency.update != null
-          );
-
-          // filter for dependencies that have a RUSTSEC advisory but can't be updated
-          this.rustsec_no_updates = this.dependencies.filter((dependency) => {
-            return (
-              (dependency.vulnerabilities != null ||
-                dependency.warnings != null) &&
-              dependency.update == null
-            );
-          });
-
-          // filter for dependencies that have updates
-          var can_update_dependencies = updatable_dependencies.filter(
-            (dependency) => dependency.update_allowed
-          );
-
-          // filter for non-dev dependencies that have an update
-          this.non_dev_updatable_deps = can_update_dependencies.filter(
-            (dependency) => !dependency.dev
-          );
-          this.non_dev_updatable_deps = this.non_dev_updatable_deps.sort(
-            sort_priority
-          );
-
-          // filter for dev dependencies that have an update
-          this.dev_updatable_deps = can_update_dependencies.filter(
-            (dependency) => dependency.dev
-          );
-          this.dev_updatable_deps = this.dev_updatable_deps.sort(sort_priority);
-
-          // finally, retrieve dependencies that have updates and _can't_ be updated
-          this.cant_update_deps = updatable_dependencies.filter(
-            (dependency) => !dependency.update_allowed
-          );
-          this.cant_update_deps = this.cant_update_deps.sort(sort_priority);
 
           // notification
           this.toast(
@@ -346,6 +228,14 @@ export default {
         variant: variant,
         solid: true,
       });
+    },
+    // length or 0 if undefined
+    length(thing) {
+      if (typeof thing == Array) {
+        return thing.length;
+      } else {
+        return 0;
+      }
     },
   },
 };

@@ -97,17 +97,17 @@ export default {
   },
   methods: {
     clean_changelog(changelog) {
-      var res = changelog.replaceAll(/(#)*/g, "");
+      let res = changelog.replaceAll(/(#)*/g, "");
       res = res.replaceAll(/\[([^\]]+)\]\([^)]+\)/g, "$1");
       return res.slice(0, 100);
     },
     version_change(dependency) {
-      var version = dependency.version;
-      var new_version =
+      let version = dependency.version;
+      let new_version =
         dependency.update.versions[dependency.update.versions.length - 1];
       // rust has the tendency to lie when
 
-      var type_change = semver.diff(version, new_version);
+      let type_change = semver.diff(version, new_version);
       return type_change + " (" + version + " → " + new_version + ")";
     },
   },

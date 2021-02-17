@@ -19,7 +19,7 @@
       <tbody>
         <tr
           v-for="(d, index) in dependencies"
-          v-bind:key="d.name + d.version + d.direct + d.dev"
+          :key="d.name + d.version + d.direct + d.dev"
         >
           <!-- rank -->
           <th scope="row" class="text-center">
@@ -91,6 +91,16 @@
             <a v-if="d.update_allowed" href="#" @click.prevent="create_PR(d)"
               >create a PR</a
             >
+            (<router-link
+              :to="{
+                name: 'review',
+                params: {
+                  repo: repo,
+                  depkey: `${d.name}-${d.version}-${d.direct}-${d.dev}`,
+                },
+              }"
+              >review</router-link
+            >)
           </td>
           <!-- changelog -->
           <td class="text-center">
@@ -138,6 +148,7 @@ import semver from "semver";
 export default {
   name: "DependenciesTable",
   props: {
+    repo: String,
     dependencies: Array,
   },
   data() {
@@ -201,7 +212,7 @@ export default {
     },
     //
     clean_changelog(changelog) {
-      var res = changelog.replaceAll(/(#)*/g, "");
+      let res = changelog.replaceAll(/(#)*/g, "");
       // strip markdown links
       res = res.replaceAll(/\[([^\]]+)\]\([^)]+\)/g, "$1");
       // strip html tags
@@ -210,12 +221,12 @@ export default {
       return res.slice(0, 100) + " [...]";
     },
     version_change(dependency) {
-      var version = dependency.version;
-      var new_version =
+      let version = dependency.version;
+      let new_version =
         dependency.update.versions[dependency.update.versions.length - 1];
       // rust has the tendency to lie when
 
-      var type_change = semver.diff(version, new_version);
+      let type_change = semver.diff(version, new_version);
       return type_change;
     },
     clean_rustsec(rustsec) {
