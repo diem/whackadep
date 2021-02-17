@@ -41,19 +41,19 @@
           {{ repo }}
         </b-dropdown-item>
         <b-dropdown-divider></b-dropdown-divider>
-        <b-dropdown-item @click="showModal"
+        <b-dropdown-item @click="show_repo_modal"
           >add a new rust repository</b-dropdown-item
         >
       </b-dropdown>
     </nav>
 
-    <!-- <Dashboard :repo="current_repo" /> -->
+    <!-- content -->
     <router-view :key="$route.path" />
 
-    <!-- modal -->
+    <!-- modal to register new repo -->
     <b-modal ref="modal" hide-footer title="Adding a new repo">
       <div>
-        <b-form @submit="onSubmit" @reset="onReset">
+        <b-form @submit="onSubmit" @reset="reset_repo_modal">
           <b-form-group
             id="repo-group"
             label="Git repository:"
@@ -81,7 +81,6 @@ export default {
   name: "App",
   data() {
     return {
-      // repo mgmt
       current_repo: "select a repository",
       repos: [],
       form: {
@@ -142,7 +141,7 @@ export default {
     // modal
     onSubmit(event) {
       event.preventDefault();
-      this.hideModal();
+      this.hide_repo_modal();
       axios
         .post("/add_repo", this.form)
         .then((response) => {
@@ -183,24 +182,18 @@ export default {
           }
           console.log(error.config);
         });
-      this.onReset();
+      this.reset_repo_modal();
     },
-    onReset() {
-      // Reset our form values
+    reset_repo_modal() {
       this.form.repo = "";
     },
-    create_repo() {
-      this.showModal();
-    },
-    showModal() {
+    show_repo_modal() {
       this.$refs["modal"].show();
     },
-    hideModal() {
+    hide_repo_modal() {
       this.$refs["modal"].hide();
       this.modal_text = "";
     },
-
-    // helpers
 
     // create a toast (a notification on the top right of the screen)
     toast(title, msg, variant = null) {
@@ -214,6 +207,7 @@ export default {
     },
   },
 
+  // when mounting, get list of repos and update drop down
   mounted() {
     this.get_repos();
 
@@ -223,18 +217,19 @@ export default {
     }
   },
 
+  // watch for route changes
   watch: {
     $route(to, from) {
       console.log("route change from", from, " to", to);
 
+      // landing page
+      if (to.name == "landing") {
+        this.current_repo = "select a repository";
+      }
+
       // new repo
       if (to.name == "repo") {
         this.current_repo = to.params.repo;
-      }
-
-      //
-      if (to.name == "landing") {
-        this.current_repo = "select a repository";
       }
     },
   },
