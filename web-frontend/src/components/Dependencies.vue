@@ -91,7 +91,6 @@
             <a v-if="d.update_allowed" href="#" @click.prevent="create_PR(d)"
               >create a PR</a
             >
-            <span class="invisible">{{ d.create_PR }}</span>
           </td>
           <!-- changelog -->
           <td class="text-center">
