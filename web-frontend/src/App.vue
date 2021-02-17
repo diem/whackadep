@@ -2,7 +2,9 @@
   <div class="container">
     <!-- header/nav -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-      <span class="navbar-brand mb-0 h1">Whack-a-dep!</span>
+      <span class="navbar-brand mb-0 h1">
+        Whack-a-dep <b-icon icon="hammer"></b-icon>
+      </span>
       <button
         class="navbar-toggler"
         type="button"
@@ -16,9 +18,6 @@
       </button>
       <div class="collapse navbar-collapse" id="navbarText">
         <ul class="navbar-nav mr-auto">
-          <li class="nav-item active">
-            <router-link to="/" class="nav-link">Home</router-link>
-          </li>
           <li class="nav-item">
             <a class="nav-link" @click.prevent="refresh" href="#">Refresh</a>
           </li>
@@ -47,6 +46,7 @@
       </b-dropdown>
     </nav>
 
+    <!-- breadcrumbs -->
     <template>
       <b-breadcrumb :items="breadcrumbs"></b-breadcrumb>
     </template>
