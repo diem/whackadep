@@ -61,7 +61,7 @@ impl Dependencies {
 
         // deserialize
         bson::from_document(analysis)
-            .map(|analysis| Some(analysis))
+            .map(Some)
             .map_err(anyhow::Error::msg)
     }
 }

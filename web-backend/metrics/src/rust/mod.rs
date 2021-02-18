@@ -178,7 +178,7 @@ impl RustAnalysis {
                 repo: summary_id.source.clone(),
                 update: None,
                 dev,
-                direct: direct,
+                direct,
             });
         }
 
@@ -253,9 +253,11 @@ impl RustAnalysis {
                     .collect();
 
                 // any update available?
-                if greater_versions.len() > 0 {
-                    let mut update = Update::default();
-                    update.versions = greater_versions;
+                if !greater_versions.is_empty() {
+                    let update = Update {
+                        versions: greater_versions,
+                        ..Default::default()
+                    };
                     dependency.update = Some(update);
                 }
             }
@@ -416,28 +418,23 @@ impl ChangeSummary {
         for dependency in &new.dependencies {
             if let Some(new_update) = &dependency.update {
                 let key = (dependency.name.clone(), dependency.version.clone());
-                if let Some(update) = dep_to_update_version.get(&key) {
-                    if let Some(version) = update {
-                        let new_version = match new_update.versions.last() {
-                            Some(version) => version,
-                            None => {
-                                error!(
-                                    "some dependency update doesn't have a version: {:?}",
-                                    dependency
-                                );
-                                continue;
-                            }
-                        };
-                        if new_version > version {
-                            // new_er_ update found
-                            rust_changes.new_updates.push(dependency.clone());
+                if let Some(Some(version)) = dep_to_update_version.get(&key) {
+                    let new_version = match new_update.versions.last() {
+                        Some(version) => version,
+                        None => {
+                            error!(
+                                "some dependency update doesn't have a version: {:?}",
+                                dependency
+                            );
+                            continue;
                         }
-                    } else {
-                        // update found for dependency that didn't have an update
+                    };
+                    if new_version > version {
+                        // new_er_ update found
                         rust_changes.new_updates.push(dependency.clone());
                     }
                 } else {
-                    // update found for new dependency
+                    // update found for new dependency or dependency w/o update
                     rust_changes.new_updates.push(dependency.clone());
                 }
             }
@@ -476,7 +473,7 @@ impl ChangeSummary {
                     .cloned()
                     .collect();
                 // any new warnings for this kind?
-                if warnings.len() > 0 {
+                if !warnings.is_empty() {
                     new_warnings.insert(*kind, warnings);
                 }
             }

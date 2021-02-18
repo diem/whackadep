@@ -5,7 +5,6 @@ use super::Db;
 use anyhow::{anyhow, Result};
 use mongodb::bson::{self, doc};
 use serde::{Deserialize, Serialize};
-use tracing::info;
 
 #[derive(Deserialize, Serialize)]
 pub struct Repo {

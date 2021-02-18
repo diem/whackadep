@@ -131,7 +131,7 @@ async fn add_repo(state: State<App, '_>, repo_form: Json<RepoForm>) -> String {
 
 // TODO: complete this function
 fn valid_repo_url(repo: &str) -> bool {
-    if repo == "" {
+    if repo.is_empty() {
         return false;
     }
     true

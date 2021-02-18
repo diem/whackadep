@@ -107,7 +107,7 @@ impl MetricsApp {
         let previous_analysis = if let Some(previous_analysis) = &previous_analysis {
             Some(PreviousAnalysis {
                 commit: previous_analysis.commit.clone(),
-                timestamp: previous_analysis.timestamp.clone(),
+                timestamp: previous_analysis.timestamp,
             })
         } else {
             None
