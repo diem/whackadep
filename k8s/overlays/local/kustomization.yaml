@@ -1,0 +1,10 @@
+bases:
+  - ../../base
+
+resources:
+  - mongo-express-deployment.yaml
+  - mongo-express-service.yaml
+
+patchesStrategicMerge:
+  - backend-deployment.yaml
+  - frontend-deployment.yaml

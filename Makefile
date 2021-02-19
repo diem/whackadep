@@ -80,5 +80,5 @@ create-docker-images:
 push-docker-images:
 	./scripts/push-docker-images.sh
 
-apply-k8s:
-	kubectl apply -f k8s
+apply-local-k8s:
+	kubectl apply -k k8s/overlay/local

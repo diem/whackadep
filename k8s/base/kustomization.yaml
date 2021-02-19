@@ -1,0 +1,11 @@
+resources:
+  - backend-deployment.yaml
+  - cargo-persistentvolumeclaim.yaml
+  - frontend-claim0-persistentvolumeclaim.yaml
+  - frontend-service.yaml
+  - mongo-service.yaml
+  - backend-service.yaml
+  - diem-persistentvolumeclaim.yaml
+  - frontend-deployment.yaml
+  - mongo-deployment.yaml
+  - node-modules-persistentvolumeclaim.yaml
