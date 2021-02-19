@@ -87,3 +87,7 @@ For this reason, we use custom code (built on top of [guppy](https://github.com/
 * [web-backend/metrics/src/rust/mod.rs](web-backend/metrics/src/rust/mod.rs) contains a `risk()` function that runs all the priority rules, and modify the vector of dependencies in place according to what it finds.
 * You might have to modify fields of the `RustAnalysis` structure to store these signals. This will invalidate previous analysis, but it is not a big deal.
 * [web-frontend/src/components/Dashboard.vue](web-frontend/src/components/Dashboard.vue) contains a `calculate_risk_score()` function that you can modify to increase (or decrease) the score depending on your signal, and to display a reason to the user (which will appear when they over the priority column of the UI's tables).
+
+## Deployment
+
+We use kubernetes for deploying the app. Check [k8s](k8s/) for more information.
