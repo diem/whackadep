@@ -6,5 +6,5 @@ spec:
   template:
     spec:
       containers:
-          image: localhost:5000/web-backend
+        - image: localhost:5000/web-backend
           name: backend
