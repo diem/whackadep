@@ -25,22 +25,29 @@ make launch-local-kind-cluster
 
 ## Development
 
+Set up the cluster:
 
-### Setting up the cluster
+```
+make launch-local-kind-cluster
+```
 
-Run `make launch-local-kind-cluster`
+Build the docker images:
 
-### Building the docker images
+```
+make create-docker-images
+```
 
-Run `make create-docker-images`
+Push Docker Images to local registry:
 
-### Push Docker Images to local registry
+```
+make push-docker-images
+```
 
-Run `make push-docker-images`
+Apply kubernetes manifests to local cluster:
 
-### Apply kubernetes manifests to local cluster
-
-Run `make apply-k8s`
+```
+make apply-local-k8s
+```
 
 
 ### Port Forwarding

@@ -1,5 +1,6 @@
 .PHONY: all fast frontend backend database restart-frontend restart-backend doc refresh ssh-frontend ssh-backend
 
+# TODO: delete?
 args = `arg="$(filter-out $@,$(MAKECMDGOALS))" && echo $${arg:-${1}}`
 
 #
