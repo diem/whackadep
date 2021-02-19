@@ -64,7 +64,7 @@ port-forward-backend:
 	kubectl port-forward svc/backend 8081:8081
 
 port-forward-frontend:
-	kubectl port-forward svc/frontend 8080:8008
+	kubectl port-forward svc/frontend 8080:8080
 
 port-forward-mongo:
 	kubectl port-forward svc/frontend 27017:27017
