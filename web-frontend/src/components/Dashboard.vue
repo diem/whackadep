@@ -87,57 +87,14 @@ import RustsecTable from "./Rustsec.vue";
 
 export default {
   name: "Dashboard",
-  data() {
-    return {
-      // analysis to display
-      commit: "",
-      date: "",
-      change_summary: null,
-      dependencies: [],
-      dev_updatable_deps: [],
-      non_dev_updatable_deps: [],
-      cant_update_deps: [],
-
-      rustsec: [],
-      rustsec_no_updates: [],
-    };
-  },
   props: {
     repo: String,
-  },
-  created() {
-    console.log(`dashboard mounted with repo: ${this.repo}`);
   },
   components: {
     DependenciesTable,
     Information,
     RustsecTable,
     Statistics,
-  },
-  methods: {
-    // reset data
-    reset_data() {
-      this.commit = "";
-      this.date = "";
-      this.change_summary = null;
-      this.dependencies = [];
-      this.dev_updatable_deps = [];
-      this.non_dev_updatable_deps = [];
-      this.cant_update_deps = [];
-
-      this.rustsec = [];
-      this.rustsec_no_updates = [];
-    },
-    // create a toast (a notification on the top right of the screen)
-    toast(title, msg, variant = null) {
-      this.$bvToast.toast(msg, {
-        title: title,
-        autoHideDelay: 5000,
-        appendToast: true,
-        variant: variant,
-        solid: true,
-      });
-    },
   },
 };
 </script>

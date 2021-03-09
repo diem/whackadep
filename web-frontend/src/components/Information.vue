@@ -12,12 +12,12 @@
       ><code>{{ $store.state.commit }}</code></a
     ><br />
 
-    <div v-if="length($store.state.change_summary.new_updates) > 0">
+    <div v-if="new_updates && new_updates.length > 0">
       <hr />
-      new updates:
+      <h3>New updates</h3>
       <ul>
         <li
-          v-for="d in $store.state.change_summary.new_updates"
+          v-for="d in new_updates"
           :key="d.name + d.version + d.direct + d.dev"
         >
           [{{ d.direct ? "direct" : "transitive" }}]
@@ -30,13 +30,18 @@
       </ul>
     </div>
 
-    <div v-if="length($store.state.change_summary.new_rustsec) > 0">
+    <div v-if="new_vulnerabilities && new_vulnerabilities.length > 0">
       <hr />
-      new RUSTSEC advisories:
-      <li
-        v-for="r in $store.state.change_summary.new_rustsec"
-        :key="r.advisory.id"
-      >
+      <h3>New vulnerabilities</h3>
+      <li v-for="r in new_vulnerabilities" :key="r.advisory.id">
+        <strong>{{ r.advisory.id }}</strong> - {{ r.advisory.title }}
+      </li>
+    </div>
+
+    <div v-if="new_warnings && new_warnings.length > 0">
+      <hr />
+      <h3>Mew warnings</h3>
+      <li v-for="r in new_warnings" :key="r.advisory.id">
         <strong>{{ r.advisory.id }}</strong> - {{ r.advisory.title }}
       </li>
     </div>
@@ -54,6 +59,17 @@ export default {
       } else {
         return 0;
       }
+    },
+  },
+  computed: {
+    new_updates() {
+      return this.$store.state.change_summary.new_updates;
+    },
+    new_vulnerabilities() {
+      return this.$store.state.change_summary.new_rustsec.vulnerabilities;
+    },
+    new_warnings() {
+      return this.$store.state.change_summary.new_rustsec.warnings;
     },
   },
 };
