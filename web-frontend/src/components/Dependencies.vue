@@ -88,18 +88,18 @@
           </td>
           <!-- create PR -->
           <td class="text-center">
-            <a v-if="d.update_allowed" href="#" @click.prevent="create_PR(d)"
-              >create a PR</a
-            >
-            (<router-link
+            <router-link
+              v-if="d.update_allowed"
               :to="{
                 name: 'review',
                 params: {
                   depkey: `${d.name}-${d.version}-${d.direct}-${d.dev}`,
                 },
               }"
-              >review</router-link
-            >)
+            >
+              <span v-if="d.risk_score > 0">review</span
+              ><span v-else>create PR</span>
+            </router-link>
           </td>
           <!-- changelog -->
           <td class="text-center">
@@ -135,9 +135,6 @@
         </tr>
       </tbody>
     </table>
-    <b-modal ref="modal" hide-footer title="Updating a dependency">
-      <div class="d-block" v-html="modal_text"></div>
-    </b-modal>
   </div>
 </template>
 
@@ -156,59 +153,6 @@ export default {
     };
   },
   methods: {
-    create_PR(d) {
-      let new_version = d.update.versions[d.update.versions.length - 1];
-      let modal_text = "";
-      if (d.update.update_metadata) {
-        if (d.update.update_metadata.changelog_text) {
-          modal_text += `
-          <h3>Changelog</h3>
-          <pre>${d.update.update_metadata.changelog_text}</pre>
-        `;
-        }
-        if (d.update.update_metadata.commits.length > 0) {
-          modal_text += `<h3>Commits</h3><ul>`;
-          d.update.update_metadata.commits.forEach((commit) => {
-            modal_text += `<li><a href="${commit.html_url}" target="_blank">${commit.message}</a></li>`;
-          });
-          modal_text += `</ul>`;
-        }
-      }
-
-      if (d.risk_score > 0) {
-        modal_text += `<h3>Risks</h3><ul>`;
-        d.risk_reasons.forEach((reason) => {
-          modal_text += `<li>${reason}</li>`;
-        });
-        modal_text += `</ul>`;
-      }
-
-      modal_text += `
-      <h3>Create a PR</h3>
-      <p>To create a PR easily, make sure you are on an up-to-date branch
-      of the
-      <code>main</code> branch and paste the following in your terminal:</p>
-
-      <pre><code>cargo update-dep -p ${d.name} -v ${d.version} -n ${new_version}</code></pre>
-
-      <p>This assumes that you have cargo-update-dep installed, you can get it via:</p>
-
-      <pre><code>cargo install cargo-update-dep</code></pre>
-`;
-
-      this.modal_text = modal_text;
-      this.showModal();
-    },
-    //
-    // Modal stuff
-    //
-    showModal() {
-      this.$refs["modal"].show();
-    },
-    hideModal() {
-      this.$refs["modal"].hide();
-      this.modal_text = "";
-    },
     //
     clean_changelog(changelog) {
       let res = changelog.replaceAll(/(#)*/g, "");
