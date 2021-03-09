@@ -1,6 +1,8 @@
 import Vue from "vue";
 import Vuex from "vuex";
 
+import axios from "axios";
+
 import { transform_analysis, sort_priority } from "@/utils/dependencies";
 
 Vue.use(Vuex);
@@ -16,6 +18,7 @@ const getDefaultState = () => {
     date: "",
     change_summary: {},
     dependencies: [],
+    dependency_map: {},
     rustsec: [],
   }
 }
@@ -72,6 +75,10 @@ export default new Vuex.Store({
       );
       return cant_update_deps.sort(sort_priority);
     },
+    // get dependency
+    dependency: (state) => (dep) => {
+      return state.dependency_map[dep];
+    }
   },
   mutations: {
     add_analysis(state, analysis) {
@@ -106,8 +113,51 @@ export default new Vuex.Store({
     }
   },
   actions: {
-    add_analysis({ commit }, analysis) {
-      commit("add_analysis", analysis);
+    get_analysis({ commit }, repo) {
+      return axios
+        .get("/dependencies?repo=" + repo)
+        .then((response) => {
+          //
+          // Error handling
+          //
+
+          // TODO: return an error code from the server instead?
+          if (response.data.constructor == String) {
+            return {
+              "error": response.data,
+            };
+          }
+
+          //
+          // Retrieving data
+          //
+
+          commit("add_analysis", response.data);
+
+          //
+          // alert on vuln
+          //
+
+          if (
+            response.data.rust_dependencies.rustsec.vulnerabilities.length > 0
+          ) {
+            return {
+              "rustsec": this.rustsec.vulnerabilities
+                .map((vuln) => vuln.advisory.id)
+                .join(", "),
+            };
+          }
+
+          // notification
+          return {
+            "success": true,
+          };
+        })
+        .catch((error) => {
+          return {
+            "error": error
+          };
+        });
     }
   }
 });

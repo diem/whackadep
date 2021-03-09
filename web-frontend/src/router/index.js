@@ -2,7 +2,8 @@ import Vue from 'vue'
 import Router from 'vue-router'
 
 import LandingPage from '@/components/LandingPage'
-import DashBoard from '@/components/Dashboard'
+import Repo from '@/components/Repo'
+import Dashboard from '@/components/Dashboard'
 import Review from '@/components/Review'
 
 Vue.use(Router)
@@ -16,15 +17,24 @@ export default new Router({
     },
     {
       path: '/repo/:repo',
-      name: 'repo',
-      component: DashBoard,
+      component: Repo,
       props: route => ({ repo: route.params.repo }),
+      children: [
+        // UserHome will be rendered inside User's <router-view>
+        // when /user/:id is matched
+        {
+          path: '',
+          name: 'repo',
+          component: Dashboard,
+        },
+        {
+          path: 'review/:depkey',
+          name: 'review',
+          component: Review,
+          props: route => ({ depkey: route.params.depkey }),
+        }
+      ],
     },
-    {
-      path: '/repo/:repo/review/:depkey',
-      name: 'review',
-      component: Review,
-      props: route => ({ repo: route.params.repo, depkey: route.params.depkey }),
-    }
+
   ]
 })

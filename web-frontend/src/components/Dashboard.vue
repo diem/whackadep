@@ -80,8 +80,6 @@
 </template>
 
 <script>
-import axios from "axios";
-
 import DependenciesTable from "./Dependencies.vue";
 import Information from "./Information.vue";
 import Statistics from "./Statistics.vue";
@@ -109,7 +107,6 @@ export default {
   },
   created() {
     console.log(`dashboard mounted with repo: ${this.repo}`);
-    this.get_dependencies();
   },
   components: {
     DependenciesTable,
@@ -130,78 +127,6 @@ export default {
 
       this.rustsec = [];
       this.rustsec_no_updates = [];
-    },
-    // obtains the latest analysis result for a repo
-    get_dependencies() {
-      axios
-        .get("/dependencies?repo=" + this.repo)
-        .then((response) => {
-          //
-          // Error handling
-          //
-
-          // TODO: return an error code from the server instead?
-          if (response.data.constructor == String) {
-            this.toast("Information", response.data, "info");
-            this.reset_data();
-            return;
-          }
-
-          //
-          // Retrieving data
-          //
-
-          // TODO: this vuex store will replace everything here
-          this.$store.dispatch("add_analysis", response.data);
-
-          //
-          // alert on vuln
-          //
-
-          if (
-            response.data.rust_dependencies.rustsec.vulnerabilities.length > 0
-          ) {
-            this.toast(
-              "RUSTSEC",
-              `vulnerabilities found: ${this.rustsec.vulnerabilities
-                .map((vuln) => vuln.advisory.id)
-                .join(", ")}`,
-              "danger"
-            );
-          }
-
-          // notification
-          this.toast(
-            "Retrieving analysis",
-            `latest analysis successfuly retrieved for ${this.repo}`,
-            "success"
-          );
-        })
-        .catch((error) => {
-          console.log(error);
-          if (error.response) {
-            // The request was made and the server responded with a status code
-            // that falls out of the range of 2xx
-            this.toast("Error from the server", error.message, "danger");
-          } else if (error.request) {
-            // The request was made but no response was received
-            // `error.request` is an instance of XMLHttpRequest in the browser and an instance of
-            // http.ClientRequest in node.js
-            this.toast(
-              "server unavailable",
-              `more information: ${JSON.stringify(error.message)}`,
-              "danger"
-            );
-          } else {
-            // Something happened in setting up the request that triggered an Error
-            this.toast(
-              "unknown error",
-              `more information: ${JSON.stringify(error.message)}`,
-              "danger"
-            );
-          }
-          console.log(error.config);
-        });
     },
     // create a toast (a notification on the top right of the screen)
     toast(title, msg, variant = null) {

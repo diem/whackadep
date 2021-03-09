@@ -95,7 +95,6 @@
               :to="{
                 name: 'review',
                 params: {
-                  repo: repo,
                   depkey: `${d.name}-${d.version}-${d.direct}-${d.dev}`,
                 },
               }"

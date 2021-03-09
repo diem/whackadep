@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div v-if="dependency">
     <h2>Review</h2>
 
     <h3>Risk</h3>
@@ -37,21 +37,13 @@
 <script>
 export default {
   name: "Review",
-  data() {
-    return {
-      dependency: {},
-    };
-  },
   props: {
-    repo: String,
     depkey: String,
   },
-  mounted() {
-    if (this.repo != this.$store.state.repo) {
-      alert("error, refresh repo analysis first");
-    }
-    let dependency = this.$store.state.dependency_map[this.depkey];
-    this.dependency = dependency;
+  computed: {
+    dependency() {
+      return this.$store.getters.dependency(this.depkey);
+    },
   },
 };
 </script>
