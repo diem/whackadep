@@ -236,6 +236,18 @@ export default {
         text: this.current_repo,
         to: this.$route.path,
       });
+    } else if (this.$route.name == "review") {
+      this.current_repo = this.$route.params.repo;
+      let depkey = this.$route.params.depkey;
+
+      this.breadcrumbs.push({
+        text: this.current_repo,
+        to: { name: "repo", params: { repo: this.current_repo } },
+      });
+      this.breadcrumbs.push({
+        text: depkey,
+        to: this.$route.path,
+      });
     }
   },
 
@@ -251,12 +263,28 @@ export default {
       }
 
       // new repo
-      if (to.name == "repo") {
+      else if (to.name == "repo") {
         this.current_repo = to.params.repo;
         this.change_route({
           text: this.current_repo,
           to: { name: "repo", params: { repo: this.current_repo } },
         });
+      }
+
+      // review
+      else if (to.name == "review") {
+        this.current_repo = to.params.repo;
+        let depkey = to.params.depkey;
+        this.change_route(
+          {
+            text: this.current_repo,
+            to: { name: "repo", params: { repo: this.current_repo } },
+          },
+          {
+            text: depkey,
+            to: { name: "depkey", params: { depkey: depkey } },
+          }
+        );
       }
     },
   },
