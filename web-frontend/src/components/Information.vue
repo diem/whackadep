@@ -12,7 +12,7 @@
       ><code>{{ $store.state.commit }}</code></a
     ><br />
 
-    <div v-if="new_updates && new_updates.length > 0">
+    <div v-if="new_updates.length > 0">
       <hr />
       <h3>New updates</h3>
       <ul>
@@ -30,7 +30,7 @@
       </ul>
     </div>
 
-    <div v-if="new_vulnerabilities && new_vulnerabilities.length > 0">
+    <div v-if="new_vulnerabilities.length > 0">
       <hr />
       <h3>New vulnerabilities</h3>
       <li v-for="r in new_vulnerabilities" :key="r.advisory.id">
@@ -38,7 +38,7 @@
       </li>
     </div>
 
-    <div v-if="new_warnings && new_warnings.length > 0">
+    <div v-if="new_warnings.length > 0">
       <hr />
       <h3>Mew warnings</h3>
       <li v-for="r in new_warnings" :key="r.advisory.id">
@@ -51,16 +51,6 @@
 <script>
 export default {
   name: "Information",
-  methods: {
-    // length or 0 if undefined
-    length(thing) {
-      if (typeof thing == Array) {
-        return thing.length;
-      } else {
-        return 0;
-      }
-    },
-  },
   computed: {
     new_updates() {
       return this.$store.state.change_summary.new_updates;

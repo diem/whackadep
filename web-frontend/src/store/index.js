@@ -16,7 +16,13 @@ const getDefaultState = () => {
     repo: "",
     commit: "",
     date: "",
-    change_summary: {},
+    change_summary: {
+      new_updates: [],
+      new_rustsec: {
+        vulnerabilities: [],
+        warnings: [],
+      }
+    },
     dependencies: [],
     dependency_map: {},
     rustsec: [],
