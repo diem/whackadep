@@ -13,6 +13,10 @@ services:
       - "PROXY=http://backend:8081"
     ports:
       - "8080:8080"
+    depends_on:
+      - backend
+      - mongo
+      - mongo-express
 
   # backend (API + Metrics)
   backend:
@@ -23,6 +27,7 @@ services:
     environment:
       - "GITHUB_TOKEN=$GITHUB_TOKEN" # an optional PAT for Github
       - "CARGO_HOME=/cargo" # used with a volume to persist cargo stuff
+      - "RETAIN_ALL=$RETAIN_ALL" # to disable parsing of the commit and changelog messages
       - "RUST_BACKTRACE=1"
       - "RUST_LOG=info"
       - "ROCKET_ADDRESS=0.0.0.0"
