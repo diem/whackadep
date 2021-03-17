@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  labels:
+    io.kompose.service: backend
+  name: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: backend
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+      creationTimestamp: null
+      labels:
+        io.kompose.service: backend
+    spec:
+      containers:
+        - env:
+            - name: CARGO_HOME
+              value: /cargo
+            - name: GITHUB_TOKEN
+            - name: MONGODB_URI
+              value: mongodb://root:password@mongo:27017
+            - name: ROCKET_ADDRESS
+              value: 0.0.0.0
+            - name: ROCKET_PORT
+              value: "8081"
+            - name: RUST_BACKTRACE
+              value: "1"
+            - name: RUST_LOG
+              value: info
+          image: localhost:5000/web-backend
+          name: backend
+          ports:
+            - containerPort: 8081
+          resources: {}
+          volumeMounts:
+            - mountPath: /cargo
+              name: cargo
+            - mountPath: /app/diem_repo
+              name: diem
+      restartPolicy: Always
+      volumes:
+        - name: cargo
+          persistentVolumeClaim:
+            claimName: cargo
+        - name: diem
+          persistentVolumeClaim:
+            claimName: diem
+status: {}

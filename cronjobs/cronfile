@@ -1,0 +1,1 @@
+* 0 * * * cd daily && cargo run >> /var/log/cron.log 2>&1
