@@ -7,7 +7,7 @@
       <h3>Risk</h3>
       <ul>
         <li v-for="reason in dependency.risk_reasons" :key="reason">
-          {{ reason }}
+          <p v-html=reason></p>
         </li>
       </ul>
     </section>

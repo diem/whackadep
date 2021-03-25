@@ -4,7 +4,7 @@ export function calculate_risk_score(dep) {
 
   if (dep.update.build_rs) {
     risk_score += 10;
-    risk_reasons.push("<code>build.rs</code> file Changed");
+    risk_reasons.push("<code>build.rs</code> file changed");
   }
 
   return { risk_score, risk_reasons };
