@@ -98,7 +98,7 @@ export default new Vuex.Store({
       state.repo = analysis.repository;
       state.commit = analysis.commit;
       state.date = new Date(analysis.timestamp).toString();
-      state.change_summary = analysis.rust_dependencies.change_summary || {};
+      state.change_summary = analysis.rust_dependencies.change_summary || {new_updates:[], new_rustsec:{vulnerabilities:[], warnings:[]}};
       let dependencies = analysis.rust_dependencies.dependencies;
       state.rustsec = analysis.rust_dependencies.rustsec;
 
