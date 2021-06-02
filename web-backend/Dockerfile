@@ -28,4 +28,4 @@ EXPOSE 8081
 ENV RUST_LOG=info
 ENV ROCKET_ADDRESS="0.0.0.0"
 ENV ROCKET_PORT=8081
-CMD ["cargo", "run"]
+CMD ["cargo", "run", "--bin", "web-ui"]

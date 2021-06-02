@@ -1,0 +1,20 @@
+[package]
+name = "web-ui"
+version = "0.1.0"
+authors = ["David Wong <davidwg@calibra.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+#rocket = "0.4.6" # web framework
+rocket = { git = "https://github.com/SergioBenitez/Rocket", branch = "master" }
+rocket_contrib = { git = "https://github.com/SergioBenitez/Rocket", branch = "master" }
+anyhow = "1.0.38" # error handling
+tokio = { version = "1.2.0", features = ["full"] }
+serde_json = "1.0" # JSON response serialization
+tracing = "0.1" # logging
+tracing-subscriber = "0.2"
+serde = { version = "1.0", features = ["derive"] } # JSON request deserialization
+
+metrics = { path = "../metrics" }

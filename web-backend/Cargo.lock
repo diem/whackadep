@@ -3146,7 +3146,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "web_ui"
+name = "web-ui"
 version = "0.1.0"
 dependencies = [
  "anyhow",
