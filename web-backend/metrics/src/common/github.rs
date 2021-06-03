@@ -27,7 +27,8 @@ pub async fn get_repository_info(
     debug!("{:?}", octocrab);
 
     octocrab
-        .get("https://api.github.com/app/", None::<&()>)
+        // .get("https://api.github.com/app/", None::<&()>)
+        .get("https://api.github.com/repos/diem/whackadep", None::<&()>)
         .await
         .map_err(anyhow::Error::msg)
 }
@@ -75,8 +76,8 @@ mod tests {
         let mut key_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         key_path.push("resources/keys/whackadep.2021-01-25.private-key.pem");
 
-        let token = get_access_token(&key_path).await.unwrap();
-        let repo = get_repository_info(Some(token)).await.unwrap();
-        println!("{:?}", repo);
+        // let token = get_access_token(&key_path).await.unwrap();
+        let repo = get_repository_info(None).await.unwrap();
+        debug!("{:?}", repo);
     }
 }
