@@ -62,13 +62,13 @@ mod tests {
     use super::*;
     use tempfile::tempdir;
 
-    #[test]
-    fn test_t() {
+    #[tokio::test]
+    async fn test_t() {
         let dir = tempdir().unwrap();
 
         assert!(Repo::new(&dir.path()).is_err());
 
-        Repo::clone("https://github.com/mimoo/disco.git", dir.path());
+        Repo::clone("https://github.com/mimoo/disco.git", dir.path()).await.unwrap();
 
         assert!(Repo::new(dir.path()).is_ok());
     }
