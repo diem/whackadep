@@ -129,6 +129,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_analysis() {
+        // the test requires the application along with database to keep running
+        // (check - possibly with a single analysis complete)
         let temp_dir = tempdir().unwrap();
         MetricsApp::new()
             .await

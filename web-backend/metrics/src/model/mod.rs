@@ -26,7 +26,7 @@ impl Db {
         password: Option<&str>,
     ) -> Result<Self> {
         // get MongoDB parameters
-        let host = host.unwrap_or("mongo");
+        let host = host.unwrap_or("localhost");
         let port = port.unwrap_or("27017");
 
         let user = user.unwrap_or("root");
