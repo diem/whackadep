@@ -68,7 +68,9 @@ mod tests {
 
         assert!(Repo::new(&dir.path()).is_err());
 
-        Repo::clone("https://github.com/mimoo/disco.git", dir.path()).await.unwrap();
+        Repo::clone("https://github.com/mimoo/disco.git", dir.path())
+            .await
+            .unwrap();
 
         assert!(Repo::new(dir.path()).is_ok());
     }
