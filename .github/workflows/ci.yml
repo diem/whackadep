@@ -1,0 +1,33 @@
+name: CI
+
+on: [push, pull_request]
+
+env:
+  CARGO_INCREMENTAL: 0
+  # Enable this once we've fixed all warnings
+  # RUSTFLAGS: -D warnings
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          components: rustfmt, clippy
+
+      - name: Lint
+        run: |
+          cd web-backend
+          cargo fmt -- --check
+          cargo clippy --all-targets
+
+      # Once we have a better story around tests we can enable this
+      # - name: Run tests
+      #   run: cargo test
