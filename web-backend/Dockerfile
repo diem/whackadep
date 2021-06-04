@@ -1,4 +1,4 @@
-FROM rust:1.50.0
+FROM rust:1.52.1
 
 # 1. setup ruby
 RUN git clone https://github.com/rbenv/rbenv.git /root/.rbenv

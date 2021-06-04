@@ -8,7 +8,7 @@ The backend is serving an API with the following routes:
 * `/repos` retrieves all the repositories saved in the configuration
 * `/add_repo` adds a new repository to the configuration
 
-It is pretty simply: it uses the [Rocket](https://rocket.rs/) framework to serve the webpage, and the [metrics](metrics/) crate to read from storage or start analyses of dependencies.
+It is pretty simply: it uses the [warp](https://docs.rs/warp) framework to serve the webpage, and the [metrics](metrics/) crate to read from storage or start analyses of dependencies.
 
 ## Running without Docker
 

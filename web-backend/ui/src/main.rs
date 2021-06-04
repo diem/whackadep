@@ -1,86 +1,104 @@
-#![feature(proc_macro_hygiene, decl_macro)]
-
-#[macro_use]
-extern crate rocket;
-
 use metrics::{
     model::{Config, Db, Dependencies},
     MetricsRequest,
 };
-use rocket::State;
-use rocket_contrib::json::Json;
 use serde::Deserialize;
-use std::sync::mpsc::{sync_channel, SyncSender};
-use std::sync::Mutex;
-use std::thread;
+use std::{
+    net::{IpAddr, SocketAddr},
+    sync::{
+        mpsc::{sync_channel, SyncSender},
+        Arc, Mutex,
+    },
+    thread,
+};
 use tokio::runtime::Runtime;
+use tracing::{error, info};
+use warp::Filter;
+
+//
+// App
+//
+
+#[derive(Clone)]
+struct App {
+    // to send requests to the metric service
+    metrics_requester: Arc<Mutex<SyncSender<MetricsRequest>>>,
+    db: Db,
+}
 
 //
 // Routes
 //
 
-#[get("/")]
 /// displays all the routes
 fn index() -> &'static str {
     // TODO: print other routes?
-    "/\n
-    /refresh?repo=<REPO>\n
-    /dependencies?repo=<REPO>\n
-    /repos\n
+    "/\n\
+    /refresh?repo=<REPO>\n\
+    /dependencies?repo=<REPO>\n\
+    /repos\n\
     /add_repo"
 }
 
-#[get("/refresh?<repo>")]
-// TODO: does anyhow result implement Responder?
+#[derive(Deserialize)]
+struct RefreshQuery {
+    repo: String,
+}
+
 /// starts an analysis for the repo given (if one is not already ongoing)
-async fn refresh(state: State<App, '_>, repo: String) -> &'static str {
+async fn refresh(app: App, query: RefreshQuery) -> Result<&'static str, warp::Rejection> {
     // check if we have the repo in our config
-    let config = Config::new(state.db.clone());
-    match config.repo_exists(&repo).await {
+    let config = Config::new(app.db.clone());
+    match config.repo_exists(&query.repo).await {
         Ok(true) => (),
-        Ok(false) => return "add the repository first",
+        Ok(false) => return Ok("add the repository first"),
         Err(e) => {
             error!("{}", e);
-            return "error, check the logs";
+            return Ok("error, check the logs");
         }
     };
 
     // try to request metrics service
-    let sender = state.metrics_requester.lock().unwrap();
+    let sender = app.metrics_requester.lock().unwrap();
     if sender
-        .try_send(MetricsRequest::StartAnalysis { repo_url: repo })
+        .try_send(MetricsRequest::StartAnalysis {
+            repo_url: query.repo,
+        })
         .is_err()
     {
-        return "metrics service is busy";
+        return Ok("metrics service is busy");
     }
-    //
-    "ok"
+    Ok("ok")
 }
 
-#[get("/dependencies?<repo>")]
+#[derive(Deserialize)]
+struct DependenciesQuery {
+    repo: String,
+}
+
 /// obtains latest analysis result for a repository
-async fn dependencies(state: State<App, '_>, repo: String) -> String {
+async fn dependencies(app: App, query: DependenciesQuery) -> Result<String, warp::Rejection> {
     // check if we have the repo in our config
-    let config = Config::new(state.db.clone());
-    match config.repo_exists(&repo).await {
+    let config = Config::new(app.db.clone());
+    match config.repo_exists(&query.repo).await {
         Ok(true) => (),
-        Ok(false) => return "add the repository first".to_string(),
+        Ok(false) => return Ok("add the repository first".to_string()),
         Err(e) => {
             error!("{}", e);
-            return "error, check the logs".to_string();
+            return Ok("error, check the logs".to_string());
         }
     };
 
     // read from db
-    let dependencies = Dependencies::new(state.db.clone());
-    match dependencies.get_last_analysis(&repo).await {
+    let dependencies = Dependencies::new(app.db.clone());
+    match dependencies.get_last_analysis(&query.repo).await {
         Ok(Some(analysis)) => match serde_json::to_string(&analysis) {
-            Ok(dependencies) => return dependencies,
+            Ok(dependencies) => return Ok(dependencies),
             Err(e) => {
                 error!("couldn't serialize dependencies: {}", e);
             }
         },
-        Ok(None) => return "no dependency analysis found".to_string(),
+        Ok(None) => return Ok("no dependency analysis found".to_string()),
         Err(e) => {
             error!(
                 "couldn't get dependencies (perhaps a breaking update was applied): {}",
@@ -88,22 +106,21 @@ async fn dependencies(state: State<App, '_>, repo: String) -> String {
             );
         }
     };
-    "an error happened while retrieving dependencies".to_string()
+    Ok("an error happened while retrieving dependencies".to_string())
 }
 
-#[get("/repos")]
 /// obtains latest analysis result for a repository
-async fn repos(state: State<App, '_>) -> String {
-    let config = Config::new(state.db.clone());
+async fn repos(app: App) -> Result<String, warp::Rejection> {
+    let config = Config::new(app.db.clone());
     let repos = config.get_repos().await;
     let repos = match repos {
-        Err(e) => return format!("error: {}", e),
+        Err(e) => return Ok(format!("error: {}", e)),
         Ok(repos) => repos,
     };
     let repos: Vec<String> = repos.into_iter().map(|repo| repo.repo).collect();
     match serde_json::to_string(&repos) {
-        Err(e) => return format!("error: {}", e),
-        Ok(repos) => repos,
+        Err(e) => Ok(format!("error: {}", e)),
+        Ok(repos) => Ok(repos),
     }
 }
 
@@ -112,21 +129,20 @@ struct RepoForm {
     repo: String,
 }
 
-#[post("/add_repo", format = "json", data = "<repo_form>")]
 /// obtains latest analysis result for a repository
-async fn add_repo(state: State<App, '_>, repo_form: Json<RepoForm>) -> String {
+async fn add_repo(app: App, repo_form: RepoForm) -> Result<String, warp::Rejection> {
     // sanitize
     if !valid_repo_url(&repo_form.repo) {
-        return "error, the repo url sent is empty".to_string();
+        return Ok("error, the repo url sent is empty".to_string());
     }
 
     // add to storage
     info!("adding repository: {}", repo_form.repo);
-    let config = Config::new(state.db.clone());
-    match config.add_new_repo(&repo_form.repo).await {
+    let config = Config::new(app.db.clone());
+    Ok(match config.add_new_repo(&repo_form.repo).await {
         Ok(()) => "ok".to_string(),
         Err(e) => format!("error: {}", e),
-    }
+    })
 }
 
 // TODO: complete this function
@@ -137,21 +153,21 @@ fn valid_repo_url(repo: &str) -> bool {
     true
 }
 
-//
-// App
-//
-
-struct App {
-    // to send requests to the metric service
-    metrics_requester: Mutex<SyncSender<MetricsRequest>>,
-    db: Db,
-}
-
-#[launch]
-async fn rocket() -> rocket::Rocket {
+#[tokio::main]
+async fn main() {
     // init logging
     tracing_subscriber::fmt::init();
     info!("logging initialized");
+    let address = std::env::var("ROCKET_ADDRESS")
+        .as_deref()
+        .unwrap_or("127.0.0.1")
+        .parse::<IpAddr>()
+        .unwrap();
+    let port = std::env::var("ROCKET_PORT")
+        .as_deref()
+        .unwrap_or("8080")
+        .parse::<u16>()
+        .unwrap();
 
     // TODO: run this on the main runtimes
     // start metric server
@@ -163,14 +179,55 @@ async fn rocket() -> rocket::Rocket {
     });
 
     // configure app state
-    let state = App {
-        metrics_requester: Mutex::new(sender),
+    let app = App {
+        metrics_requester: Arc::new(Mutex::new(sender)),
         db: Db::new(None, None, None, None).await.unwrap(),
     };
+    let app = warp::any().map(move || app.clone());
 
-    // start server
-    info!("starting rocket server");
-    rocket::ignite()
-        .manage(state)
-        .mount("/", routes![index, refresh, dependencies, repos, add_repo])
+    //
+    // Routes
+    //
+
+    // GET /
+    let index = warp::get().and(warp::path::end()).map(index);
+
+    // GET /refresh?<repo>
+    let refresh = warp::get()
+        .and(warp::path("refresh"))
+        .and(app.clone())
+        .and(warp::query::<RefreshQuery>())
+        .and_then(refresh);
+
+    // GET /dependencies?<repo>
+    let dependencies = warp::get()
+        .and(warp::path("dependencies"))
+        .and(app.clone())
+        .and(warp::query::<DependenciesQuery>())
+        .and_then(dependencies);
+
+    // GET /repos
+    let repos = warp::get()
+        .and(warp::path("repos"))
+        .and(app.clone())
+        .and_then(repos);
+
+    // POST /add_repo
+    let add_repo = warp::post()
+        .and(warp::path("add_repo"))
+        .and(app.clone())
+        .and(warp::body::json())
+        .and_then(add_repo);
+
+    let routes = index
+        .or(refresh)
+        .or(dependencies)
+        .or(repos)
+        .or(add_repo)
+        .with(warp::log("requests"))
+        .with(warp::trace::request());
+
+    warp::serve(routes)
+        .run(SocketAddr::new(address, port))
+        .await
 }
