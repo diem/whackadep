@@ -107,7 +107,9 @@ mod tests {
     async fn test_download_cargo_crate() {
         let out_dir = tempdir().unwrap();
         let out_dir = out_dir.path();
-        download_cargo_crate("cargo-download==0.1.2", &out_dir).await.unwrap();
+        download_cargo_crate("cargo-download==0.1.2", &out_dir)
+            .await
+            .unwrap();
         assert!(out_dir.join("cargo-download==0.1.2").exists());
     }
 
