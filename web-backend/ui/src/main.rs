@@ -1,3 +1,4 @@
+use anyhow::Result;
 use metrics::{
     model::{Config, Db, Dependencies},
     MetricsRequest,
@@ -12,6 +13,7 @@ use std::{
     thread,
 };
 use tokio::runtime::Runtime;
+use tokio::time;
 use tracing::{error, info};
 use warp::Filter;
 
@@ -59,16 +61,12 @@ async fn refresh(app: App, query: RefreshQuery) -> Result<&'static str, warp::Re
     };
 
     // try to request metrics service
-    let sender = app.metrics_requester.lock().unwrap();
-    if sender
-        .try_send(MetricsRequest::StartAnalysis {
-            repo_url: query.repo,
-        })
-        .is_err()
-    {
-        return Ok("metrics service is busy");
-    }
-    Ok("ok")
+    let message = match request_metric_analysis(app, query.repo).await {
+        Ok(_success) => "ok",
+        Err(_error) => "metrics service is busy",
+    };
+
+    Ok(message)
 }
 
 #[derive(Deserialize)]
@@ -111,13 +109,10 @@ async fn dependencies(app: App, query: DependenciesQuery) -> Result<String, warp
 
 /// obtains latest analysis result for a repository
 async fn repos(app: App) -> Result<String, warp::Rejection> {
-    let config = Config::new(app.db.clone());
-    let repos = config.get_repos().await;
-    let repos = match repos {
+    let repos = match get_all_repos(app).await {
         Err(e) => return Ok(format!("error: {}", e)),
         Ok(repos) => repos,
     };
-    let repos: Vec<String> = repos.into_iter().map(|repo| repo.repo).collect();
     match serde_json::to_string(&repos) {
         Err(e) => Ok(format!("error: {}", e)),
         Ok(repos) => Ok(repos),
@@ -153,6 +148,51 @@ fn valid_repo_url(repo: &str) -> bool {
     true
 }
 
+// Fetches the list of exisiting repositories in analysis database
+async fn get_all_repos(app: App) -> Result<Vec<String>> {
+    let config = Config::new(app.db.clone());
+    let repos = match config.get_repos().await {
+        Ok(repos) => repos,
+        Err(error) => return Err(error.into()),
+    };
+    let repos: Vec<String> = repos.into_iter().map(|repo| repo.repo).collect();
+    Ok(repos)
+}
+
+async fn request_metric_analysis(app: App, repo: String) -> Result<()> {
+    // try to request metrics service
+    let sender = app.metrics_requester.lock().unwrap();
+    let sender = sender.try_send(MetricsRequest::StartAnalysis { repo_url: repo })?;
+    Ok(sender)
+}
+
+// Periodically kicks off analysis for all repo
+async fn cron_job(app: App) {
+    let analysis_interval = 1 * 60 * 60; // 1 hour
+    let mut interval = time::interval(time::Duration::from_secs(analysis_interval));
+
+    loop {
+        interval.tick().await;
+
+        let repos: Vec<String> = match get_all_repos(app.clone()).await {
+            Ok(repos) => repos,
+            Err(_error) => vec![],
+        };
+        info!("{} repository(s) to be analyzed", repos.len());
+
+        for repo in &repos {
+            match request_metric_analysis(app.clone(), repo.clone()).await {
+                Ok(_message) => {
+                    info!("Periodic analysis started successfully for {}", repo);
+                }
+                Err(_error) => {
+                    info!("analysis delayed for {}: metric servic is busy", repo);
+                }
+            };
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
     // init logging
@@ -183,6 +223,10 @@ async fn main() {
         metrics_requester: Arc::new(Mutex::new(sender)),
         db: Db::new(None, None, None, None).await.unwrap(),
     };
+
+    // kicks off a cron job in a thread
+    tokio::spawn(cron_job(app.clone()));
+
     let app = warp::any().map(move || app.clone());
 
     //
