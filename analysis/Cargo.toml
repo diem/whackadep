@@ -1,12 +1,14 @@
 [package]
-name = "metrics"
+name = "analysis"
 version = "0.1.0"
-authors = ["David Wong <davidwg@calibra.com>"]
+authors = ["Brandon Williams <bmwill@fb.com>"]
 edition = "2018"
 
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
 [dependencies]
-# stdlib-like
 anyhow = "1.0.38" # error handling library
+tabled = "0.1.4"
 git2 = "0.13.15" # git library
 reqwest = "0.11.0" # http client
 tempfile = "3.2.0" # temporary folder helper
@@ -19,16 +21,9 @@ regex = "1.4.3" # used for checking diff output
 chrono = "0.4" # used for datetime of mongodb document
 rust-crypto = "0.2" # used to hash the repo url (to derive a folder dir)
 
-# driver
-mongodb = "=2.0.0-alpha" # database used to store result of analyses (note: alpha supports latest tokio)
-
-# app-specific
 guppy = { version = "0.9.0", features = ["summaries"] } # library to analyze deps
 guppy-summaries = "0.4.0" # guppy summaries
 target-spec = "0.7.0" # guppy stuff
 semver = "0.11.0" # semver of dependencies
 octocrab = "0.8.11"  # interact with github API
 rustsec = "0.22.2" # RUSTSEC advisory stuff
-
-# bin-specific
-jsonwebtoken = "7.2.0"

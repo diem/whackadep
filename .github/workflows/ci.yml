@@ -22,12 +22,13 @@ jobs:
           override: true
           components: rustfmt, clippy
 
+      - name: Install cargo-download
+        run: cargo install cargo-download
+
       - name: Lint
         run: |
-          cd web-backend
           cargo fmt -- --check
           cargo clippy --all-targets
 
-      # Once we have a better story around tests we can enable this
-      # - name: Run tests
-      #   run: cargo test
+      - name: Run tests
+        run: cargo test

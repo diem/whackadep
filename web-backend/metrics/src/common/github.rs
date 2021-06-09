@@ -1,9 +1,9 @@
 use anyhow::Result;
 use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 use serde::{Deserialize, Serialize};
-use std::path::Path;
 use std::{
     fs,
+    path::Path,
     time::{Duration, SystemTime},
 };
 use tracing::debug;
@@ -72,6 +72,7 @@ mod tests {
     use std::path::PathBuf;
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_app_info() {
         let mut key_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         key_path.push("resources/keys/whackadep.2021-01-25.private-key.pem");
