@@ -7,9 +7,11 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tracing::{error, info};
 
-use crate::git::Repo;
-use crate::model::{Db, Dependencies};
-use crate::rust::RustAnalysis;
+use crate::{
+    git::Repo,
+    model::{Db, Dependencies},
+    rust::RustAnalysis,
+};
 
 //
 // Data that is stored in MongoDB
@@ -128,6 +130,7 @@ mod tests {
     use tempfile::tempdir;
 
     #[tokio::test]
+    #[ignore]
     async fn test_analysis() {
         // the test requires the application along with database to keep running
         // (check - possibly with a single analysis complete)
