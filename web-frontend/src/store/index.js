@@ -89,12 +89,12 @@ export default new Vuex.Store({
   mutations: {
     add_analysis(state, analysis) {
       // reset state if we're retrieving a different repo
-      if (state.repo != "" && analysis.repo != state.repo) {
+      if (state.repo != "" && analysis.repository != state.repo) {
         Object.assign(state, getDefaultState());
       }
 
       // extract
-      console.log(analysis);
+      console.log("analysis data: ", analysis);
       state.repo = analysis.repository;
       state.commit = analysis.commit;
       state.date = new Date(analysis.timestamp).toString();
@@ -116,7 +116,7 @@ export default new Vuex.Store({
 
       // finally, set dependencies
       state.dependencies = dependencies;
-    }
+    },
   },
   actions: {
     get_analysis({ commit }, repo) {
@@ -164,6 +164,6 @@ export default new Vuex.Store({
             "error": error
           };
         });
-    }
+    },
   }
 });

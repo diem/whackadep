@@ -59,9 +59,9 @@ pub fn get_dependencies_inner_custom(
     manifest_path: &Path,
     include_dev: bool,
     v2resolver: bool,
-    features: Vec<&str>,
+    _features: Vec<&str>,
     platform_triplet: &str,
-    ignored_packages: Vec<&str>,
+    _ignored_packages: Vec<&str>,
 ) -> Result<Summary> {
     // obtain metadata from manifest_path
     let mut cmd = MetadataCommand::new();
@@ -100,9 +100,9 @@ pub fn get_dependencies_inner_custom(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::git::Repo;
+    // use crate::git::Repo;
     use std::path::PathBuf;
-    use tempfile::tempdir;
+    // use tempfile::tempdir;
 
     #[tokio::test]
     async fn test_on_dephell() {
