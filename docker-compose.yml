@@ -32,12 +32,6 @@ services:
       - cargo:/cargo # persist cargo dependencies and tools
       - repos:/app/metrics/repos # persist the cloned git repositories
 
-  # cronjobs (query Metrics periodically)
-  #  cron:
-  #    build: ./cronjobs
-  #    ports:
-  #      - "6000:6000"
-
   # database
   mongo:
     image: mongo:4.4.2
