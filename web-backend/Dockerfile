@@ -24,6 +24,7 @@ RUN rustup update
 RUN cd metrics/dependabot && bundle install && cd - 
 
 # 6. configure and run
+WORKDIR /app/ui
 EXPOSE 8081
 ENV RUST_LOG=info
 ENV ROCKET_ADDRESS="0.0.0.0"
