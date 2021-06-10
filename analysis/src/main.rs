@@ -1,12 +1,7 @@
+use analysis::{DependencyAnalyzer, DependencyReport};
 use anyhow::Result;
 use guppy::MetadataCommand;
-use tabled::{table, Tabled};
-
-#[derive(Tabled)]
-struct DependencyReport<'a> {
-    name: &'a str,
-    has_build_rs: String,
-}
+use tabled::table;
 
 fn main() -> Result<()> {
     let graph = MetadataCommand::new().build_graph()?;
@@ -25,10 +20,7 @@ fn main() -> Result<()> {
     // Run Analysis on each direct dependency
     let reports: Vec<DependencyReport> = direct_dependencies
         .iter()
-        .map(|pkg| DependencyReport {
-            name: pkg.name(),
-            has_build_rs: pkg.has_build_script().to_string(),
-        })
+        .map(|pkg| DependencyAnalyzer.analyze_dep(pkg))
         .collect();
 
     let table = table!(&reports);
