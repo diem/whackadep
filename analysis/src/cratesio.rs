@@ -65,3 +65,42 @@ impl CratesioAnalyzer {
         Ok(cratesio_report)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use guppy::MetadataCommand;
+    use std::path::PathBuf;
+
+    fn test_cratesio_analyzer() -> CratesioAnalyzer {
+        CratesioAnalyzer::new().unwrap()
+    }
+
+    #[test]
+    fn test_cratesio_stats_for_libc() {
+        let cratesio_analyzer = test_cratesio_analyzer();
+
+        let graph = MetadataCommand::new()
+            .current_dir(PathBuf::from("resources/test/valid_dep"))
+            .build_graph()
+            .unwrap();
+
+        let libc = graph.packages().find(|p| p.name() == "libc").unwrap();
+        let report = cratesio_analyzer.analyze_cratesio(&libc).unwrap();
+
+        assert_eq!(report.is_hosted, true);
+        assert!(report.downloads > 0);
+        assert!(report.dependents > 0);
+    }
+
+    #[test]
+    fn test_cratesio_stats_for_unhosted_crate_name() {
+        let cratesio_analyzer = test_cratesio_analyzer();
+        let report = cratesio_analyzer
+            .get_cratesio_metrics("unhosted_crate", false)
+            .unwrap();
+
+        assert_eq!(report.downloads, 0);
+        assert_eq!(report.dependents, 0);
+    }
+}
