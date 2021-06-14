@@ -21,7 +21,7 @@ fn main() -> Result<()> {
     let reports: Vec<DependencyReport> = direct_dependencies
         .iter()
         .map(|pkg| DependencyAnalyzer.analyze_dep(pkg))
-        .collect();
+        .collect::<Result<_>>()?;
 
     let table = table!(&reports);
     println!("{}", table);
