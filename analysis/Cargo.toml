@@ -27,3 +27,4 @@ target-spec = "0.7.0" # guppy stuff
 semver = "0.11.0" # semver of dependencies
 octocrab = "0.8.11"  # interact with github API
 rustsec = "0.22.2" # RUSTSEC advisory stuff
+crates_io_api = "0.7.1" #crates.io stuff
