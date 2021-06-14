@@ -30,6 +30,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
+ "crates_io_api",
  "futures",
  "git2",
  "guppy",
@@ -330,6 +331,23 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "smartstring",
+]
+
+[[package]]
+name = "crates_io_api"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "20576e0ee48ae3dce12672d2a15bdfe7ed9d0e985ab2be7b6586d1b70b7cff73"
+dependencies = [
+ "chrono",
+ "futures",
+ "log",
+ "reqwest",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "tokio",
+ "url",
 ]
 
 [[package]]
