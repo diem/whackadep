@@ -25,6 +25,6 @@ guppy = { version = "0.9.0", features = ["summaries"] } # library to analyze dep
 guppy-summaries = "0.4.0" # guppy summaries
 target-spec = "0.7.0" # guppy stuff
 semver = "0.11.0" # semver of dependencies
-octocrab = "0.8.11"  # interact with github API
+url = "2.2.2" # url parsing
 rustsec = "0.22.2" # RUSTSEC advisory stuff
 crates_io_api = "0.7.1" #crates.io stuff

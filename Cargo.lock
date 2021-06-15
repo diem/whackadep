@@ -35,7 +35,6 @@ dependencies = [
  "git2",
  "guppy",
  "guppy-summaries",
- "octocrab",
  "regex",
  "reqwest",
  "rust-crypto",
@@ -48,6 +47,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+ "url",
 ]
 
 [[package]]
