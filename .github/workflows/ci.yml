@@ -32,3 +32,5 @@ jobs:
 
       - name: Run tests
         run: cargo test
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
