@@ -5,7 +5,7 @@
 // experimental database dump that is updated daily, https://crates.io/data-access,
 // which will enable us to avoid making http requests and dealing with rate limits
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use crates_io_api::SyncClient;
 use guppy::graph::PackageMetadata;
 use tabled::Tabled;
@@ -48,12 +48,7 @@ impl CratesioAnalyzer {
         }
 
         let crate_info = self.client.get_crate(name)?.crate_data;
-
-        // TODO: crates_io_api makes unnecessary request to page through all dependents,
-        // therefore, taking a long time
-        // when the total count is actually present in each result page
-        // make a PR to the upstream crate? or write custom http request by ourselves?
-        let dependents = self.client.crate_reverse_dependencies(name)?.meta.total;
+        let dependents = Self::get_total_dependents(name)?;
 
         let cratesio_report = CratesioReport {
             name: name.to_string(),
@@ -63,6 +58,29 @@ impl CratesioAnalyzer {
         };
 
         Ok(cratesio_report)
+    }
+
+    pub fn get_total_dependents(crate_name: &str) -> Result<u64> {
+        let http_client = reqwest::blocking::Client::builder()
+            .user_agent("diem/whackadep")
+            .build()?;
+        let api_endpoint = format!(
+            "https://crates.io/api/v1/crates/{}/reverse_dependencies",
+            crate_name
+        );
+
+        let response = http_client.get(api_endpoint).send()?;
+        if !response.status().is_success() {
+            println!("{:?}", response);
+            panic!("http request to Crates.io failed");
+        }
+
+        let response: serde_json::Value = response.json()?;
+        let dependents: u64 = response["meta"]["total"]
+            .as_u64()
+            .ok_or_else(|| anyhow!("total dependents is not an integer"))?;
+
+        Ok(dependents)
     }
 }
 
