@@ -8,5 +8,7 @@ edition = "2018"
 
 [dependencies]
 libc = "0.2.97"
+gitlab = "0.1312.0"
+octocrab = "0.9.1"
 
 [workspace]

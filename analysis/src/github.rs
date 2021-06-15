@@ -128,3 +128,50 @@ impl GitHubAnalyzer {
         Ok(response.json()?)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use guppy::{graph::PackageGraph, MetadataCommand};
+    use std::path::PathBuf;
+
+    fn test_github_analyzer() -> GitHubAnalyzer {
+        GitHubAnalyzer::new().unwrap()
+    }
+
+    fn get_test_graph() -> PackageGraph {
+        MetadataCommand::new()
+            .current_dir(PathBuf::from("resources/test/valid_dep"))
+            .build_graph()
+            .unwrap()
+    }
+
+    #[test]
+    fn test_github_stats_for_libc() {
+        let github_analyzer = test_github_analyzer();
+
+        let graph = get_test_graph();
+        let pkg = graph.packages().find(|p| p.name() == "libc").unwrap();
+        let report = github_analyzer.analyze_github(&pkg).unwrap();
+
+        assert_eq!(report.is_github_repo, true);
+        println!(
+            "star count for {} is {}",
+            pkg.name(),
+            report.repo_stats.stargazers_count
+        );
+        assert!(report.repo_stats.stargazers_count > 0);
+    }
+
+    #[test]
+    fn test_github_stats_for_gitlab() {
+        let github_analyzer = test_github_analyzer();
+
+        let graph = get_test_graph();
+        let pkg = graph.packages().find(|p| p.name() == "gitlab").unwrap();
+        let report = github_analyzer.analyze_github(&pkg).unwrap();
+
+        assert_eq!(report.is_github_repo, false);
+        assert_eq!(report.repo_stats.stargazers_count, 0);
+    }
+}
