@@ -33,6 +33,11 @@ pub struct User {
     pub login: Option<String>,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Issue {
+    pub created_at: DateTime<FixedOffset>,
+}
+
 pub struct GitHubReport {
     pub name: String,               // name of the crate
     pub repository: Option<String>, // repository url
@@ -48,11 +53,13 @@ pub struct RepoStats {
     pub stargazers_count: u64,
     pub subscribers_count: u64,
     pub forks: u64,
+    pub open_issues: u64, // issues + PR
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct ActivityMetrics {
     pub days_since_last_commit: u64,
+    pub days_since_last_open_issue: Option<u64>,
 }
 
 impl GitHubReport {
@@ -185,8 +192,13 @@ impl GitHubAnalyzer {
             .get_time_since_last_commit(&repo_fullname, &default_branch)?
             .num_days() as u64;
 
+        let days_since_last_open_issue = self
+            .get_time_since_last_open_issue(repo_fullname)?
+            .map(|duration| duration.num_days() as u64);
+
         Ok(ActivityMetrics {
             days_since_last_commit,
+            days_since_last_open_issue,
         })
     }
 
@@ -216,6 +228,32 @@ impl GitHubAnalyzer {
         let duration = utc_now.signed_duration_since(last_commit_date);
         assert!(duration.num_days() >= 0);
         Ok(duration)
+    }
+
+    fn get_time_since_last_open_issue(&self, repo_fullname: &String) -> Result<Option<Duration>> {
+        let api_endpoint = format!(
+            "https://api.github.com/repos/{}/issues?state=open&per_page=1",
+            repo_fullname
+        );
+        let response = self.client.get(api_endpoint).send()?;
+
+        if !response.status().is_success() {
+            panic!("http request to GitHub failed, {:?}", response);
+        }
+
+        let response: Vec<Issue> = response.json()?;
+
+        if response.is_empty() {
+            Ok(None)
+        } else {
+            let last_open_issue = &response[0];
+            let last_open_issue_date = last_open_issue.created_at;
+
+            let utc_now: DateTime<Utc> = Utc::now();
+            let duration = utc_now.signed_duration_since(last_open_issue_date);
+            assert!(duration.num_days() >= 0);
+            Ok(Some(duration))
+        }
     }
 }
 
@@ -286,5 +324,29 @@ mod tests {
             .get_time_since_last_commit(&fullname, &default_branch)
             .unwrap();
         assert_eq!(time_since_last_commit.num_nanoseconds().unwrap() > 0, true)
+    }
+
+    #[test]
+    fn test_github_time_since_last_open_issue() {
+        let graph = get_test_graph();
+        let pkg = graph.packages().find(|p| p.name() == "libc").unwrap();
+
+        let repository = pkg.repository().unwrap();
+        let url = Url::from_str(repository).unwrap();
+        let repo_fullname = GitHubAnalyzer::get_github_repo_fullname(&url).unwrap();
+
+        let github_analyzer = test_github_analyzer();
+        let report = github_analyzer.analyze_github(&pkg).unwrap();
+
+        let github_analyzer = test_github_analyzer();
+        let time_since_last_open_issue = github_analyzer
+            .get_time_since_last_open_issue(&repo_fullname)
+            .unwrap();
+
+        if time_since_last_open_issue.is_none() {
+            assert_eq!(report.repo_stats.open_issues, 0);
+        } else {
+            assert!(report.repo_stats.open_issues > 0);
+        }
     }
 }
