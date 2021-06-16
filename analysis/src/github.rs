@@ -377,43 +377,41 @@ mod tests {
             .unwrap()
     }
 
-    fn get_test_repo(package_name: &str) -> (String, String) {
+    fn get_test_repo_fullname(package_name: &str) -> String {
         let graph = get_test_graph();
         let pkg = graph.packages().find(|p| p.name() == package_name).unwrap();
 
         let repository = pkg.repository().unwrap();
         let url = Url::from_str(repository).unwrap();
-        let fullname = GitHubAnalyzer::get_github_repo_fullname(&url).unwrap();
+        GitHubAnalyzer::get_github_repo_fullname(&url).unwrap()
+    }
 
+    fn get_test_repo_default_branch(package_name: &str) -> String {
+        let graph = get_test_graph();
+        let pkg = graph.packages().find(|p| p.name() == package_name).unwrap();
         let github_analyzer = test_github_analyzer();
         let report = github_analyzer.analyze_github(&pkg).unwrap();
-        let default_branch = report.repo_stats.default_branch.unwrap();
+        report.repo_stats.default_branch.unwrap()
+    }
 
-        (fullname, default_branch)
+    fn get_test_github_report(package_name: &str) -> GitHubReport {
+        let github_analyzer = test_github_analyzer();
+        let graph = get_test_graph();
+        let pkg = graph.packages().find(|p| p.name() == package_name).unwrap();
+        github_analyzer.analyze_github(&pkg).unwrap()
     }
 
     #[test]
     fn test_github_stats_for_libc() {
-        let github_analyzer = test_github_analyzer();
-
-        let graph = get_test_graph();
-        let pkg = graph.packages().find(|p| p.name() == "libc").unwrap();
-        let report = github_analyzer.analyze_github(&pkg).unwrap();
-
+        let report = get_test_github_report("libc");
         assert_eq!(report.is_github_repo, true);
-
         // Relying on Libc to have at least one star on GitHub
         assert!(report.repo_stats.stargazers_count > 0);
     }
 
     #[test]
     fn test_github_stats_for_gitlab() {
-        let github_analyzer = test_github_analyzer();
-
-        let graph = get_test_graph();
-        let pkg = graph.packages().find(|p| p.name() == "gitlab").unwrap();
-        let report = github_analyzer.analyze_github(&pkg).unwrap();
-
+        let report = get_test_github_report("gitlab");
         assert_eq!(report.is_github_repo, false);
         assert_eq!(report.repo_stats.stargazers_count, 0);
     }
@@ -421,8 +419,9 @@ mod tests {
     #[test]
     fn test_github_time_since_last_commit() {
         let github_analyzer = test_github_analyzer();
-        let (fullname, default_branch) = get_test_repo("octocrab");
-
+        let package_name = "octocrab";
+        let fullname = get_test_repo_fullname(package_name);
+        let default_branch = get_test_repo_default_branch(package_name);
         let time_since_last_commit = github_analyzer
             .get_time_since_last_commit(&fullname, &default_branch)
             .unwrap();
@@ -431,15 +430,9 @@ mod tests {
 
     #[test]
     fn test_github_time_since_last_open_issue() {
-        let graph = get_test_graph();
-        let pkg = graph.packages().find(|p| p.name() == "libc").unwrap();
-
-        let repository = pkg.repository().unwrap();
-        let url = Url::from_str(repository).unwrap();
-        let repo_fullname = GitHubAnalyzer::get_github_repo_fullname(&url).unwrap();
-
-        let github_analyzer = test_github_analyzer();
-        let report = github_analyzer.analyze_github(&pkg).unwrap();
+        let package_name = "libc";
+        let repo_fullname = get_test_repo_fullname(package_name);
+        let report = get_test_github_report(package_name);
 
         let github_analyzer = test_github_analyzer();
         let time_since_last_open_issue = github_analyzer
@@ -456,25 +449,25 @@ mod tests {
     #[test]
     fn test_github_total_open_issue_count_for_label() {
         let github_analyzer = test_github_analyzer();
-        let (fullname, _default_branch) = get_test_repo("libc");
+        let repo_fullname = get_test_repo_fullname("libc");
 
         let open_bugs = github_analyzer
-            .get_total_open_issue_count_for_label(&fullname, "bug")
+            .get_total_open_issue_count_for_label(&repo_fullname, "bug")
             .unwrap();
         let open_security = github_analyzer
-            .get_total_open_issue_count_for_label(&fullname, "security")
+            .get_total_open_issue_count_for_label(&repo_fullname, "security")
             .unwrap();
 
         println!(
             "{} has {} open bugs and {} open security",
-            fullname, open_bugs, open_security
+            repo_fullname, open_bugs, open_security
         );
     }
 
     #[test]
     fn test_github_recent_activity() {
         let github_analyzer = test_github_analyzer();
-        let (fullname, _default_branch) = get_test_repo("libc");
+        let fullname = get_test_repo_fullname("libc");
         let past_days = 6 * 30;
         let recent_activity = github_analyzer
             .get_stats_on_recent_activity(&fullname, past_days)
