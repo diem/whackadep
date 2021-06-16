@@ -61,7 +61,7 @@ pub struct RepoStats {
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct ActivityMetrics {
-    pub days_since_last_commit: u64,
+    pub days_since_last_commit: u64, // on default branch
     pub days_since_last_open_issue: Option<u64>,
     pub open_issues_labeld_bug: u64,
     pub open_issues_labeled_security: u64,
@@ -70,6 +70,7 @@ pub struct ActivityMetrics {
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct RecentActivity {
+    // On all branches
     pub past_days: u64,
     pub commits: u64,
     pub committers: u64,
