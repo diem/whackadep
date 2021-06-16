@@ -60,6 +60,8 @@ pub struct RepoStats {
 pub struct ActivityMetrics {
     pub days_since_last_commit: u64,
     pub days_since_last_open_issue: Option<u64>,
+    pub open_issues_labeld_bug: u64,
+    pub open_issues_labeled_security: u64,
 }
 
 impl GitHubReport {
@@ -196,9 +198,18 @@ impl GitHubAnalyzer {
             .get_time_since_last_open_issue(repo_fullname)?
             .map(|duration| duration.num_days() as u64);
 
+        let open_issues_labeld_bug = self
+            .get_total_open_issue_count_for_label(repo_fullname, "bug")
+            .unwrap();
+        let open_issues_labeled_security = self
+            .get_total_open_issue_count_for_label(repo_fullname, "security")
+            .unwrap();
+
         Ok(ActivityMetrics {
             days_since_last_commit,
             days_since_last_open_issue,
+            open_issues_labeld_bug,
+            open_issues_labeled_security,
         })
     }
 
@@ -254,6 +265,32 @@ impl GitHubAnalyzer {
             assert!(duration.num_days() >= 0);
             Ok(Some(duration))
         }
+    }
+
+    fn get_total_open_issue_count_for_label(
+        &self,
+        repo_fullname: &String,
+        label: &str,
+    ) -> Result<u64> {
+        let mut total = 0;
+        let mut page = 1;
+
+        loop {
+            let api_endpoint = format!(
+                "https://api.github.com/repos/{}/issues?state=open&per_page=100&page={}&labels={}",
+                repo_fullname, page, label
+            );
+            let response = self.client.get(api_endpoint).send()?;
+            let response: Vec<Issue> = response.json()?;
+
+            if response.is_empty() {
+                break;
+            } else {
+                total += response.len() as u64;
+                page += 1;
+            }
+        }
+        Ok(total)
     }
 }
 
@@ -348,5 +385,23 @@ mod tests {
         } else {
             assert!(report.repo_stats.open_issues > 0);
         }
+    }
+
+    #[test]
+    fn test_github_total_open_issue_count_for_label() {
+        let github_analyzer = test_github_analyzer();
+        let (fullname, _default_branch) = get_test_repo("libc");
+
+        let open_bugs = github_analyzer
+            .get_total_open_issue_count_for_label(&fullname, "bug")
+            .unwrap();
+        let open_security = github_analyzer
+            .get_total_open_issue_count_for_label(&fullname, "security")
+            .unwrap();
+
+        println!(
+            "{} has {} open bugs and {} open security",
+            fullname, open_bugs, open_security
+        );
     }
 }
