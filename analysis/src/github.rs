@@ -242,6 +242,14 @@ impl GitHubAnalyzer {
             return Err(anyhow!("http request to GitHub failed, {:?}", response));
         }
         let response: Vec<CommitInfo> = response.json()?;
+        if response.is_empty() {
+            // At lease one commit should be there
+            return Err(anyhow!(
+                "No commit found for {}, {:?}",
+                repo_fullname,
+                response
+            ));
+        }
 
         let last_commit = &response[0];
         let last_commit_date = last_commit.commit.committer.date;
