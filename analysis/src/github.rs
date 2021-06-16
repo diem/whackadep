@@ -189,9 +189,7 @@ impl GitHubAnalyzer {
         let response = self.client.get(api_endpoint).send()?;
 
         if !response.status().is_success() {
-            println!("repo_url: {}", repo_fullname);
-            println!("{:?}", response.text());
-            panic!("http request to GitHub failed");
+            return Err(anyhow!("http request to GitHub failed, {:?}", response));
         }
 
         Ok(response.json()?)
@@ -241,7 +239,7 @@ impl GitHubAnalyzer {
         let response = self.client.get(api_endpoint).send()?;
 
         if !response.status().is_success() {
-            panic!("http request to GitHub failed, {:?}", response);
+            return Err(anyhow!("http request to GitHub failed, {:?}", response));
         }
         let response: Vec<CommitInfo> = response.json()?;
 
@@ -262,7 +260,7 @@ impl GitHubAnalyzer {
         let response = self.client.get(api_endpoint).send()?;
 
         if !response.status().is_success() {
-            panic!("http request to GitHub failed, {:?}", response);
+            return Err(anyhow!("http request to GitHub failed, {:?}", response));
         }
 
         let response: Vec<Issue> = response.json()?;
@@ -327,7 +325,7 @@ impl GitHubAnalyzer {
             );
             let response = self.client.get(api_endpoint).send()?;
             if !response.status().is_success() {
-                panic!("http request to GitHub failed, {:?}", response);
+                return Err(anyhow!("http request to GitHub failed, {:?}", response));
             }
 
             let mut response: Vec<CommitInfo> = response.json()?;
