@@ -5,6 +5,7 @@ use chrono::{DateTime, Duration, FixedOffset, Utc};
 use guppy::graph::PackageMetadata;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, USER_AGENT};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::str::FromStr;
 use url::Url;
 
@@ -12,23 +13,25 @@ use url::Url;
 pub struct CommitInfo {
     pub sha: String,
     pub commit: Commit,
-    pub author: Option<User>,
-    pub committer: Option<User>,
+    pub author: Option<GitHubUser>,
+    pub committer: Option<GitHubUser>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Commit {
-    pub author: Date,
-    pub committer: Date,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Date {
-    pub date: DateTime<FixedOffset>,
+    pub author: User,
+    pub committer: User,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct User {
+    pub name: String,
+    pub email: String,
+    pub date: DateTime<FixedOffset>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GitHubUser {
     // can be null if the user is not registered on GitHub
     pub login: Option<String>,
 }
@@ -62,6 +65,14 @@ pub struct ActivityMetrics {
     pub days_since_last_open_issue: Option<u64>,
     pub open_issues_labeld_bug: u64,
     pub open_issues_labeled_security: u64,
+    pub recent_activity: RecentActivity,
+}
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct RecentActivity {
+    pub past_days: u64,
+    pub commits: u64,
+    pub committers: u64,
 }
 
 impl GitHubReport {
@@ -205,11 +216,15 @@ impl GitHubAnalyzer {
             .get_total_open_issue_count_for_label(repo_fullname, "security")
             .unwrap();
 
+        let past_days = 6 * 30;
+        let recent_activity = self.get_stats_on_recent_activity(repo_fullname, past_days)?;
+
         Ok(ActivityMetrics {
             days_since_last_commit,
             days_since_last_open_issue,
             open_issues_labeld_bug,
             open_issues_labeled_security,
+            recent_activity,
         })
     }
 
@@ -227,10 +242,7 @@ impl GitHubAnalyzer {
         if !response.status().is_success() {
             panic!("http request to GitHub failed, {:?}", response);
         }
-
         let response: Vec<CommitInfo> = response.json()?;
-        // at lease one commit must be in the repository
-        assert_eq!(response.is_empty(), false);
 
         let last_commit = &response[0];
         let last_commit_date = last_commit.commit.committer.date;
@@ -291,6 +303,61 @@ impl GitHubAnalyzer {
             }
         }
         Ok(total)
+    }
+
+    fn get_stats_on_recent_activity(
+        &self,
+        repo_fullname: &String,
+        past_days: u64,
+    ) -> Result<RecentActivity> {
+        let since_query_string =
+            match chrono::Utc::now().checked_sub_signed(chrono::Duration::days(past_days as i64)) {
+                Some(duration) => duration.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+                None => return Err(anyhow!("Cannot convert past duration into query string")),
+            };
+        let mut page = 1;
+        let mut recent_commit_infos: Vec<CommitInfo> = Vec::new();
+
+        // Get all recent commits
+        loop {
+            let api_endpoint = format!(
+                "https://api.github.com/repos/{}/commits?since={}&per_page=100&page={}",
+                repo_fullname, since_query_string, page
+            );
+            let response = self.client.get(api_endpoint).send()?;
+            if !response.status().is_success() {
+                panic!("http request to GitHub failed, {:?}", response);
+            }
+
+            let mut response: Vec<CommitInfo> = response.json()?;
+            if response.is_empty() {
+                break;
+            } else {
+                recent_commit_infos.append(&mut response);
+                page += 1;
+            }
+        }
+
+        // Analyze recent commits
+        if recent_commit_infos.is_empty() {
+            return Ok(RecentActivity {
+                past_days,
+                ..Default::default()
+            });
+        }
+
+        let commits = recent_commit_infos.len() as u64;
+        let mut committers: HashSet<String> = HashSet::new();
+        for commit_info in recent_commit_infos {
+            committers.insert(commit_info.commit.committer.email);
+        }
+        let committers = committers.len() as u64;
+
+        Ok(RecentActivity {
+            past_days,
+            commits,
+            committers,
+        })
     }
 }
 
@@ -403,5 +470,17 @@ mod tests {
             "{} has {} open bugs and {} open security",
             fullname, open_bugs, open_security
         );
+    }
+
+    #[test]
+    fn test_github_recent_activity() {
+        let github_analyzer = test_github_analyzer();
+        let (fullname, _default_branch) = get_test_repo("libc");
+        let past_days = 6 * 30;
+        let recent_activity = github_analyzer
+            .get_stats_on_recent_activity(&fullname, past_days)
+            .unwrap();
+        println!("recent_activity for {} is {:?}", fullname, recent_activity);
+        assert_eq!(recent_activity.past_days, past_days);
     }
 }
