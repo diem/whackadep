@@ -143,10 +143,8 @@ impl GitHubAnalyzer {
 
         // Get the default branch
         let default_branch = repo_stats.default_branch.clone();
-        let default_branch = match default_branch {
-            Some(branch) => branch,
-            None => return Err(anyhow!("No default branch found for package repository")),
-        };
+        let default_branch = default_branch
+            .ok_or_else(|| anyhow!("No default branch found for repository for {}", name))?;
 
         // Get recent activity metrics
         let activity_metrics = self.get_activity_metrics(&repo_fullname, &default_branch)?;
@@ -167,11 +165,9 @@ impl GitHubAnalyzer {
     }
 
     fn get_github_repo_fullname(repo_url: &Url) -> Result<String> {
-        assert_eq!(
-            Self::is_github_url(repo_url),
-            true,
-            "Repository is not from GitHub"
-        );
+        if !Self::is_github_url(repo_url) {
+            return Err(anyhow!("Repository, {}, is not from GitHub", repo_url));
+        }
 
         let mut segments = repo_url.path_segments().unwrap();
         let owner = segments
@@ -208,12 +204,10 @@ impl GitHubAnalyzer {
             .get_time_since_last_open_issue(repo_fullname)?
             .map(|duration| duration.num_days() as u64);
 
-        let open_issues_labeld_bug = self
-            .get_total_open_issue_count_for_label(repo_fullname, "bug")
-            .unwrap();
-        let open_issues_labeled_security = self
-            .get_total_open_issue_count_for_label(repo_fullname, "security")
-            .unwrap();
+        let open_issues_labeld_bug =
+            self.get_total_open_issue_count_for_label(repo_fullname, "bug")?;
+        let open_issues_labeled_security =
+            self.get_total_open_issue_count_for_label(repo_fullname, "security")?;
 
         let past_days = 6 * 30;
         let recent_activity = self.get_stats_on_recent_activity(repo_fullname, past_days)?;
@@ -256,7 +250,13 @@ impl GitHubAnalyzer {
 
         let utc_now: DateTime<Utc> = Utc::now();
         let duration = utc_now.signed_duration_since(last_commit_date);
-        assert!(duration.num_days() >= 0);
+        if duration.num_days() < 0 {
+            return Err(anyhow!(
+                "time not synched between last commit, {}, and current time, {}",
+                last_commit_date,
+                utc_now
+            ));
+        }
         Ok(duration)
     }
 
@@ -281,7 +281,13 @@ impl GitHubAnalyzer {
 
             let utc_now: DateTime<Utc> = Utc::now();
             let duration = utc_now.signed_duration_since(last_open_issue_date);
-            assert!(duration.num_days() >= 0);
+            if duration.num_days() < 0 {
+                return Err(anyhow!(
+                    "time not synched between last commit, {}, and current time, {}",
+                    last_open_issue_date,
+                    utc_now
+                ));
+            };
             Ok(Some(duration))
         }
     }
@@ -317,11 +323,11 @@ impl GitHubAnalyzer {
         repo_fullname: &String,
         past_days: u64,
     ) -> Result<RecentActivity> {
-        let since_query_string =
-            match chrono::Utc::now().checked_sub_signed(chrono::Duration::days(past_days as i64)) {
-                Some(duration) => duration.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
-                None => return Err(anyhow!("Cannot convert past duration into query string")),
-            };
+        let since_query_string = chrono::Utc::now()
+            .checked_sub_signed(chrono::Duration::days(past_days as i64))
+            .ok_or_else(|| anyhow!("Cannot convert past duration into query string"))?
+            .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+
         let mut page = 1;
         let mut recent_commit_infos: Vec<CommitInfo> = Vec::new();
 
