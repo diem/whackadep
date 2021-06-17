@@ -27,4 +27,6 @@ target-spec = "0.7.0" # guppy stuff
 semver = "0.11.0" # semver of dependencies
 url = "2.2.2" # url parsing
 rustsec = "0.22.2" # RUSTSEC advisory stuff
-crates_io_api = "0.7.1" #crates.io stuff
+crates_io_api = "0.7.1" # crates.io stuff
+tokei = "12.1.2" # loc count
+camino = "1.0.4" # UTF-8 path stuff
