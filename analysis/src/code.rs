@@ -147,3 +147,69 @@ impl CodeAnalyzer {
         Ok(code_report)
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use guppy::{graph::PackageGraph, MetadataCommand};
+    use std::path::PathBuf;
+
+    fn get_test_graph() -> PackageGraph {
+        MetadataCommand::new()
+            .current_dir(PathBuf::from("resources/test/valid_dep"))
+            .build_graph()
+            .unwrap()
+    }
+
+    fn get_test_code_analyzer() -> CodeAnalyzer {
+        CodeAnalyzer::new()
+    }
+
+    #[test]
+    fn test_loc_report_for_valid_package() {
+        let graph = get_test_graph();
+        let code_analyzer = get_test_code_analyzer();
+        let pkg = graph.packages().find(|p| p.name() == "libc").unwrap();
+        let report = code_analyzer.get_loc_report(pkg.manifest_path()).unwrap();
+
+        assert!(report.total_loc > 0);
+        assert!(report.rust_loc > 0);
+    }
+
+    #[test]
+    fn test_loc_report_for_non_rust_directory() {
+        let non_rust_path = Utf8Path::new("resources/test/non_rust/norust.md");
+        let code_analyzer = get_test_code_analyzer();
+        let report = code_analyzer.get_loc_report(non_rust_path).unwrap();
+
+        assert_eq!(report.rust_loc, 0);
+    }
+
+    #[test]
+    fn test_code_dep_report_for_valid_report() {
+        let graph = get_test_graph();
+        let code_analyzer = get_test_code_analyzer();
+        let package = graph.packages().find(|p| p.name() == "octocrab").unwrap();
+        let dependencies: Vec<PackageMetadata> = graph
+            .query_forward(iter::once(package.id()))
+            .unwrap()
+            .resolve()
+            .packages(DependencyDirection::Forward)
+            .filter(|pkg| pkg.id() != package.id())
+            .collect();
+        let report = code_analyzer.get_dep_report(dependencies).unwrap();
+
+        assert!(report.total_deps > 0);
+        assert!(report.deps_total_loc > 0);
+        assert!(report.deps_rust_loc > 0);
+    }
+
+    #[test]
+    fn test_code_analyzer() {
+        let code_analyzer = get_test_code_analyzer();
+        let graph = get_test_graph();
+        let code_reports = code_analyzer.analyze_code(&graph).unwrap();
+        println!("{:?}", code_reports);
+        assert!(code_reports.len() > 0)
+    }
+}
