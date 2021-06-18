@@ -1,9 +1,10 @@
 //! This crate contains a number of analyses that can be run on dependencies
 
 use anyhow::Result;
-use guppy::graph::PackageMetadata;
+use guppy::graph::{PackageGraph, PackageMetadata};
 use tabled::Tabled;
 
+mod code;
 mod cratesio;
 mod github;
 
@@ -71,5 +72,15 @@ impl DependencyAnalyzer {
         };
 
         Ok(dependency_report)
+    }
+}
+
+pub struct DependencyGraphAnalyzer;
+
+impl DependencyGraphAnalyzer {
+    pub fn analyze_dep_graph(&self, graph: &PackageGraph) {
+        let code_report = code::CodeAnalyzer::new();
+        let code_reports = code_report.analyze_code(graph);
+        println!("{:?}", code_reports);
     }
 }
