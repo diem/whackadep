@@ -30,13 +30,13 @@ pub struct DepReport {
 }
 
 pub struct CodeAnalyzer {
-    cache: RefCell<HashMap<String, LOCReport>>,
+    loc_cache: RefCell<HashMap<String, LOCReport>>,
 }
 
 impl CodeAnalyzer {
     pub fn new() -> Self {
         Self {
-            cache: RefCell::new(HashMap::new()),
+            loc_cache: RefCell::new(HashMap::new()),
         }
     }
 
@@ -104,9 +104,9 @@ impl CodeAnalyzer {
             )
         })?;
 
-        if self.cache.borrow().contains_key(manifest_path.as_str()) {
+        if self.loc_cache.borrow().contains_key(manifest_path.as_str()) {
             let code_report = self
-                .cache
+                .loc_cache
                 .borrow()
                 .get(manifest_path.as_str())
                 .ok_or_else(|| anyhow!("Caching error"))?
@@ -133,13 +133,13 @@ impl CodeAnalyzer {
                 .unwrap_or(0),
         };
 
-        // put in cache
-        self.cache
+        // put in loc_cache
+        self.loc_cache
             .borrow_mut()
             .insert(manifest_path.to_string(), loc_report);
 
         let code_report = self
-            .cache
+            .loc_cache
             .borrow()
             .get(manifest_path.as_str())
             .ok_or_else(|| anyhow!("Caching error"))?
