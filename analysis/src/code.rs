@@ -326,6 +326,7 @@ impl CodeAnalyzer {
 mod test {
     use super::*;
     use guppy::{graph::PackageGraph, MetadataCommand};
+    use serial_test::serial;
     use std::path::PathBuf;
 
     fn get_test_graph() -> PackageGraph {
@@ -379,15 +380,21 @@ mod test {
     }
 
     #[test]
+    #[serial]
     fn test_code_analyzer() {
         let code_analyzer = get_test_code_analyzer();
         let graph = get_test_graph();
         let code_reports = code_analyzer.analyze_code(&graph).unwrap();
         println!("{:?}", code_reports);
-        assert!(code_reports.len() > 0)
+
+        assert!(code_reports.len() > 0);
+        let report = &code_reports[0];
+        assert_eq!(report.unsafe_report.is_none(), false);
     }
 
     #[test]
+    #[serial]
+    #[ignore]
     fn test_code_cargo_geiger() {
         let path = PathBuf::from("resources/test/valid_dep/Cargo.toml");
         let geiger_report = CodeAnalyzer::get_cargo_geiger_report(&path).unwrap();
@@ -396,6 +403,8 @@ mod test {
     }
 
     #[test]
+    #[serial]
+    #[ignore]
     fn test_code_geiger_report_for_workspace() {
         let code_analyzer = get_test_code_analyzer();
         let graph = MetadataCommand::new()
