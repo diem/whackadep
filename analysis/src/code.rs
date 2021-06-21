@@ -36,11 +36,12 @@ pub struct DepReport {
 pub struct UnsafeReport {
     // Unsafe code used by the cargo geiger
     pub forbids_unsafe: bool,
-    pub unsafe_count: UsedUnsafeDetails,
+    pub used_unsafe_count: UnsafeDetails,
+    pub unused_unsafe_count: UnsafeDetails,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
-pub struct UsedUnsafeDetails {
+pub struct UnsafeDetails {
     pub functions: u64,
     pub expressions: u64,
     pub impls: u64,
@@ -177,7 +178,7 @@ impl CodeAnalyzer {
                 if unsafe_report.forbids_unsafe {
                     deps_forbidding_unsafe += 1;
                 } else {
-                    if unsafe_report.unsafe_count.expressions > 0 {
+                    if unsafe_report.used_unsafe_count.expressions > 0 {
                         deps_using_unsafe += 1;
                     }
                 }
@@ -261,6 +262,7 @@ impl CodeAnalyzer {
                 let package = &geiger_package.package.id;
                 let key = (package.name.clone(), package.version.clone());
                 if !self.geiger_cache.borrow().contains_key(&key) {
+                    // TODO: can the used unsafe code change for separate builds?
                     self.geiger_cache
                         .borrow_mut()
                         .insert(key, geiger_package.clone());
@@ -311,12 +313,19 @@ impl CodeAnalyzer {
 
         Ok(Some(UnsafeReport {
             forbids_unsafe: geiger_package_info.unsafety.forbids_unsafe,
-            unsafe_count: UsedUnsafeDetails {
+            used_unsafe_count: UnsafeDetails {
                 functions: geiger_package_info.unsafety.used.functions.unsafe_,
                 expressions: geiger_package_info.unsafety.used.exprs.unsafe_,
                 impls: geiger_package_info.unsafety.used.item_impls.unsafe_,
                 traits: geiger_package_info.unsafety.used.item_traits.unsafe_,
                 methods: geiger_package_info.unsafety.used.methods.unsafe_,
+            },
+            unused_unsafe_count: UnsafeDetails {
+                functions: geiger_package_info.unsafety.unused.functions.unsafe_,
+                expressions: geiger_package_info.unsafety.unused.exprs.unsafe_,
+                impls: geiger_package_info.unsafety.unused.item_impls.unsafe_,
+                traits: geiger_package_info.unsafety.unused.item_traits.unsafe_,
+                methods: geiger_package_info.unsafety.unused.methods.unsafe_,
             },
         }))
     }
