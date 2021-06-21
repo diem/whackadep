@@ -13,6 +13,7 @@ pub struct CodeReport {
     pub version: String,
     pub is_direct: bool,
     pub loc_report: Option<LOCReport>,
+    pub unsafe_report: Option<UnsafeReport>,
     pub dep_report: Option<DepReport>,
 }
 
@@ -27,6 +28,24 @@ pub struct DepReport {
     pub total_deps: u64,
     pub deps_total_loc: u64,
     pub deps_rust_loc: u64,
+    pub deps_forbidding_unsafe: u64,
+    pub deps_using_unsafe: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+pub struct UnsafeReport {
+    // Unsafe code used by the cargo geiger
+    pub forbids_unsafe: bool,
+    pub unsafe_count: UsedUnsafeDetails,
+}
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+pub struct UsedUnsafeDetails {
+    pub functions: u64,
+    pub expressions: u64,
+    pub impls: u64,
+    pub traits: u64,
+    pub methods: u64,
 }
 
 pub struct CodeAnalyzer {
@@ -113,6 +132,9 @@ impl CodeAnalyzer {
 
         for package in &direct_dependencies {
             let loc_report = self.get_loc_report(package.manifest_path())?;
+            let unsafe_report =
+                self.get_unsafe_report(package.name().to_string(), package.version().to_string())?;
+
             let dependencies: Vec<PackageMetadata> = graph
                 .query_forward(iter::once(package.id()))?
                 .resolve()
@@ -126,6 +148,7 @@ impl CodeAnalyzer {
                 version: package.version().to_string(),
                 is_direct: true,
                 loc_report: Some(loc_report),
+                unsafe_report: unsafe_report,
                 dep_report: Some(dep_report),
             };
 
@@ -139,17 +162,34 @@ impl CodeAnalyzer {
         let total_deps = dependencies.len() as u64;
         let mut deps_total_loc = 0;
         let mut deps_rust_loc = 0;
+        let mut deps_forbidding_unsafe = 0;
+        let mut deps_using_unsafe = 0;
 
         for package in &dependencies {
             let loc_report = self.get_loc_report(package.manifest_path())?;
             deps_total_loc += loc_report.total_loc;
             deps_rust_loc += loc_report.rust_loc;
+
+            let unsafe_report =
+                self.get_unsafe_report(package.name().to_string(), package.version().to_string())?;
+            if !unsafe_report.is_none() {
+                let unsafe_report = unsafe_report.unwrap();
+                if unsafe_report.forbids_unsafe {
+                    deps_forbidding_unsafe += 1;
+                } else {
+                    if unsafe_report.unsafe_count.expressions > 0 {
+                        deps_using_unsafe += 1;
+                    }
+                }
+            }
         }
 
         Ok(DepReport {
             total_deps,
             deps_total_loc,
             deps_rust_loc,
+            deps_forbidding_unsafe,
+            deps_using_unsafe,
         })
     }
 
@@ -253,6 +293,32 @@ impl CodeAnalyzer {
 
         let geiger_report: GeigerReport = serde_json::from_slice(&output.stdout)?;
         Ok(geiger_report)
+    }
+
+    fn get_unsafe_report(&self, name: String, version: String) -> Result<Option<UnsafeReport>> {
+        let key = (name, version);
+        let cache = self.geiger_cache.borrow();
+
+        if !cache.contains_key(&key) {
+            // Cargo geiger can not have a result for a valid dependency
+            // e.g., openssl not present for geiger report for valid_dep test crate
+            return Ok(None);
+        }
+
+        let geiger_package_info = cache
+            .get(&key)
+            .ok_or_else(|| anyhow!("Missing package in Geiger cache"))?;
+
+        Ok(Some(UnsafeReport {
+            forbids_unsafe: geiger_package_info.unsafety.forbids_unsafe,
+            unsafe_count: UsedUnsafeDetails {
+                functions: geiger_package_info.unsafety.used.functions.unsafe_,
+                expressions: geiger_package_info.unsafety.used.exprs.unsafe_,
+                impls: geiger_package_info.unsafety.used.item_impls.unsafe_,
+                traits: geiger_package_info.unsafety.used.item_traits.unsafe_,
+                methods: geiger_package_info.unsafety.used.methods.unsafe_,
+            },
+        }))
     }
 }
 
