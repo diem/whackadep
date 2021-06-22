@@ -25,6 +25,9 @@ jobs:
       - name: Install cargo-download
         run: cargo install cargo-download
 
+      - name: Install cargo-geiger
+        run: cargo install cargo-geiger
+
       - name: Lint
         run: |
           cargo fmt -- --check
