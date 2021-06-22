@@ -12,6 +12,7 @@ pub struct CodeReport {
     pub name: String,
     pub version: String,
     pub is_direct: bool,
+    pub has_build_script: bool,
     pub loc_report: Option<LOCReport>,
     pub unsafe_report: Option<UnsafeReport>,
     pub dep_report: Option<DepReport>,
@@ -30,6 +31,7 @@ pub struct DepReport {
     pub deps_rust_loc: u64,
     pub deps_forbidding_unsafe: u64,
     pub deps_using_unsafe: u64,
+    pub deps_with_build_script: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
@@ -148,6 +150,7 @@ impl CodeAnalyzer {
                 name: package.name().to_string(),
                 version: package.version().to_string(),
                 is_direct: true,
+                has_build_script: package.has_build_script(),
                 loc_report: Some(loc_report),
                 unsafe_report: unsafe_report,
                 dep_report: Some(dep_report),
@@ -165,6 +168,7 @@ impl CodeAnalyzer {
         let mut deps_rust_loc = 0;
         let mut deps_forbidding_unsafe = 0;
         let mut deps_using_unsafe = 0;
+        let mut deps_with_build_script = 0;
 
         for package in &dependencies {
             let loc_report = self.get_loc_report(package.manifest_path())?;
@@ -183,6 +187,10 @@ impl CodeAnalyzer {
                     }
                 }
             }
+
+            if package.has_build_script() {
+                deps_with_build_script += 1;
+            }
         }
 
         Ok(DepReport {
@@ -191,6 +199,7 @@ impl CodeAnalyzer {
             deps_rust_loc,
             deps_forbidding_unsafe,
             deps_using_unsafe,
+            deps_with_build_script,
         })
     }
 
