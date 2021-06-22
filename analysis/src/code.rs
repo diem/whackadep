@@ -134,7 +134,7 @@ impl CodeAnalyzer {
         for package in &direct_dependencies {
             let loc_report = self.get_loc_report(package.manifest_path())?;
             let unsafe_report =
-                self.get_unsafe_report(package.name().to_string(), package.version().to_string())?;
+                self.get_unsafe_report(package.name().to_string(), package.version().to_string());
 
             let dependencies: Vec<PackageMetadata> = graph
                 .query_forward(iter::once(package.id()))?
@@ -172,7 +172,7 @@ impl CodeAnalyzer {
             deps_rust_loc += loc_report.rust_loc;
 
             let unsafe_report =
-                self.get_unsafe_report(package.name().to_string(), package.version().to_string())?;
+                self.get_unsafe_report(package.name().to_string(), package.version().to_string());
             if !unsafe_report.is_none() {
                 let unsafe_report = unsafe_report.unwrap();
                 if unsafe_report.forbids_unsafe {
@@ -261,7 +261,7 @@ impl CodeAnalyzer {
             for geiger_package in &geiger_packages {
                 let package = &geiger_package.package.id;
                 let key = (package.name.clone(), package.version.clone());
-                if !self.geiger_cache.borrow().contains_key(&key) {
+                if self.get_cargo_geiger_report_from_cache(&key).is_none() {
                     // TODO: can the used unsafe code change for separate builds?
                     self.geiger_cache
                         .borrow_mut()
@@ -297,21 +297,11 @@ impl CodeAnalyzer {
         Ok(geiger_report)
     }
 
-    fn get_unsafe_report(&self, name: String, version: String) -> Result<Option<UnsafeReport>> {
+    fn get_unsafe_report(&self, name: String, version: String) -> Option<UnsafeReport> {
         let key = (name, version);
-        let cache = self.geiger_cache.borrow();
+        let geiger_package_info = self.get_cargo_geiger_report_from_cache(&key)?;
 
-        if !cache.contains_key(&key) {
-            // Cargo geiger can not have a result for a valid dependency
-            // e.g., openssl not present for geiger report for valid_dep test crate
-            return Ok(None);
-        }
-
-        let geiger_package_info = cache
-            .get(&key)
-            .ok_or_else(|| anyhow!("Missing package in Geiger cache"))?;
-
-        Ok(Some(UnsafeReport {
+        Some(UnsafeReport {
             forbids_unsafe: geiger_package_info.unsafety.forbids_unsafe,
             used_unsafe_count: UnsafeDetails {
                 functions: geiger_package_info.unsafety.used.functions.unsafe_,
@@ -327,7 +317,16 @@ impl CodeAnalyzer {
                 traits: geiger_package_info.unsafety.unused.item_traits.unsafe_,
                 methods: geiger_package_info.unsafety.unused.methods.unsafe_,
             },
-        }))
+        })
+    }
+
+    fn get_cargo_geiger_report_from_cache(
+        &self,
+        key: &(String, String),
+    ) -> Option<GeigerPackageInfo> {
+        // Cargo geiger may not have a result for a valid dependency
+        // e.g., openssl not present for geiger report for valid_dep test crate
+        self.geiger_cache.borrow().get(&key).cloned()
     }
 }
 
