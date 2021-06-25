@@ -4,7 +4,7 @@ use anyhow::{anyhow, Result};
 use camino::Utf8Path;
 use guppy::graph::{DependencyDirection, PackageGraph, PackageMetadata};
 use serde::{Deserialize, Serialize};
-use std::{cell::RefCell, collections::HashMap, fs, iter, path::PathBuf, process::Command};
+use std::{cell::RefCell, collections::HashMap, fs, iter, ops, path::PathBuf, process::Command};
 use tokei::{Config, LanguageType, Languages};
 
 #[derive(Debug, Clone)]
@@ -24,14 +24,26 @@ pub struct LOCReport {
     pub rust_loc: u64,  // excludes comment and white lines
 }
 
+impl ops::Add<LOCReport> for LOCReport {
+    type Output = LOCReport;
+
+    fn add(self, rhs: LOCReport) -> LOCReport {
+        LOCReport {
+            total_loc: self.total_loc + rhs.total_loc,
+            rust_loc: self.rust_loc + rhs.rust_loc,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct DepReport {
     pub total_deps: u64,
-    pub deps_total_loc: u64,
-    pub deps_rust_loc: u64,
+    pub deps_total_loc_report: LOCReport,
+    pub deps_with_build_script: u64,
+    pub deps_analyzed_for_unsafe: u64,
     pub deps_forbidding_unsafe: u64,
     pub deps_using_unsafe: u64,
-    pub deps_with_build_script: u64,
+    pub deps_total_used_unsafe_details: UnsafeDetails,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
@@ -49,6 +61,20 @@ pub struct UnsafeDetails {
     pub impls: u64,
     pub traits: u64,
     pub methods: u64,
+}
+
+impl ops::Add<UnsafeDetails> for UnsafeDetails {
+    type Output = UnsafeDetails;
+
+    fn add(self, rhs: UnsafeDetails) -> UnsafeDetails {
+        UnsafeDetails {
+            functions: self.functions + rhs.functions,
+            expressions: self.expressions + rhs.expressions,
+            impls: self.impls + rhs.expressions,
+            traits: self.traits + rhs.traits,
+            methods: self.methods + rhs.methods,
+        }
+    }
 }
 
 pub struct CodeAnalyzer {
@@ -122,7 +148,7 @@ impl CodeAnalyzer {
         // TODO: How to avoid multiple calls for Cargo Geiger and run only once?
         self.get_cargo_geiger_report_for_workspace(package_paths)?;
 
-        // Get direct dependencies
+        // Get direct dependencies of the whole workspace
         let direct_dependencies: Vec<PackageMetadata> = graph
             .query_workspace()
             .resolve_with_fn(|_, link| {
@@ -138,12 +164,8 @@ impl CodeAnalyzer {
             let unsafe_report =
                 self.get_unsafe_report(package.name().to_string(), package.version().to_string());
 
-            let dependencies: Vec<PackageMetadata> = graph
-                .query_forward(iter::once(package.id()))?
-                .resolve()
-                .packages(DependencyDirection::Forward)
-                .filter(|pkg| pkg.id() != package.id())
-                .collect();
+            // Dependencies of this package, i.e., subtree under this package
+            let dependencies = self.get_package_dependencies(&graph, &package)?;
             let dep_report = self.get_dep_report(dependencies)?;
 
             let code_report = CodeReport {
@@ -162,22 +184,41 @@ impl CodeAnalyzer {
         Ok(code_reports)
     }
 
+    pub fn get_package_dependencies<'a>(
+        &self,
+        graph: &'a PackageGraph,
+        package: &PackageMetadata,
+    ) -> Result<Vec<PackageMetadata<'a>>> {
+        let dependencies: Vec<PackageMetadata> = graph
+            .query_forward(iter::once(package.id()))?
+            .resolve()
+            .packages(DependencyDirection::Forward)
+            .filter(|pkg| pkg.id() != package.id())
+            .collect();
+        Ok(dependencies)
+    }
+
     fn get_dep_report(&self, dependencies: Vec<PackageMetadata>) -> Result<DepReport> {
         let total_deps = dependencies.len() as u64;
-        let mut deps_total_loc = 0;
-        let mut deps_rust_loc = 0;
+        let mut deps_total_loc_report = LOCReport {
+            ..Default::default()
+        };
+        let mut deps_analyzed_for_unsafe = 0;
         let mut deps_forbidding_unsafe = 0;
         let mut deps_using_unsafe = 0;
         let mut deps_with_build_script = 0;
+        let mut deps_total_used_unsafe_details = UnsafeDetails {
+            ..Default::default()
+        };
 
         for package in &dependencies {
             let loc_report = self.get_loc_report(package.manifest_path())?;
-            deps_total_loc += loc_report.total_loc;
-            deps_rust_loc += loc_report.rust_loc;
+            deps_total_loc_report = deps_total_loc_report + loc_report;
 
             let unsafe_report =
                 self.get_unsafe_report(package.name().to_string(), package.version().to_string());
             if !unsafe_report.is_none() {
+                deps_analyzed_for_unsafe += 1;
                 let unsafe_report = unsafe_report.unwrap();
                 if unsafe_report.forbids_unsafe {
                     deps_forbidding_unsafe += 1;
@@ -186,6 +227,8 @@ impl CodeAnalyzer {
                         deps_using_unsafe += 1;
                     }
                 }
+                deps_total_used_unsafe_details =
+                    deps_total_used_unsafe_details + unsafe_report.used_unsafe_count;
             }
 
             if package.has_build_script() {
@@ -195,11 +238,12 @@ impl CodeAnalyzer {
 
         Ok(DepReport {
             total_deps,
-            deps_total_loc,
-            deps_rust_loc,
+            deps_total_loc_report,
+            deps_with_build_script,
+            deps_analyzed_for_unsafe,
             deps_forbidding_unsafe,
             deps_using_unsafe,
-            deps_with_build_script,
+            deps_total_used_unsafe_details,
         })
     }
 
@@ -391,9 +435,12 @@ mod test {
             .collect();
         let report = code_analyzer.get_dep_report(dependencies).unwrap();
 
+        println!("{:?}", report);
+
         assert!(report.total_deps > 0);
-        assert!(report.deps_total_loc > 0);
-        assert!(report.deps_rust_loc > 0);
+        assert!(report.deps_total_loc_report.total_loc > 0);
+        assert!(report.deps_total_loc_report.rust_loc > 0);
+        // No unsafe report at this test, as geiger cache would remain empty here
     }
 
     #[test]
@@ -444,5 +491,23 @@ mod test {
             code_analyzer.geiger_cache.borrow().len()
         );
         assert!(code_analyzer.geiger_cache.borrow().len() > 0);
+    }
+
+    #[test]
+    #[ignore]
+    fn test_code_operator_overloading_for() {
+        let unsafe_details = UnsafeDetails {
+            functions: 1,
+            expressions: 1,
+            impls: 1,
+            traits: 1,
+            methods: 1,
+        };
+
+        let sum = unsafe_details.clone() + unsafe_details.clone();
+        assert_eq!(
+            sum.functions,
+            unsafe_details.functions + unsafe_details.functions
+        );
     }
 }
