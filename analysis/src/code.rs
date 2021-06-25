@@ -2,9 +2,15 @@
 
 use anyhow::{anyhow, Result};
 use camino::Utf8Path;
-use guppy::graph::{DependencyDirection, PackageGraph, PackageMetadata};
+use guppy::{
+    graph::{DependencyDirection, PackageGraph, PackageMetadata},
+    PackageId,
+};
 use serde::{Deserialize, Serialize};
-use std::{cell::RefCell, collections::HashMap, fs, iter, ops, path::PathBuf, process::Command};
+use std::{
+    cell::RefCell, collections::HashMap, collections::HashSet, fs, iter, iter::FromIterator, ops,
+    path::PathBuf, process::Command,
+};
 use tokei::{Config, LanguageType, Languages};
 
 #[derive(Debug, Clone)]
@@ -16,6 +22,7 @@ pub struct CodeReport {
     pub loc_report: Option<LOCReport>,
     pub unsafe_report: Option<UnsafeReport>,
     pub dep_report: Option<DepReport>,
+    pub exclusive_dep_report: Option<DepReport>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
@@ -164,9 +171,13 @@ impl CodeAnalyzer {
             let unsafe_report =
                 self.get_unsafe_report(package.name().to_string(), package.version().to_string());
 
-            // Dependencies of this package, i.e., subtree under this package
+            //All dependencies of this package
             let dependencies = self.get_package_dependencies(&graph, &package)?;
-            let dep_report = self.get_dep_report(dependencies)?;
+            let dep_report = self.get_dep_report(&dependencies)?;
+
+            //Exclusive deps from this package
+            let exclusive_dependencies = self.filter_exclusive_deps(package, &dependencies);
+            let exclusive_dep_report = self.get_dep_report(&exclusive_dependencies)?;
 
             let code_report = CodeReport {
                 name: package.name().to_string(),
@@ -176,6 +187,7 @@ impl CodeAnalyzer {
                 loc_report: Some(loc_report),
                 unsafe_report: unsafe_report,
                 dep_report: Some(dep_report),
+                exclusive_dep_report: Some(exclusive_dep_report),
             };
 
             code_reports.push(code_report);
@@ -198,7 +210,41 @@ impl CodeAnalyzer {
         Ok(dependencies)
     }
 
-    fn get_dep_report(&self, dependencies: Vec<PackageMetadata>) -> Result<DepReport> {
+    pub fn filter_exclusive_deps<'a>(
+        &self,
+        package: &'a PackageMetadata,
+        pacakge_dependencies: &Vec<PackageMetadata<'a>>,
+    ) -> Vec<PackageMetadata<'a>> {
+        // HashSet for quick lookup in dependency subtree
+        let mut package_deps: HashSet<&PackageId> =
+            HashSet::from_iter(pacakge_dependencies.iter().map(|dep| dep.id()));
+        // Add root to the tree
+        package_deps.insert(package.id());
+
+        // Keep track of non-exclusive deps
+        let mut common_deps: HashSet<&PackageId> = HashSet::new();
+        // and exclusive ones for
+        let mut exclusive_deps: HashMap<&PackageId, PackageMetadata> = HashMap::new();
+
+        for dep in pacakge_dependencies {
+            let mut unique = true;
+            for link in dep.reverse_direct_links() {
+                let from_id = link.from().id();
+                if !package_deps.contains(from_id) || common_deps.contains(from_id) {
+                    unique = false;
+                    common_deps.insert(dep.id());
+                    break;
+                }
+            }
+            if unique {
+                exclusive_deps.insert(dep.id(), *dep);
+            }
+        }
+
+        exclusive_deps.values().cloned().collect()
+    }
+
+    fn get_dep_report(&self, dependencies: &Vec<PackageMetadata>) -> Result<DepReport> {
         let total_deps = dependencies.len() as u64;
         let mut deps_total_loc_report = LOCReport {
             ..Default::default()
@@ -211,7 +257,7 @@ impl CodeAnalyzer {
             ..Default::default()
         };
 
-        for package in &dependencies {
+        for package in dependencies {
             let loc_report = self.get_loc_report(package.manifest_path())?;
             deps_total_loc_report = deps_total_loc_report + loc_report;
 
@@ -426,17 +472,12 @@ mod test {
         let graph = get_test_graph();
         let code_analyzer = get_test_code_analyzer();
         let package = graph.packages().find(|p| p.name() == "octocrab").unwrap();
-        let dependencies: Vec<PackageMetadata> = graph
-            .query_forward(iter::once(package.id()))
-            .unwrap()
-            .resolve()
-            .packages(DependencyDirection::Forward)
-            .filter(|pkg| pkg.id() != package.id())
-            .collect();
-        let report = code_analyzer.get_dep_report(dependencies).unwrap();
+        let dependencies = code_analyzer
+            .get_package_dependencies(&graph, &package)
+            .unwrap();
+        let report = code_analyzer.get_dep_report(&dependencies).unwrap();
 
         println!("{:?}", report);
-
         assert!(report.total_deps > 0);
         assert!(report.deps_total_loc_report.total_loc > 0);
         assert!(report.deps_total_loc_report.rust_loc > 0);
@@ -509,5 +550,18 @@ mod test {
             sum.functions,
             unsafe_details.functions + unsafe_details.functions
         );
+    }
+
+    #[test]
+    fn test_code_exclusive_deps() {
+        let graph = get_test_graph();
+        let code_analyzer = get_test_code_analyzer();
+        let package = graph.packages().find(|p| p.name() == "gitlab").unwrap();
+        let dependencies = code_analyzer
+            .get_package_dependencies(&graph, &package)
+            .unwrap();
+        let exclusive_deps = code_analyzer.filter_exclusive_deps(&package, &dependencies);
+        // Checked by hand that it returns the right count :)
+        println!("{}", exclusive_deps.len());
     }
 }
