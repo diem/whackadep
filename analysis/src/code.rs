@@ -213,7 +213,7 @@ impl CodeAnalyzer {
     pub fn filter_exclusive_deps<'a>(
         &self,
         package: &'a PackageMetadata,
-        pacakge_dependencies: &Vec<PackageMetadata<'a>>,
+        pacakge_dependencies: &[PackageMetadata<'a>],
     ) -> Vec<PackageMetadata<'a>> {
         // HashSet for quick lookup in dependency subtree
         let mut package_deps: HashSet<&PackageId> =
@@ -244,18 +244,14 @@ impl CodeAnalyzer {
         exclusive_deps.values().cloned().collect()
     }
 
-    fn get_dep_report(&self, dependencies: &Vec<PackageMetadata>) -> Result<DepReport> {
+    fn get_dep_report(&self, dependencies: &[PackageMetadata]) -> Result<DepReport> {
         let total_deps = dependencies.len() as u64;
-        let mut deps_total_loc_report = LOCReport {
-            ..Default::default()
-        };
+        let mut deps_total_loc_report = LOCReport::default();
         let mut deps_analyzed_for_unsafe = 0;
         let mut deps_forbidding_unsafe = 0;
         let mut deps_using_unsafe = 0;
         let mut deps_with_build_script = 0;
-        let mut deps_total_used_unsafe_details = UnsafeDetails {
-            ..Default::default()
-        };
+        let mut deps_total_used_unsafe_details = UnsafeDetails::default();
 
         for package in dependencies {
             let loc_report = self.get_loc_report(package.manifest_path())?;
@@ -432,6 +428,7 @@ impl CodeAnalyzer {
 #[cfg(test)]
 mod test {
     use super::*;
+    use guppy::CargoMetadata;
     use guppy::{graph::PackageGraph, MetadataCommand};
     use serial_test::serial;
     use std::path::PathBuf;
@@ -535,8 +532,7 @@ mod test {
     }
 
     #[test]
-    #[ignore]
-    fn test_code_operator_overloading_for() {
+    fn test_code_operator_overloading() {
         let unsafe_details = UnsafeDetails {
             functions: 1,
             expressions: 1,
@@ -544,24 +540,56 @@ mod test {
             traits: 1,
             methods: 1,
         };
-
         let sum = unsafe_details.clone() + unsafe_details.clone();
         assert_eq!(
             sum.functions,
             unsafe_details.functions + unsafe_details.functions
         );
+
+        let loc_report = LOCReport {
+            total_loc: 1,
+            rust_loc: 1,
+        };
+        let sum = loc_report.clone() + loc_report.clone();
+        assert_eq!(sum.total_loc, loc_report.total_loc + loc_report.total_loc);
     }
 
     #[test]
     fn test_code_exclusive_deps() {
-        let graph = get_test_graph();
+        let metadata = CargoMetadata::parse_json(include_str!(
+            "../resources/test/exclusive_dep_cargo_metadata.json"
+        ))
+        .unwrap();
+        let graph = metadata.build_graph().unwrap();
         let code_analyzer = get_test_code_analyzer();
+        let total_dependencies: Vec<_> = graph
+            .query_workspace()
+            .resolve_with_fn(|_, link| !link.to().in_workspace())
+            .packages(guppy::graph::DependencyDirection::Forward)
+            .filter(|pkg| !pkg.in_workspace())
+            .collect();
+        let total_dependencies = total_dependencies.len();
+
         let package = graph.packages().find(|p| p.name() == "gitlab").unwrap();
         let dependencies = code_analyzer
             .get_package_dependencies(&graph, &package)
             .unwrap();
-        let exclusive_deps = code_analyzer.filter_exclusive_deps(&package, &dependencies);
-        // Checked by hand that it returns the right count :)
-        println!("{}", exclusive_deps.len());
+        let gitlab_exclusive_deps = code_analyzer
+            .filter_exclusive_deps(&package, &dependencies)
+            .len();
+        let common_deps = dependencies.len() - gitlab_exclusive_deps;
+
+        let package = graph.packages().find(|p| p.name() == "octocrab").unwrap();
+        let dependencies = code_analyzer
+            .get_package_dependencies(&graph, &package)
+            .unwrap();
+        let octocrab_exclusive_deps = code_analyzer
+            .filter_exclusive_deps(&package, &dependencies)
+            .len();
+
+        assert_eq!(
+            total_dependencies,
+            common_deps + gitlab_exclusive_deps + octocrab_exclusive_deps + 2
+        );
     }
 }
