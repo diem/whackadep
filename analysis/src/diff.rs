@@ -74,6 +74,8 @@ impl DiffAnalyzer {
 
         //Setup a git repository for crates.io hosted source code
         let crate_source_path = self.get_cratesio_version(&name, &version)?;
+        let crate_repo = self.init_git(&crate_source_path)?;
+        let crate_repo_head = crate_repo.head()?.peel_to_commit()?;
 
         // Get commit for the version release in the git source
         let git_repo = self.get_git_repo(&name, &repository)?;
@@ -232,6 +234,28 @@ impl DiffAnalyzer {
         // If still failed to determine a single commit hash, return None
         Ok(None)
     }
+
+    fn init_git(&self, path: &Path) -> Result<Repository> {
+        // initiates a git repository in the path
+        let repo = Repository::init(path)?;
+
+        // add and commit existing files
+        let mut index = repo.index()?;
+        index.add_all(["*"].iter(), IndexAddOption::DEFAULT, None)?;
+        let oid = index.write_tree()?;
+        let signature = Signature::now("user", "email@domain.com")?;
+        let tree = repo.find_tree(oid)?;
+        repo.commit(
+            Some("HEAD"),     // point HEAD to new commit
+            &signature,       // author
+            &signature,       // committer
+            "initial commit", // commit message
+            &tree,            // tree
+            &[],              // initial commit
+        )?;
+
+        Ok(Repository::open(path)?)
+    }
 }
 
 #[cfg(test)]
@@ -285,6 +309,10 @@ mod test {
         let version = "0.2.97";
         let path = diff_analyzer.get_cratesio_version(&name, &version).unwrap();
         assert_eq!(path.exists(), true);
+
+        let repo = diff_analyzer.init_git(&path).unwrap();
+        assert_eq!(repo.path().exists(), true);
+        let commit = repo.head().unwrap().peel_to_commit().unwrap();
     }
 
     #[test]
