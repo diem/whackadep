@@ -76,6 +76,7 @@ impl DiffAnalyzer {
         let crate_source_path = self.get_cratesio_version(&name, &version)?;
         let crate_repo = self.init_git(&crate_source_path)?;
         let crate_repo_head = crate_repo.head()?.peel_to_commit()?;
+        let cratesio_tree = crate_repo_head.tree()?;
 
         // Get commit for the version release in the git source
         let git_repo = self.get_git_repo(&name, &repository)?;
@@ -130,8 +131,28 @@ impl DiffAnalyzer {
         let crate_git_tree =
             self.get_subdirectory_tree(&crate_repo, &crate_git_tree, &toml_path)?;
 
-        Ok(CrateSourceDiffReport {
-            ..Default::default()
+        let diff = crate_repo.diff_tree_to_tree(
+            Some(&crate_git_tree),
+            Some(&cratesio_tree),
+            Some(&mut DiffOptions::new()),
+        )?;
+
+        self.display_diff(&diff)?; // Displaying primarily for testing
+
+        let file_diff_stats = self.get_crate_source_file_diff_report(&diff)?;
+
+        Ok({
+            CrateSourceDiffReport {
+                name,
+                version,
+                release_commit_found: Some(true),
+                release_commit_analyzed: Some(true),
+                // Ignoring files from source not included in crates.io, possibly ignored
+                is_different: Some(
+                    file_diff_stats.files_added > 0 || file_diff_stats.files_modified > 0,
+                ),
+                file_diff_stats: Some(file_diff_stats),
+            }
         })
     }
 
@@ -353,6 +374,72 @@ impl DiffAnalyzer {
         let tree = repo.find_tree(tree)?;
         Ok(tree)
     }
+
+    fn display_diff(&self, diff: &Diff) -> Result<()> {
+        let stats = diff.stats()?;
+        let mut format = git2::DiffStatsFormat::NONE;
+        format |= git2::DiffStatsFormat::FULL;
+        let buf = stats.to_buf(format, 80)?;
+        print!(
+            "difference between crates.io and source is:\n {}",
+            std::str::from_utf8(&*buf).unwrap()
+        );
+
+        Ok(())
+    }
+
+    fn get_crate_source_file_diff_report(&self, diff: &Diff) -> Result<FileDiffStats> {
+        let mut files_added = 0;
+        let mut files_modified = 0;
+        let mut files_deleted = 0;
+
+        // Ignore below files as they are changed whenever publishing to crates.io
+        // TODO: compare Cargo.toml.orig in crates.io with Cargo.toml in git
+        let ignore_paths: HashSet<PathBuf> = vec![
+            ".cargo_vcs_info.json",
+            "Cargo.toml",
+            "Cargo.toml.orig",
+            "Cargo.lock",
+        ]
+        .into_iter()
+        .map(|path| PathBuf::from(path))
+        .collect();
+
+        for diff_delta in diff.deltas() {
+            if ignore_paths.contains(
+                diff_delta
+                    .new_file()
+                    .path()
+                    .ok_or_else(|| anyhow!("no new file path for {:?}", diff_delta))?,
+            ) {
+                continue;
+            }
+
+            // TODO: Many times files like README are added/modified
+            // by having only a single line in crates.io and deleting original contents
+            // Also, we need to distinguish non source-code file here
+            // to avoid noise in warning
+            match diff_delta.status() {
+                Delta::Added => {
+                    files_added += diff_delta.nfiles() as u64;
+                }
+                Delta::Modified => {
+                    // modification counts modified file as 2 files
+                    files_modified += (diff_delta.nfiles() / 2) as u64;
+                }
+                Delta::Deleted => {
+                    files_deleted += diff_delta.nfiles() as u64;
+                }
+                _ => (),
+            }
+        }
+
+        Ok(FileDiffStats {
+            files_added,
+            files_modified,
+            files_deleted,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -409,7 +496,8 @@ mod test {
 
         let repo = diff_analyzer.init_git(&path).unwrap();
         assert_eq!(repo.path().exists(), true);
-        let commit = repo.head().unwrap().peel_to_commit().unwrap();
+        let commit = repo.head().unwrap().peel_to_commit();
+        assert_eq!(commit.is_ok(), true);
 
         // Add git repo as a remote to crate repo
         let url = "https://github.com/rust-lang/libc";
@@ -513,5 +601,26 @@ mod test {
             .unwrap();
         assert_ne!(tree.id(), subdirectory_tree.id());
         // TODO: test that subdir tree doesn't have files from cargo-guppy
+    }
+
+    #[test]
+    fn test_diff_crate_source_diff_analyzer() {
+        let graph = get_test_graph();
+        for package in graph.packages() {
+            if package.name() == "guppy" || package.name() == "octocrab" {
+                println!("testing {}, {}", package.name(), package.version());
+                let diff_analyzer = get_test_diff_analyzer();
+                let report = diff_analyzer.analyze_crate_source_diff(&package).unwrap();
+                if report.release_commit_found.is_none()
+                    || !report.release_commit_found.unwrap()
+                    || !report.release_commit_analyzed.unwrap()
+                {
+                    continue;
+                }
+
+                assert_eq!(report.file_diff_stats.is_none(), false);
+                println!("{:?}", report);
+            }
+        }
     }
 }
