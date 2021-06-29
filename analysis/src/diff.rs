@@ -1,23 +1,25 @@
 //! This module abstracts diff analysis between code versions
 
 use anyhow::{anyhow, Result};
-use guppy::graph::PackageMetadata;
-use reqwest::blocking::Client;
-use serde::{Deserialize, Serialize};
-use std::str::FromStr;
-use std::{
-    io::copy,
-    path::{Path, PathBuf},
-    fs::{read_dir, DirEntry, File},
-};
-use tempfile::{tempdir, TempDir};
-use url::Url;
+use flate2::read::GzDecoder;
 use git2::{
     AutotagOption, Delta, Diff, DiffOptions, Direction, FetchOptions, IndexAddOption, Oid,
     Repository, Signature, Tree,
 };
-use flate2::read::GzDecoder;
+use guppy::graph::PackageMetadata;
+use regex::Regex;
+use reqwest::blocking::Client;
+use serde::{Deserialize, Serialize};
+use std::str::FromStr;
+use std::{
+    collections::{HashMap, HashSet},
+    fs::{read_dir, DirEntry, File},
+    io::copy,
+    path::{Path, PathBuf},
+};
 use tar::Archive;
+use tempfile::{tempdir, TempDir};
+use url::Url;
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct CrateSourceDiffReport {
@@ -75,6 +77,18 @@ impl DiffAnalyzer {
 
         // Get commit for the version release in the git source
         let git_repo = self.get_git_repo(&name, &repository)?;
+        let head_commit_oid =
+            match self.get_head_commit_oid_for_version(&git_repo, &name, &version)? {
+                Some(commit) => commit,
+                None => {
+                    return Ok(CrateSourceDiffReport {
+                        name,
+                        version,
+                        release_commit_found: Some(false),
+                        ..Default::default()
+                    });
+                }
+            };
 
         Ok(CrateSourceDiffReport {
             ..Default::default()
@@ -160,6 +174,64 @@ impl DiffAnalyzer {
         archive.unpack(dest_path)?;
         Ok(())
     }
+
+    fn get_head_commit_oid_for_version(
+        &self,
+        repo: &Repository,
+        name: &str,
+        version: &str,
+    ) -> Result<Option<Oid>> {
+        // Get candidate tags with a heuristic that tag will end with the version string
+        let pattern = format!("*{}", version);
+        let candidate_tags = repo.tag_names(Some(&pattern))?;
+
+        let mut hm: HashMap<&str, Oid> = HashMap::new();
+        for tag in candidate_tags.iter() {
+            let tag = tag.ok_or_else(|| anyhow!("Error in fetching tags"))?;
+            let commit = repo.revparse_single(tag)?.peel_to_commit()?;
+            hm.insert(tag, commit.id());
+        }
+
+        // Now we check through a series of heuristics if tag matches a version
+        let version_formatted_for_regex = version.replace(".", "\\.");
+        let patterns = [
+            // 1. Ensure the version part does not follow any digit between 1-9,
+            // e.g., to distinguish betn 0.1.8 vs 10.1.8
+            format!(r"^(?:.*[^1-9])?{}$", version_formatted_for_regex),
+            // 2. If still more than one candidate,
+            // check the extistence of crate name
+            format!(r"^.*{}(?:.*[^1-9])?{}$", name, version_formatted_for_regex),
+            // 3. check if  and only if crate name and version string is present
+            // besides non-alphanumeric, e.g., to distinguish guppy vs guppy-summaries
+            format!(r"^.*{}\W*{}$", name, version_formatted_for_regex),
+        ];
+
+        for pattern in &patterns {
+            let re = Regex::new(&pattern)?;
+
+            // drain filter hashmap if tag matches the pattern
+            let mut candidate_tags: Vec<&str> = Vec::new();
+            for (tag, _oid) in hm.iter() {
+                if !re.is_match(tag) {
+                    candidate_tags.push(tag);
+                }
+            }
+            for tag in candidate_tags {
+                hm.remove(tag);
+            }
+
+            // multiple tags can point to the same commit
+            let unique_commits: HashSet<Oid> = hm.values().cloned().collect();
+            if unique_commits.len() == 1 {
+                return Ok(Some(*unique_commits.iter().next().unwrap()));
+            }
+        }
+
+        // TODO: add checking of changes in Cargo.toml file for a deterministic evaluation
+
+        // If still failed to determine a single commit hash, return None
+        Ok(None)
+    }
 }
 
 #[cfg(test)]
@@ -224,5 +296,54 @@ mod test {
         assert_eq!(repo.workdir().is_none(), false);
         assert_eq!(repo.path().exists(), true);
         // TODO add tests for non-git repos
+    }
+
+    #[test]
+    fn test_diff_head_commit_oid_for_version() {
+        let diff_analyzer = get_test_diff_analyzer();
+
+        let name = "tomcat";
+        let url = "https://github.com/apache/tomcat";
+        let repo = diff_analyzer.get_git_repo(&name, url).unwrap();
+        let oid = diff_analyzer
+            .get_head_commit_oid_for_version(&repo, &name, "0.0.8")
+            .unwrap();
+        assert_eq!(oid.is_none(), true);
+        let oid = diff_analyzer
+            .get_head_commit_oid_for_version(&repo, &name, "10.0.8")
+            .unwrap();
+        assert_eq!(
+            oid.unwrap(),
+            Oid::from_str("64520a63e23437b4e92db42bfc70a20d1f9e79c4").unwrap()
+        );
+        let oid = diff_analyzer
+            .get_head_commit_oid_for_version(&repo, &name, "10.0.8-")
+            .unwrap();
+        assert_eq!(oid.is_none(), true);
+
+        let name = "cargo-guppy";
+        let url = "https://github.com/facebookincubator/cargo-guppy";
+        let repo = diff_analyzer.get_git_repo(&name, url).unwrap();
+        let oid = diff_analyzer
+            .get_head_commit_oid_for_version(&repo, "hakari", "0.3.0")
+            .unwrap();
+        assert_eq!(
+            oid.unwrap(),
+            Oid::from_str("fe61a8b85feab1963ee1985bf0e4791fdd354aa5").unwrap()
+        );
+        let oid = diff_analyzer
+            .get_head_commit_oid_for_version(&repo, "guppy", "0.3.0")
+            .unwrap();
+        assert_eq!(
+            oid.unwrap(),
+            Oid::from_str("9fd47f429f7453938279ecbe8b3f1dd077d655fa").unwrap()
+        );
+        let oid = diff_analyzer
+            .get_head_commit_oid_for_version(&repo, "guppy-summaries", "0.3.0")
+            .unwrap();
+        assert_eq!(
+            oid.unwrap(),
+            Oid::from_str("7a2c65e6f9fbcd008b240d8574fe7057291caa06").unwrap()
+        );
     }
 }
