@@ -92,6 +92,9 @@ impl DiffAnalyzer {
                 }
             };
 
+        // Add git repo as a remote to crate repo
+        self.setup_remote(&crate_repo, &repository, &head_commit_oid.to_string())?;
+
         Ok(CrateSourceDiffReport {
             ..Default::default()
         })
@@ -256,6 +259,28 @@ impl DiffAnalyzer {
 
         Ok(Repository::open(path)?)
     }
+
+    fn setup_remote(&self, repo: &Repository, url: &str, fetch_commit: &str) -> Result<()> {
+        // Connect to remote
+        let remote_name = "source";
+        let mut remote = repo.remote(remote_name, url)?;
+        remote.connect(Direction::Fetch)?;
+
+        // Get default branch
+        let default = remote.default_branch()?;
+        let default = default
+            .as_str()
+            .ok_or_else(|| anyhow!("No default branch found"))?;
+
+        // Fetch all tags
+        let mut fetch_options = FetchOptions::new();
+        fetch_options.download_tags(AutotagOption::All);
+
+        // Fetch data
+        remote.fetch(&[default, fetch_commit], Some(&mut fetch_options), None)?;
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -313,6 +338,13 @@ mod test {
         let repo = diff_analyzer.init_git(&path).unwrap();
         assert_eq!(repo.path().exists(), true);
         let commit = repo.head().unwrap().peel_to_commit().unwrap();
+
+        // Add git repo as a remote to crate repo
+        let url = "https://github.com/rust-lang/libc";
+        let fetch_commit = "1c66799b7b8b82269c6bff0eab97d1a30e37fd36";
+        diff_analyzer
+            .setup_remote(&repo, url, fetch_commit)
+            .unwrap();
     }
 
     #[test]
