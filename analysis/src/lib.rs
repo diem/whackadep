@@ -6,6 +6,7 @@ use tabled::Tabled;
 
 mod code;
 mod cratesio;
+mod diff;
 mod github;
 
 #[derive(Tabled)]
@@ -43,6 +44,9 @@ impl DependencyAnalyzer {
         // GitHub API analysis
         let github_report = github::GitHubAnalyzer::new()?;
         let github_report = github_report.analyze_github(package)?;
+
+        let crate_source_report = diff::DiffAnalyzer::new()?;
+        let crate_source_report = crate_source_report.analyze_crate_source_diff(package)?;
 
         let dependency_report = DependencyReport {
             name,

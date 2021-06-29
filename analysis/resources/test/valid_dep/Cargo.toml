@@ -10,5 +10,6 @@ edition = "2018"
 libc = "0.2.97"
 gitlab = "0.1312.0"
 octocrab = "0.9.1"
+guppy = "0.8.0"
 
 [workspace]
