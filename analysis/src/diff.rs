@@ -6,7 +6,7 @@ use git2::{
     AutotagOption, Delta, Diff, DiffOptions, Direction, FetchOptions, IndexAddOption, Oid,
     Repository, Signature, Tree,
 };
-use guppy::graph::PackageMetadata;
+use guppy::{graph::PackageMetadata, MetadataCommand};
 use regex::Regex;
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
@@ -94,6 +94,41 @@ impl DiffAnalyzer {
 
         // Add git repo as a remote to crate repo
         self.setup_remote(&crate_repo, &repository, &head_commit_oid.to_string())?;
+
+        // At this point, crate_repo contains crate.io hosted source with a single commit
+        //                and git source as a remote
+        // Therefore, we can get diff between crate_repo master and any remote commit
+
+        // Get release version commit within crate repo
+        let git_version_commit = crate_repo.find_commit(head_commit_oid)?;
+        let crate_git_tree = git_version_commit.tree()?;
+
+        // Get the tree for the crate directory path
+        // e.g., when a repository contains multiple crates
+        git_repo.checkout_tree(
+            git_repo.find_commit(head_commit_oid)?.tree()?.as_object(),
+            None,
+        )?;
+        let toml_path = match self.locate_package_toml(&git_repo, &name) {
+            Ok(path) => path,
+            // Possible error is that the past version of the given commit had different crate name
+            // e.g., form_urlencoded 1.0.1 was percent encoding
+            // Or, guppy failed to build a graph at the specfied commit,
+            Err(_e) => {
+                return Ok(CrateSourceDiffReport {
+                    name,
+                    version,
+                    release_commit_found: Some(true),
+                    release_commit_analyzed: Some(false),
+                    ..Default::default()
+                });
+            }
+        };
+        let toml_path = toml_path
+            .parent()
+            .ok_or_else(|| anyhow!("Fatal: toml path returned as root"))?;
+        let crate_git_tree =
+            self.get_subdirectory_tree(&crate_repo, &crate_git_tree, &toml_path)?;
 
         Ok(CrateSourceDiffReport {
             ..Default::default()
@@ -281,6 +316,43 @@ impl DiffAnalyzer {
 
         Ok(())
     }
+
+    fn locate_package_toml(&self, repo: &Repository, name: &str) -> Result<PathBuf> {
+        // The repository may or may not contain multiple crates
+        // Given a crate name and its repository
+        // This function returns the path to Cargo.toml for the given crate
+
+        let path = repo
+            .path()
+            .parent()
+            .ok_or_else(|| anyhow!("Fatal: .git file has no parent"))?;
+
+        // TODO: Why would guppy fail to build a graph?
+        // e,g, for combine 3.8.1, guppy fails
+        let graph = MetadataCommand::new().current_dir(path).build_graph()?;
+
+        // Get crate path relative to the repository
+        let member = graph.workspace().member_by_name(name)?;
+        let toml_path = member.manifest_path();
+        let path = toml_path.strip_prefix(path)?;
+
+        Ok(PathBuf::from(path))
+    }
+
+    fn get_subdirectory_tree<'a>(
+        &self,
+        repo: &'a Repository,
+        tree: &'a Tree,
+        path: &Path,
+    ) -> Result<Tree<'a>> {
+        if path.file_name().is_none() {
+            // Root of the repository path marked by an empty string
+            return Ok(tree.clone());
+        }
+        let tree = tree.get_path(path)?.to_object(&repo)?.id();
+        let tree = repo.find_tree(tree)?;
+        Ok(tree)
+    }
 }
 
 #[cfg(test)]
@@ -405,5 +477,41 @@ mod test {
             oid.unwrap(),
             Oid::from_str("7a2c65e6f9fbcd008b240d8574fe7057291caa06").unwrap()
         );
+    }
+
+    #[test]
+    fn test_diff_locate_cargo_toml() {
+        let diff_analyzer = get_test_diff_analyzer();
+        let name = "guppy";
+        let url = "https://github.com/facebookincubator/cargo-guppy";
+        let repo = diff_analyzer.get_git_repo(&name, url).unwrap();
+        let path = diff_analyzer.locate_package_toml(&repo, name).unwrap();
+        assert_eq!("guppy/Cargo.toml", path.to_str().unwrap());
+
+        let diff_analyzer = get_test_diff_analyzer();
+        let name = "octocrab";
+        let url = "https://github.com/XAMPPRocky/octocrab";
+        let repo = diff_analyzer.get_git_repo(&name, url).unwrap();
+        let path = diff_analyzer.locate_package_toml(&repo, name).unwrap();
+        assert_eq!("Cargo.toml", path.to_str().unwrap());
+    }
+
+    #[test]
+    fn test_diff_get_subdirectory_tree() {
+        let diff_analyzer = get_test_diff_analyzer();
+        let name = "guppy";
+        let url = "https://github.com/facebookincubator/cargo-guppy";
+        let repo = diff_analyzer.get_git_repo(&name, url).unwrap();
+        let tree = repo
+            .find_commit(Oid::from_str("dc6dcc151821e787ac02379bcd0319b26c962f55").unwrap())
+            .unwrap()
+            .tree()
+            .unwrap();
+        let path = PathBuf::from("guppy");
+        let subdirectory_tree = diff_analyzer
+            .get_subdirectory_tree(&repo, &tree, &path)
+            .unwrap();
+        assert_ne!(tree.id(), subdirectory_tree.id());
+        // TODO: test that subdir tree doesn't have files from cargo-guppy
     }
 }
