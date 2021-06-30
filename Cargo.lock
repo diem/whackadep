@@ -359,7 +359,7 @@ dependencies = [
  "atty",
  "bitflags",
  "strsim 0.8.0",
- "textwrap 0.11.0",
+ "textwrap",
  "unicode-width",
  "vec_map",
 ]
@@ -1845,11 +1845,11 @@ dependencies = [
 
 [[package]]
 name = "papergrid"
-version = "0.1.13"
+version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8a7c69a5b4fd2092608ecd8c786a5d33575ee777df7aad4928b3e6c683821ae"
+checksum = "78ca46bbfa9e734c7bfd8c651d0f651fb487a8dba24398c9b75d0ff4c24cd9ab"
 dependencies = [
- "textwrap 0.13.4",
+ "unicode-width",
 ]
 
 [[package]]
@@ -2731,12 +2731,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "smawk"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f67ad224767faa3c7d8b6d91985b78e70a1324408abcb1cfcc2be4c06bc06043"
-
-[[package]]
 name = "smol_str"
 version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2856,9 +2850,9 @@ dependencies = [
 
 [[package]]
 name = "tabled"
-version = "0.1.4"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c902009334b16d196d54b9329d141cb5709ebf47ef7310feeb6636edf4f2875"
+checksum = "52de73e877d42cb0a309562fbde7a18047328dd8d905d68ae94a3f937fdb590c"
 dependencies = [
  "papergrid",
  "tabled_derive",
@@ -2866,9 +2860,9 @@ dependencies = [
 
 [[package]]
 name = "tabled_derive"
-version = "0.1.5"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6c7048f9e0acb78c2bbc3bffcc296acf3f4142ea149101f8e6821b970c78c72"
+checksum = "121d5fb24dd75f15c79da0340d7a75b5519b21c243f9f2791a971c9789750a98"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2963,16 +2957,6 @@ version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d326610f408c7a4eb6f51c37c330e496b08506c9457c9d34287ecc38809fb060"
 dependencies = [
- "unicode-width",
-]
-
-[[package]]
-name = "textwrap"
-version = "0.13.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd05616119e612a8041ef58f2b578906cc2531a6069047ae092cfb86a325d835"
-dependencies = [
- "smawk",
  "unicode-width",
 ]
 
