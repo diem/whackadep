@@ -15,7 +15,7 @@ pub struct CratesioReport {
     pub name: String,
     pub is_hosted: bool,
     pub downloads: u64,
-    pub dependents: u64,
+    pub dependents: u64, // Direct dependents
 }
 
 pub struct CratesioAnalyzer {

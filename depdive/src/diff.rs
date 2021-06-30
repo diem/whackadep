@@ -137,7 +137,8 @@ impl DiffAnalyzer {
             Some(&mut DiffOptions::new()),
         )?;
 
-        self.display_diff(&diff)?; // Displaying primarily for testing
+        // Uncomment while testing
+        // self.display_diff(&diff)?;
 
         let file_diff_stats = self.get_crate_source_file_diff_report(&diff)?;
 
@@ -375,18 +376,18 @@ impl DiffAnalyzer {
         Ok(tree)
     }
 
-    fn display_diff(&self, diff: &Diff) -> Result<()> {
-        let stats = diff.stats()?;
-        let mut format = git2::DiffStatsFormat::NONE;
-        format |= git2::DiffStatsFormat::FULL;
-        let buf = stats.to_buf(format, 80)?;
-        print!(
-            "difference between crates.io and source is:\n {}",
-            std::str::from_utf8(&*buf).unwrap()
-        );
+    // fn display_diff(&self, diff: &Diff) -> Result<()> {
+    //     let stats = diff.stats()?;
+    //     let mut format = git2::DiffStatsFormat::NONE;
+    //     format |= git2::DiffStatsFormat::FULL;
+    //     let buf = stats.to_buf(format, 80)?;
+    //     print!(
+    //         "difference between crates.io and source is:\n {}",
+    //         std::str::from_utf8(&*buf).unwrap()
+    //     );
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     fn get_crate_source_file_diff_report(&self, diff: &Diff) -> Result<FileDiffStats> {
         let mut files_added = 0;
@@ -620,6 +621,13 @@ mod test {
 
                 assert_eq!(report.file_diff_stats.is_none(), false);
                 println!("{:?}", report);
+
+                if package.name() == "guppy" {
+                    assert_eq!(report.is_different.unwrap(), false);
+                }
+                if package.name() == "octocrab" {
+                    assert_eq!(report.is_different.unwrap(), false);
+                }
             }
         }
     }
