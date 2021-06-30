@@ -1,5 +1,5 @@
 [package]
-name = "analysis"
+name = "depdive"
 version = "0.1.0"
 authors = ["Brandon Williams <bmwill@fb.com>"]
 edition = "2018"
