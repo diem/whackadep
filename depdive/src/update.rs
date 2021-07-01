@@ -22,6 +22,7 @@ pub enum DependencyType {
 #[derive(Debug, Clone)]
 pub struct DependencyChangeInfo {
     pub name: String,
+    pub repository: Option<String>,
     pub dep_type: DependencyType,
     pub old_version: Option<Version>, // None when a dep is added
     pub new_version: Option<Version>, // None when a dep is removed
@@ -39,6 +40,11 @@ pub struct VersionInfo {
     pub name: String,
     pub version: Version,
     pub downloads: u64,
+}
+
+pub struct VersionChangeInfo {
+    pub old_version: Option<Version>, // None when a dep is added
+    pub new_version: Option<Version>, // None when a dep is removed
 }
 
 pub struct UpdateAnalyzer;
@@ -105,19 +111,22 @@ impl UpdateAnalyzer {
         let diff = SummaryDiff::new(&prior_summary, &post_summary);
 
         let mut dep_change_infos: Vec<DependencyChangeInfo> = Vec::new();
+        let graphs = vec![prior_graph, post_graph];
 
         for (summary_id, summary_diff_status) in diff.host_packages.changed.iter() {
-            dep_change_infos.push(Self::get_dependency_change_change_info(
-                summary_id,
-                summary_diff_status,
+            dep_change_infos.push(Self::get_dependency_change_info(
+                &graphs,
+                &summary_id,
+                &summary_diff_status,
                 DependencyType::Host,
             ));
         }
 
         for (summary_id, summary_diff_status) in diff.target_packages.changed.iter() {
-            dep_change_infos.push(Self::get_dependency_change_change_info(
-                summary_id,
-                summary_diff_status,
+            dep_change_infos.push(Self::get_dependency_change_info(
+                &graphs,
+                &summary_id,
+                &summary_diff_status,
                 DependencyType::Target,
             ));
         }
@@ -138,11 +147,30 @@ impl UpdateAnalyzer {
         Ok(summary)
     }
 
-    pub fn get_dependency_change_change_info(
+    pub fn get_dependency_change_info(
+        graphs: &Vec<&PackageGraph>,
         summary_id: &SummaryId,
         summary_diff_status: &SummaryDiffStatus,
         dep_type: DependencyType,
     ) -> DependencyChangeInfo {
+        let name = summary_id.name.clone();
+        let version_change_info =
+            Self::get_version_change_info_from_summarydiff(&summary_id, &summary_diff_status);
+        let repository = Self::get_repository_from_graphs(graphs, &name);
+
+        DependencyChangeInfo {
+            name,
+            repository,
+            dep_type,
+            old_version: version_change_info.old_version,
+            new_version: version_change_info.new_version,
+        }
+    }
+
+    pub fn get_version_change_info_from_summarydiff(
+        summary_id: &SummaryId,
+        summary_diff_status: &SummaryDiffStatus,
+    ) -> VersionChangeInfo {
         let mut old_version: Option<Version> = None;
         let mut new_version: Option<Version> = None;
 
@@ -164,12 +192,29 @@ impl UpdateAnalyzer {
             }
         }
 
-        DependencyChangeInfo {
-            name: summary_id.name.clone(),
-            dep_type,
+        VersionChangeInfo {
             old_version,
             new_version,
         }
+    }
+
+    pub fn get_repository_from_graphs(
+        graphs: &Vec<&PackageGraph>,
+        crate_name: &str,
+    ) -> Option<String> {
+        for graph in graphs {
+            let repository = Self::get_repository_from_graph(graph, crate_name);
+            if !repository.is_none() {
+                return repository;
+            }
+        }
+        None
+    }
+
+    pub fn get_repository_from_graph(graph: &PackageGraph, crate_name: &str) -> Option<String> {
+        let package = graph.packages().find(|p| p.name() == crate_name)?;
+        let repository = package.repository()?.to_string();
+        Some(repository)
     }
 
     pub fn get_update_review(dep_change_info: &DependencyChangeInfo) -> Result<UpdateReviewReport> {
@@ -208,8 +253,9 @@ impl UpdateAnalyzer {
 
 #[cfg(test)]
 mod test {
-    use super::*;
+    use super::{DependencyType, PackageGraph, StandardFeatures, UpdateAnalyzer};
     use guppy::CargoMetadata;
+    use crate::diff::trim_remote_url;
 
     fn get_test_graph_pairs() -> (PackageGraph, PackageGraph) {
         let metadata = CargoMetadata::parse_json(include_str!(
@@ -287,6 +333,32 @@ mod test {
                 .iter()
                 .filter(|dep| !dep.old_version.is_none() && !dep.new_version.is_none())
                 .count()
+        );
+    }
+
+    #[test]
+    fn get_repository_from_graphs() {
+        let pair = get_test_graph_pairs();
+        let graphs = vec![&pair.0, &pair.1];
+
+        assert_eq!(
+            "https://github.com/facebookincubator/cargo-guppy",
+            trim_remote_url(&UpdateAnalyzer::get_repository_from_graphs(&graphs, "guppy").unwrap())
+                .unwrap()
+        );
+
+        assert_eq!(
+            "https://github.com/rust-lang/git2-rs",
+            trim_remote_url(&UpdateAnalyzer::get_repository_from_graphs(&graphs, "git2").unwrap())
+                .unwrap()
+        );
+
+        assert_eq!(
+            "https://github.com/XAMPPRocky/octocrab",
+            trim_remote_url(
+                &UpdateAnalyzer::get_repository_from_graphs(&graphs, "octocrab").unwrap()
+            )
+            .unwrap()
         );
     }
 
