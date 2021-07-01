@@ -11,6 +11,7 @@ mod code;
 mod cratesio;
 mod diff;
 mod github;
+mod update;
 
 // Usage metrics pulled from crates.io API
 #[derive(Tabled, Clone)]
@@ -268,5 +269,14 @@ impl DependencyGraphAnalyzer {
             deps_using_unsafe,
             deps_total_unsafe_expressions,
         }
+    }
+}
+
+pub struct UpdateAnalyzer;
+
+impl UpdateAnalyzer {
+    pub fn update_review(prior_graph: &PackageGraph, post_graph: &PackageGraph) -> Result<()> {
+        update::UpdateAnalyzer::analyze_updates(&prior_graph, &post_graph)?;
+        Ok(())
     }
 }
