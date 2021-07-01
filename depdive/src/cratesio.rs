@@ -5,9 +5,13 @@
 // experimental database dump that is updated daily, https://crates.io/data-access,
 // which will enable us to avoid making http requests and dealing with rate limits
 
+// TODO: While we use crates_io_api crate
+// some calls are cheaper if we make http request by ourselves
+// as the crate has no direct API for our requirements and will make many extra calls
+
 use anyhow::{anyhow, Result};
-use crates_io_api::SyncClient;
 use guppy::graph::PackageMetadata;
+use semver::Version;
 use tabled::Tabled;
 
 #[derive(Tabled, Default)]
@@ -19,16 +23,20 @@ pub struct CratesioReport {
 }
 
 pub struct CratesioAnalyzer {
-    client: SyncClient,
+    crates_io_api_client: crates_io_api::SyncClient,
+    http_client: reqwest::blocking::Client,
 }
 
 impl CratesioAnalyzer {
     pub fn new() -> Result<Self> {
         Ok(Self {
-            client: SyncClient::new(
+            crates_io_api_client: crates_io_api::SyncClient::new(
                 "User-Agent: Whackadep (https://github.com/diem/whackadep)",
                 std::time::Duration::from_millis(1000),
             )?,
+            http_client: reqwest::blocking::Client::builder()
+                .user_agent("diem/whackadep")
+                .build()?,
         })
     }
 
@@ -38,7 +46,7 @@ impl CratesioAnalyzer {
         self.get_cratesio_metrics(name, is_hosted)
     }
 
-    pub fn get_cratesio_metrics(self, name: &str, is_hosted: bool) -> Result<CratesioReport> {
+    pub fn get_cratesio_metrics(&self, name: &str, is_hosted: bool) -> Result<CratesioReport> {
         if !is_hosted {
             return Ok(CratesioReport {
                 name: name.to_string(),
@@ -47,8 +55,8 @@ impl CratesioAnalyzer {
             });
         }
 
-        let crate_info = self.client.get_crate(name)?.crate_data;
-        let dependents = Self::get_total_dependents(name)?;
+        let crate_info = self.crates_io_api_client.get_crate(name)?.crate_data;
+        let dependents = self.get_total_dependents(name)?;
 
         let cratesio_report = CratesioReport {
             name: name.to_string(),
@@ -60,19 +68,15 @@ impl CratesioAnalyzer {
         Ok(cratesio_report)
     }
 
-    pub fn get_total_dependents(crate_name: &str) -> Result<u64> {
-        let http_client = reqwest::blocking::Client::builder()
-            .user_agent("diem/whackadep")
-            .build()?;
+    pub fn get_total_dependents(&self, crate_name: &str) -> Result<u64> {
         let api_endpoint = format!(
             "https://crates.io/api/v1/crates/{}/reverse_dependencies",
             crate_name
         );
 
-        let response = http_client.get(api_endpoint).send()?;
+        let response = self.http_client.get(api_endpoint).send()?;
         if !response.status().is_success() {
-            println!("{:?}", response);
-            panic!("http request to Crates.io failed");
+            return Err(anyhow!("http request to Crates.io failed: {:?}", response));
         }
 
         let response: serde_json::Value = response.json()?;
@@ -81,6 +85,26 @@ impl CratesioAnalyzer {
             .ok_or_else(|| anyhow!("total dependents is not an integer"))?;
 
         Ok(dependents)
+    }
+
+    pub fn get_version_downloads(&self, crate_name: &str, version: &Version) -> Result<u64> {
+        let api_endpoint = format!(
+            "https://crates.io/api/v1/crates/{}/{}",
+            crate_name,
+            version.to_string()
+        );
+
+        let response = self.http_client.get(api_endpoint).send()?;
+        if !response.status().is_success() {
+            return Err(anyhow!("http request to Crates.io failed: {:?}", response));
+        }
+
+        let response: serde_json::Value = response.json()?;
+        let downloads: u64 = response["version"]["downloads"]
+            .as_u64()
+            .ok_or_else(|| anyhow!("version downloads is not an integer"))?;
+
+        Ok(downloads)
     }
 }
 
@@ -120,5 +144,14 @@ mod tests {
 
         assert_eq!(report.downloads, 0);
         assert_eq!(report.dependents, 0);
+    }
+
+    #[test]
+    fn test_cratesio_version_downloads() {
+        let cratesio_analyzer = test_cratesio_analyzer();
+        let downloads = cratesio_analyzer
+            .get_version_downloads("guppy", &Version::parse("0.8.0").unwrap())
+            .unwrap();
+        assert_eq!(downloads > 10000, true);
     }
 }
