@@ -45,16 +45,19 @@ pub struct VersionInfo {
 pub struct UpdateAnalyzer;
 
 impl UpdateAnalyzer {
-    pub fn analyze_updates(
-        prior_graph: &PackageGraph,
-        post_graph: &PackageGraph,
+    pub fn analyze_updates_with_options<'g>(
+        cargo_options: &CargoOptions,
+        feature_filter: impl FeatureFilter<'g>,
+        prior_graph: &'g PackageGraph,
+        post_graph: &'g PackageGraph,
     ) -> Result<Vec<UpdateReviewReport>> {
         // Get the changed dependency stats
-        // TODO: add cargo config options type for the ability to pass in config params
-        let feature_filter = StandardFeatures::All;
-        let cargo_opts = CargoOptions::new();
-        let dep_change_infos =
-            Self::compare_pacakge_graphs(&prior_graph, &post_graph, feature_filter, &cargo_opts)?;
+        let dep_change_infos = Self::compare_pacakge_graphs(
+            &prior_graph,
+            &post_graph,
+            feature_filter,
+            &cargo_options,
+        )?;
 
         // Filter version updates
         let updated_deps: Vec<DependencyChangeInfo> = dep_change_infos
@@ -76,15 +79,26 @@ impl UpdateAnalyzer {
         Ok(update_review_reports)
     }
 
-    pub fn compare_pacakge_graphs(
+    pub fn analyze_updates(
         prior_graph: &PackageGraph,
         post_graph: &PackageGraph,
+    ) -> Result<Vec<UpdateReviewReport>> {
+        // Get the changed dependency stats
+        // TODO: add cargo config options type for the ability to pass in config params
+        let feature_filter = StandardFeatures::All;
+        let cargo_options = CargoOptions::new();
+        Self::analyze_updates_with_options(&cargo_options, feature_filter, prior_graph, post_graph)
+    }
+
+    pub fn compare_pacakge_graphs<'g>(
+        prior_graph: &'g PackageGraph,
+        post_graph: &'g PackageGraph,
         // TODO: handle other FeatureFilter implementors
-        feature_filter: StandardFeatures,
+        mut feature_filter: impl FeatureFilter<'g>,
         cargo_opts: &CargoOptions,
     ) -> Result<Vec<DependencyChangeInfo>> {
-        let prior_summary = Self::get_summary(&prior_graph, feature_filter, &cargo_opts)?;
-        let post_summary = Self::get_summary(&post_graph, feature_filter, &cargo_opts)?;
+        let prior_summary = Self::get_summary(&prior_graph, &mut feature_filter, &cargo_opts)?;
+        let post_summary = Self::get_summary(&post_graph, &mut feature_filter, &cargo_opts)?;
         let diff = SummaryDiff::new(&prior_summary, &post_summary);
 
         let mut dep_change_infos: Vec<DependencyChangeInfo> = Vec::new();
@@ -108,9 +122,9 @@ impl UpdateAnalyzer {
         Ok(dep_change_infos)
     }
 
-    pub fn get_summary<'a>(
-        graph: &'a PackageGraph,
-        feature_filter: impl FeatureFilter<'a>,
+    pub fn get_summary<'g>(
+        graph: &'g PackageGraph,
+        feature_filter: impl FeatureFilter<'g>,
         cargo_opts: &CargoOptions,
     ) -> Result<Summary> {
         let summary = graph
