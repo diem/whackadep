@@ -47,6 +47,32 @@ pub struct DiffAnalyzer {
     client: Client, // for downloading files
 }
 
+pub(crate) fn trim_remote_url(url: &str) -> Result<String> {
+    // Trim down remote git urls like GitHub for cloning
+    // in cases where the crate is in a subdirectory of the repo
+    // in the format "host_url/owner/repo"
+    let url = Url::from_str(url)?;
+
+    let host = url
+        .host_str()
+        .ok_or_else(|| anyhow!("invalid host for {}", url))?;
+    // TODO: check if host is from recognized sources, e.g. github, bitbucket, gitlab
+
+    let mut segments = url
+        .path_segments()
+        .ok_or_else(|| anyhow!("error parsing url for {}", url))?;
+    let owner = segments
+        .next()
+        .ok_or_else(|| anyhow!("repository url missing owner for {}", url))?;
+    let repo = segments
+        .next()
+        .map(|repo| repo.trim_end_matches(".git"))
+        .ok_or_else(|| anyhow!("repository url missing repo for {}", url))?;
+
+    let url = format!("https://{}/{}/{}", host, owner, repo);
+    return Ok(url);
+}
+
 impl DiffAnalyzer {
     pub fn new() -> Result<Self> {
         Ok(Self {
@@ -62,7 +88,7 @@ impl DiffAnalyzer {
         let name = package.name().to_string();
         let version = package.version().to_string();
         let repository = match package.repository() {
-            Some(repo) => Self::trim_remote_url(repo)?,
+            Some(repo) => trim_remote_url(repo)?,
             None => {
                 return Ok(CrateSourceDiffReport {
                     name,
@@ -155,30 +181,6 @@ impl DiffAnalyzer {
                 file_diff_stats: Some(file_diff_stats),
             }
         })
-    }
-
-    fn trim_remote_url(url: &str) -> Result<String> {
-        // Trim down remote git urls like GitHub for cloning
-        // in cases where the crate is in a subdirectory of the repo
-        // in the format "host_url/owner/repo"
-        let url = Url::from_str(url)?;
-
-        let host = url.host_str().ok_or_else(|| anyhow!("invalid host"))?;
-        // TODO: check if host is from recognized sources, e.g. github, bitbucket, gitlab
-
-        let mut segments = url
-            .path_segments()
-            .ok_or_else(|| anyhow!("error parsing url"))?;
-        let owner = segments
-            .next()
-            .ok_or_else(|| anyhow!("repository url missing owner"))?;
-        let repo = segments
-            .next()
-            .map(|repo| repo.trim_end_matches(".git"))
-            .ok_or_else(|| anyhow!("repository url missing repo"))?;
-
-        let url = format!("https://{}/{}/{}", host, owner, repo);
-        return Ok(url);
     }
 
     fn get_cratesio_version(&self, name: &str, version: &str) -> Result<PathBuf> {
@@ -462,7 +464,7 @@ mod test {
     #[test]
     fn test_diff_trim_git_url() {
         let url = "https://github.com/facebookincubator/cargo-guppy/tree/main/guppy";
-        let trimmed_url = DiffAnalyzer::trim_remote_url(url).unwrap();
+        let trimmed_url = trim_remote_url(url).unwrap();
         assert_eq!(
             trimmed_url,
             "https://github.com/facebookincubator/cargo-guppy"
