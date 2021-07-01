@@ -1,5 +1,6 @@
 //! This module abstracts analyses for dependency update review.
 
+use crate::cratesio::CratesioAnalyzer;
 use anyhow::{anyhow, Result};
 use guppy::graph::{
     cargo::{CargoOptions, CargoResolverVersion},
@@ -29,8 +30,15 @@ pub struct DependencyChangeInfo {
 #[derive(Debug, Clone)]
 pub struct UpdateReviewReport {
     pub name: String,
-    pub prior_version: Version,
-    pub updated_version: Version,
+    pub prior_version: VersionInfo,
+    pub updated_version: VersionInfo,
+}
+
+#[derive(Debug, Clone)]
+pub struct VersionInfo {
+    pub name: String,
+    pub version: Version,
+    pub downloads: u64,
 }
 
 pub struct UpdateAnalyzer;
@@ -173,10 +181,27 @@ impl UpdateAnalyzer {
             return Err(anyhow!("dependency change does not represent an update"));
         }
 
+        let name = &dep_change_info.name;
+        let cratesio_analyzer = CratesioAnalyzer::new()?;
+
+        let version = dep_change_info.old_version.as_ref().unwrap().clone();
+        let prior_version = VersionInfo {
+            name: name.clone(),
+            version: version.clone(),
+            downloads: cratesio_analyzer.get_version_downloads(&name, &version)?,
+        };
+
+        let version = dep_change_info.new_version.as_ref().unwrap().clone();
+        let updated_version = VersionInfo {
+            name: name.clone(),
+            version: version.clone(),
+            downloads: cratesio_analyzer.get_version_downloads(&name, &version)?,
+        };
+
         Ok(UpdateReviewReport {
             name: dep_change_info.name.clone(),
-            prior_version: dep_change_info.old_version.as_ref().unwrap().clone(),
-            updated_version: dep_change_info.new_version.as_ref().unwrap().clone(),
+            prior_version,
+            updated_version,
         })
     }
 }
