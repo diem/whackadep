@@ -13,6 +13,8 @@ use guppy::graph::{
 };
 use semver::Version;
 
+use crate::diff::{DiffAnalyzer, HeadCommitNotFoundError};
+
 #[derive(Debug, Clone)]
 pub enum DependencyType {
     Host,
@@ -28,11 +30,12 @@ pub struct DependencyChangeInfo {
     pub new_version: Option<Version>, // None when a dep is removed
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct UpdateReviewReport {
     pub name: String,
     pub prior_version: VersionInfo,
     pub updated_version: VersionInfo,
+    pub diff_stats: Option<VersionDiffStats>,
 }
 
 #[derive(Debug, Clone)]
@@ -45,6 +48,13 @@ pub struct VersionInfo {
 pub struct VersionChangeInfo {
     pub old_version: Option<Version>, // None when a dep is added
     pub new_version: Option<Version>, // None when a dep is removed
+}
+
+#[derive(Debug)]
+pub struct VersionDiffStats {
+    pub files_changed: u64,
+    pub insertions: u64,
+    pub deletions: u64,
 }
 
 pub struct UpdateAnalyzer;
@@ -111,24 +121,25 @@ impl UpdateAnalyzer {
         let diff = SummaryDiff::new(&prior_summary, &post_summary);
 
         let mut dep_change_infos: Vec<DependencyChangeInfo> = Vec::new();
-        let graphs = vec![prior_graph, post_graph];
 
         for (summary_id, summary_diff_status) in diff.host_packages.changed.iter() {
             dep_change_infos.push(Self::get_dependency_change_info(
-                &graphs,
+                prior_graph,
+                post_graph,
                 &summary_id,
                 &summary_diff_status,
                 DependencyType::Host,
-            ));
+            )?);
         }
 
         for (summary_id, summary_diff_status) in diff.target_packages.changed.iter() {
             dep_change_infos.push(Self::get_dependency_change_info(
-                &graphs,
+                &prior_graph,
+                &post_graph,
                 &summary_id,
                 &summary_diff_status,
                 DependencyType::Target,
-            ));
+            )?);
         }
 
         Ok(dep_change_infos)
@@ -148,23 +159,27 @@ impl UpdateAnalyzer {
     }
 
     pub fn get_dependency_change_info(
-        graphs: &Vec<&PackageGraph>,
+        prior_graph: &PackageGraph,
+        post_graph: &PackageGraph,
         summary_id: &SummaryId,
         summary_diff_status: &SummaryDiffStatus,
         dep_type: DependencyType,
-    ) -> DependencyChangeInfo {
+    ) -> Result<DependencyChangeInfo> {
         let name = summary_id.name.clone();
         let version_change_info =
             Self::get_version_change_info_from_summarydiff(&summary_id, &summary_diff_status);
-        let repository = Self::get_repository_from_graphs(graphs, &name);
+        let repository = Self::get_repository_from_graphs(&vec![prior_graph, post_graph], &name);
 
-        DependencyChangeInfo {
+        let old_version = version_change_info.old_version;
+        let new_version = version_change_info.new_version;
+
+        Ok(DependencyChangeInfo {
             name,
             repository,
             dep_type,
-            old_version: version_change_info.old_version,
-            new_version: version_change_info.new_version,
-        }
+            old_version,
+            new_version,
+        })
     }
 
     pub fn get_version_change_info_from_summarydiff(
@@ -229,33 +244,73 @@ impl UpdateAnalyzer {
         let name = &dep_change_info.name;
         let cratesio_analyzer = CratesioAnalyzer::new()?;
 
-        let version = dep_change_info.old_version.as_ref().unwrap().clone();
+        let old_version = dep_change_info.old_version.as_ref().unwrap().clone();
         let prior_version = VersionInfo {
             name: name.clone(),
-            version: version.clone(),
-            downloads: cratesio_analyzer.get_version_downloads(&name, &version)?,
+            version: old_version.clone(),
+            downloads: cratesio_analyzer.get_version_downloads(&name, &old_version)?,
         };
 
-        let version = dep_change_info.new_version.as_ref().unwrap().clone();
+        let new_version = dep_change_info.new_version.as_ref().unwrap().clone();
         let updated_version = VersionInfo {
             name: name.clone(),
-            version: version.clone(),
-            downloads: cratesio_analyzer.get_version_downloads(&name, &version)?,
+            version: old_version.clone(),
+            downloads: cratesio_analyzer.get_version_downloads(&name, &new_version)?,
         };
+
+        let diff_stats = Self::analyze_version_diff(&dep_change_info)?;
 
         Ok(UpdateReviewReport {
             name: dep_change_info.name.clone(),
             prior_version,
             updated_version,
+            diff_stats,
         })
+    }
+
+    fn analyze_version_diff(
+        dep_change_info: &DependencyChangeInfo,
+    ) -> Result<Option<VersionDiffStats>> {
+        if let (name, Some(repository), Some(old_version), Some(new_version)) = (
+            &dep_change_info.name,
+            &dep_change_info.repository,
+            &dep_change_info.old_version,
+            &dep_change_info.new_version,
+        ) {
+            let diff_analyzer = DiffAnalyzer::new()?;
+            let repo = diff_analyzer.get_git_repo(&name, &repository)?;
+            let diff = match diff_analyzer.get_version_diff(
+                &dep_change_info.name,
+                &repo,
+                &old_version,
+                &new_version,
+            ) {
+                Ok(diff) => diff,
+                Err(error) => match error.root_cause().downcast_ref::<HeadCommitNotFoundError>() {
+                    Some(_err) => return Ok(None),
+                    None => return Err(anyhow!("fatal error in fetching head commit")),
+                },
+            };
+
+            let stats = diff.stats()?;
+
+            Ok(Some(VersionDiffStats {
+                files_changed: stats.files_changed() as u64,
+                insertions: stats.insertions() as u64,
+                deletions: stats.deletions() as u64,
+            }))
+        } else {
+            // If repository, old version, or new version is none, there is no update diff
+            Ok(None)
+        }
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::{DependencyType, PackageGraph, StandardFeatures, UpdateAnalyzer};
-    use guppy::CargoMetadata;
     use crate::diff::trim_remote_url;
+    use guppy::CargoMetadata;
 
     fn get_test_graph_pairs() -> (PackageGraph, PackageGraph) {
         let metadata = CargoMetadata::parse_json(include_str!(
@@ -370,6 +425,13 @@ mod test {
 
         let update_review_reports = UpdateAnalyzer::analyze_updates(&prior, &post).unwrap();
         assert_eq!(update_review_reports.len(), 2);
+        for report in &update_review_reports {
+            if report.name == "guppy" {
+                assert_eq!(report.diff_stats.as_ref().unwrap().files_changed, 26);
+                assert_eq!(report.diff_stats.as_ref().unwrap().insertions, 373);
+                assert_eq!(report.diff_stats.as_ref().unwrap().deletions, 335);
+            }
+        }
         println!("{:?}", update_review_reports);
     }
 }

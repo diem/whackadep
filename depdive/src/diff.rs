@@ -9,6 +9,7 @@ use git2::{
 use guppy::{graph::PackageMetadata, MetadataCommand};
 use regex::Regex;
 use reqwest::blocking::Client;
+use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use std::{
@@ -19,6 +20,7 @@ use std::{
 };
 use tar::Archive;
 use tempfile::{tempdir, TempDir};
+use thiserror::Error;
 use url::Url;
 
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -45,6 +47,13 @@ pub struct FileDiffStats {
 pub struct DiffAnalyzer {
     dir: TempDir,   // hold temporary code files
     client: Client, // for downloading files
+}
+
+#[derive(Debug, Error)]
+#[error("Head commit not found in the repository for {crate_name}:{version}")]
+pub struct HeadCommitNotFoundError {
+    crate_name: String,
+    version: Version,
 }
 
 pub(crate) fn trim_remote_url(url: &str) -> Result<String> {
@@ -192,7 +201,7 @@ impl DiffAnalyzer {
         Ok(self.download_file(&download_path, &dest_file)?)
     }
 
-    fn get_git_repo(&self, name: &str, url: &str) -> Result<Repository> {
+    pub fn get_git_repo(&self, name: &str, url: &str) -> Result<Repository> {
         let dest_file = format!("{}-source", name);
         let dest_path = self.dir.path().join(&dest_file);
         let repo = Repository::clone(url, dest_path)?;
@@ -443,6 +452,35 @@ impl DiffAnalyzer {
             files_deleted,
         })
     }
+
+    pub fn get_version_diff<'a>(
+        &'a self,
+        name: &str,
+        repo: &'a Repository,
+        version_a: &Version,
+        version_b: &Version,
+    ) -> Result<Diff<'a>> {
+        let commit_oid_a = self
+            .get_head_commit_oid_for_version(&repo, &name, &version_a.to_string())?
+            .ok_or_else(|| HeadCommitNotFoundError {
+                crate_name: name.to_string(),
+                version: version_a.clone(),
+            })?;
+        let commit_oid_b = self
+            .get_head_commit_oid_for_version(&repo, &name, &version_b.to_string())?
+            .ok_or_else(|| HeadCommitNotFoundError {
+                crate_name: name.to_string(),
+                version: version_b.clone(),
+            })?;
+
+        let diff = repo.diff_tree_to_tree(
+            Some(&repo.find_commit(commit_oid_a)?.tree()?),
+            Some(&repo.find_commit(commit_oid_b)?.tree()?),
+            Some(&mut DiffOptions::new()),
+        )?;
+
+        Ok(diff)
+    }
 }
 
 #[cfg(test)]
@@ -632,5 +670,51 @@ mod test {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_diff_version_diff() {
+        let diff_analyzer = get_test_diff_analyzer();
+        let name = "guppy";
+        let repository = "https://github.com/facebookincubator/cargo-guppy";
+
+        let repo = diff_analyzer.get_git_repo(&name, &repository).unwrap();
+        let diff = diff_analyzer
+            .get_version_diff(
+                name,
+                &repo,
+                &Version::parse("0.8.0").unwrap(),
+                &Version::parse("0.9.0").unwrap(),
+            )
+            .unwrap();
+        assert_eq!(diff.stats().unwrap().files_changed(), 26);
+        assert_eq!(diff.stats().unwrap().insertions(), 373);
+        assert_eq!(diff.stats().unwrap().deletions(), 335);
+    }
+
+    #[test]
+    fn test_diff_head_commit_not_found_error() {
+        let diff_analyzer = get_test_diff_analyzer();
+        let name = "guppy";
+        let repository = "https://github.com/facebookincubator/cargo-guppy";
+
+        let repo = diff_analyzer.get_git_repo(&name, &repository).unwrap();
+        let diff = diff_analyzer
+            .get_version_diff(
+                name,
+                &repo,
+                &Version::parse("0.0.0").unwrap(),
+                &Version::parse("0.9.0").unwrap(),
+            )
+            .map_err(|error| {
+                error
+                    .root_cause()
+                    .downcast_ref::<HeadCommitNotFoundError>()
+                    // If not the error type, downcast will be None
+                    .is_none()
+            })
+            .err()
+            .unwrap();
+        assert_eq!(diff, false);
     }
 }
