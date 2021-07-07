@@ -276,7 +276,8 @@ pub struct UpdateAnalyzer;
 
 impl UpdateAnalyzer {
     pub fn update_review(prior_graph: &PackageGraph, post_graph: &PackageGraph) -> Result<()> {
-        update::UpdateAnalyzer::analyze_updates(&prior_graph, &post_graph)?;
+        let update_analyzer = update::UpdateAnalyzer::new();
+        update_analyzer.analyze_updates(&prior_graph, &post_graph)?;
         Ok(())
     }
 }
