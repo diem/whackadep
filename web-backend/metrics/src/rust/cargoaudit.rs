@@ -14,7 +14,7 @@ pub async fn audit(repo_path: &Path) -> Result<Report> {
     // config
     let advisory_db_url = rustsec::repository::git::DEFAULT_URL;
     // TODO: do we want to use a custom path here?
-    let advisory_db_path = rustsec::GitRepository::default_path();
+    let advisory_db_path = rustsec::repository::git::Repository::default_path();
 
     // TODO: rm -rf advisory_db_path
     // rationale: if once the command fails or get interrupted, the path gets damaged, and fetch fails afterwards everytime
@@ -22,8 +22,9 @@ pub async fn audit(repo_path: &Path) -> Result<Report> {
 
     // fetch latest changes from the advisory + load
     info!("fetching latest version of RUSTSEC advisory...");
-    let advisory_db_repo = rustsec::GitRepository::fetch(advisory_db_url, &advisory_db_path, true)
-        .with_context(|| "couldn't fetch RUSTSEC advisory database")?;
+    let advisory_db_repo =
+        rustsec::repository::git::Repository::fetch(advisory_db_url, &advisory_db_path, true)
+            .with_context(|| "couldn't fetch RUSTSEC advisory database")?;
     let advisory_db = rustsec::Database::load_from_repo(&advisory_db_repo)
         .with_context(|| "couldn't open RUSTSEC repo")?;
 
