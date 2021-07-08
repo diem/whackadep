@@ -137,7 +137,7 @@ impl DependencyAnalyzer {
         let mut cratesio_different_from_source = false;
         let mut files_added = 0;
         let mut files_modified = 0;
-        if !crate_source_report.is_different.is_none() {
+        if crate_source_report.is_different.is_some() {
             cratesio_source_diff_analyzed = true;
             // If is_different has value then should below ones as well
             cratesio_different_from_source = crate_source_report.is_different.unwrap();
@@ -209,7 +209,7 @@ impl DependencyGraphAnalyzer {
         let mut loc_analyzed = false;
         let mut total_loc = 0;
         let mut rust_loc = 0;
-        if !code_report.loc_report.is_none() {
+        if code_report.loc_report.is_some() {
             let loc_report = code_report.loc_report.unwrap();
             loc_analyzed = true;
             total_loc = loc_report.total_loc;
@@ -219,7 +219,7 @@ impl DependencyGraphAnalyzer {
         let mut unsafe_analyzed = false;
         let mut forbids_unsafe = false;
         let mut unsafe_expressions = 0;
-        if !code_report.unsafe_report.is_none() {
+        if code_report.unsafe_report.is_some() {
             unsafe_analyzed = true;
             let unsafe_report = code_report.unsafe_report.unwrap();
             forbids_unsafe = unsafe_report.forbids_unsafe;
@@ -235,7 +235,7 @@ impl DependencyGraphAnalyzer {
         let mut deps_forbidding_unsafe = 0;
         let mut deps_using_unsafe = 0;
         let mut deps_total_unsafe_expressions = 0;
-        if !code_report.dep_report.is_none() {
+        if code_report.dep_report.is_some() {
             deps_analyzed = true;
             let dep_report = code_report.dep_report.unwrap();
             total_deps = dep_report.total_deps;

@@ -149,13 +149,13 @@ impl GitHubAnalyzer {
         // Get recent activity metrics
         let activity_metrics = self.get_activity_metrics(&repo_fullname, &default_branch)?;
 
-        return Ok(GitHubReport {
+        Ok(GitHubReport {
             name: name.to_string(),
             repository: Some(repository.to_string()),
             is_github_repo,
             repo_stats,
             activity_metrics,
-        });
+        })
     }
 
     fn is_github_url(url: &Url) -> bool {
@@ -180,7 +180,7 @@ impl GitHubAnalyzer {
         return Ok(format!("{}/{}", owner, repo));
     }
 
-    fn get_github_repo_stats(&self, repo_fullname: &String) -> Result<RepoStats> {
+    fn get_github_repo_stats(&self, repo_fullname: &str) -> Result<RepoStats> {
         let api_endpoint = format!("https://api.github.com/repos/{}", repo_fullname);
         let response = self.client.get(api_endpoint).send()?;
 
@@ -193,8 +193,8 @@ impl GitHubAnalyzer {
 
     fn get_activity_metrics(
         self,
-        repo_fullname: &String,
-        default_branch: &String,
+        repo_fullname: &str,
+        default_branch: &str,
     ) -> Result<ActivityMetrics> {
         let days_since_last_commit = self
             .get_time_since_last_commit(&repo_fullname, &default_branch)?
@@ -223,8 +223,8 @@ impl GitHubAnalyzer {
 
     fn get_time_since_last_commit(
         &self,
-        repo_fullname: &String,
-        default_branch: &String,
+        repo_fullname: &str,
+        default_branch: &str,
     ) -> Result<Duration> {
         let api_endpoint = format!(
             "https://api.github.com/repos/{}/commits?sha={}&per_page=1",
@@ -260,7 +260,7 @@ impl GitHubAnalyzer {
         Ok(duration)
     }
 
-    fn get_time_since_last_open_issue(&self, repo_fullname: &String) -> Result<Option<Duration>> {
+    fn get_time_since_last_open_issue(&self, repo_fullname: &str) -> Result<Option<Duration>> {
         let api_endpoint = format!(
             "https://api.github.com/repos/{}/issues?state=open&per_page=1",
             repo_fullname
@@ -294,7 +294,7 @@ impl GitHubAnalyzer {
 
     fn get_total_open_issue_count_for_label(
         &self,
-        repo_fullname: &String,
+        repo_fullname: &str,
         label: &str,
     ) -> Result<u64> {
         let mut total = 0;
@@ -320,7 +320,7 @@ impl GitHubAnalyzer {
 
     fn get_stats_on_recent_activity(
         &self,
-        repo_fullname: &String,
+        repo_fullname: &str,
         past_days: u64,
     ) -> Result<RecentActivity> {
         let since_query_string = chrono::Utc::now()
@@ -418,7 +418,7 @@ mod tests {
     #[test]
     fn test_github_stats_for_libc() {
         let report = get_test_github_report("libc");
-        assert_eq!(report.is_github_repo, true);
+        assert!(report.is_github_repo);
         // Relying on Libc to have at least one star on GitHub
         assert!(report.repo_stats.stargazers_count > 0);
     }
@@ -426,7 +426,7 @@ mod tests {
     #[test]
     fn test_github_stats_for_gitlab() {
         let report = get_test_github_report("gitlab");
-        assert_eq!(report.is_github_repo, false);
+        assert!(!report.is_github_repo);
         assert_eq!(report.repo_stats.stargazers_count, 0);
     }
 
@@ -439,7 +439,7 @@ mod tests {
         let time_since_last_commit = github_analyzer
             .get_time_since_last_commit(&fullname, &default_branch)
             .unwrap();
-        assert_eq!(time_since_last_commit.num_nanoseconds().unwrap() > 0, true)
+        assert!(time_since_last_commit.num_nanoseconds().unwrap() > 0)
     }
 
     #[test]
