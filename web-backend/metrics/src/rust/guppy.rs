@@ -112,15 +112,10 @@ mod tests {
         let summary = get_dependencies_inner(&manifest_path, true).unwrap();
 
         println!("{:#?}", summary);
+        assert!(!summary.target_packages.iter().any(|p| p.0.name == "bitvec"));
         assert!(summary
             .target_packages
             .iter()
-            .find(|p| p.0.name == "bitvec")
-            .is_none());
-        assert!(summary
-            .target_packages
-            .iter()
-            .find(|p| p.0.name == "optional_dep")
-            .is_some());
+            .any(|p| p.0.name == "optional_dep"));
     }
 }

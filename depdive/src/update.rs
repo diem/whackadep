@@ -120,11 +120,12 @@ impl UpdateAnalyzer {
         // Filter version updates
         let updated_deps: Vec<DependencyChangeInfo> = dep_change_infos
             .iter()
-            .filter(|dep| {
-                !dep.old_version.is_none()
-                    && !dep.new_version.is_none()
-                    && dep.new_version.as_ref().unwrap() > dep.old_version.as_ref().unwrap()
-            })
+            .filter(
+                |dep| match (dep.old_version.as_ref(), dep.new_version.as_ref()) {
+                    (Some(old), Some(new)) => new > old,
+                    _ => false,
+                },
+            )
             .cloned()
             .collect();
         // TODO: add reporting for version downgrades, add, and remove
@@ -248,11 +249,11 @@ impl UpdateAnalyzer {
         let name = summary_id.name.clone();
         let version_change_info =
             Self::get_version_change_info_from_summarydiff(&summary_id, &summary_diff_status);
-        let repository = Self::get_repository_from_graphs(&vec![prior_graph, post_graph], &name);
+        let repository = Self::get_repository_from_graphs(&[prior_graph, post_graph], &name);
 
         let mut build_script_paths: HashSet<String> = HashSet::new();
         let old_version = version_change_info.old_version;
-        if !old_version.is_none() {
+        if old_version.is_some() {
             Self::get_build_script_paths(prior_graph, &name)?
                 .into_iter()
                 .for_each(|x| {
@@ -260,7 +261,7 @@ impl UpdateAnalyzer {
                 });
         }
         let new_version = version_change_info.new_version;
-        if !new_version.is_none() {
+        if new_version.is_some() {
             Self::get_build_script_paths(post_graph, &name)?
                 .into_iter()
                 .for_each(|x| {
@@ -314,7 +315,7 @@ impl UpdateAnalyzer {
                 ..
             } => {
                 new_version = Some(summary_id.version.clone());
-                if !version.is_none() {
+                if version.is_some() {
                     old_version = Some(version.unwrap().clone());
                 }
             }
@@ -347,16 +348,15 @@ impl UpdateAnalyzer {
     ) -> Result<DepUpdateReviewReport> {
         if dep_change_info.old_version.is_none()
             || dep_change_info.new_version.is_none()
-            || !(dep_change_info.new_version.as_ref().unwrap()
-                > dep_change_info.old_version.as_ref().unwrap())
+            || dep_change_info.new_version.as_ref().unwrap()
+                <= dep_change_info.old_version.as_ref().unwrap()
         {
             return Err(anyhow!("dependency change does not represent an update"));
         }
 
         let name = &dep_change_info.name;
-        match self.get_update_review_report_from_cache(name) {
-            Some(report) => return Ok(report),
-            None => (), // proceed with logic
+        if let Some(report) = self.get_update_review_report_from_cache(name) {
+            return Ok(report);
         }
 
         let cratesio_analyzer = CratesioAnalyzer::new()?;
@@ -371,7 +371,7 @@ impl UpdateAnalyzer {
         let new_version = dep_change_info.new_version.as_ref().unwrap().clone();
         let updated_version = VersionInfo {
             name: name.clone(),
-            version: old_version.clone(),
+            version: new_version.clone(),
             downloads: cratesio_analyzer.get_version_downloads(&name, &new_version)?,
         };
 
@@ -464,6 +464,7 @@ mod test {
     };
     use crate::diff::trim_remote_url;
     use guppy::{CargoMetadata, MetadataCommand};
+    use semver::Version;
     use std::path::PathBuf;
 
     struct PackageGraphPair {
@@ -561,7 +562,7 @@ mod test {
             8,
             dep_change_infos
                 .iter()
-                .filter(|dep| dep.old_version.is_none() && !dep.new_version.is_none())
+                .filter(|dep| dep.old_version.is_none() && dep.new_version.is_some())
                 .count()
         );
 
@@ -570,7 +571,7 @@ mod test {
             10,
             dep_change_infos
                 .iter()
-                .filter(|dep| !dep.old_version.is_none() && dep.new_version.is_none())
+                .filter(|dep| dep.old_version.is_some() && dep.new_version.is_none())
                 .count()
         );
 
@@ -579,7 +580,7 @@ mod test {
             2,
             dep_change_infos
                 .iter()
-                .filter(|dep| !dep.old_version.is_none() && !dep.new_version.is_none())
+                .filter(|dep| dep.old_version.is_some() && dep.new_version.is_some())
                 .count()
         );
     }
@@ -620,17 +621,65 @@ mod test {
         assert_eq!(update_review_reports.dep_update_review_reports.len(), 2);
         for report in &update_review_reports.dep_update_review_reports {
             if report.name == "guppy" {
+                assert_eq!(
+                    report.prior_version.version,
+                    Version::parse("0.8.0").unwrap()
+                );
+                assert_eq!(
+                    report.updated_version.version,
+                    Version::parse("0.9.0").unwrap()
+                );
                 assert_eq!(report.diff_stats.as_ref().unwrap().files_changed, 26);
                 assert_eq!(report.diff_stats.as_ref().unwrap().insertions, 373);
                 assert_eq!(report.diff_stats.as_ref().unwrap().deletions, 335);
+                assert!(report
+                    .diff_stats
+                    .as_ref()
+                    .unwrap()
+                    .modified_build_scripts
+                    .is_empty());
+            }
+        }
+        println!("{:?}", update_review_reports);
+    }
+
+    #[test]
+    fn test_update_review_report_libc() {
+        let package_graph_pair = get_test_graph_pair_libc();
+        let update_analyzer = get_test_update_analyzer();
+        let update_review_reports = update_analyzer
+            .analyze_updates(&package_graph_pair.prior, &package_graph_pair.post)
+            .unwrap();
+        assert_eq!(update_review_reports.dep_update_review_reports.len(), 2);
+        for report in &update_review_reports.dep_update_review_reports {
+            if report.name == "libc" {
+                assert_eq!(report.prior_version.name, report.name);
+                assert_eq!(report.prior_version.name, report.updated_version.name);
+                assert_eq!(
+                    report.prior_version.version,
+                    Version::parse("0.2.92").unwrap()
+                );
+                assert_eq!(
+                    report.updated_version.version,
+                    Version::parse("0.2.93").unwrap()
+                );
+                // downloads for old 0.2.92 and 0.2.93 with an order of magnitude of difference
+                // to be the exact same is very low, equal stats is likely a bug
+                assert_ne!(
+                    report.prior_version.downloads,
+                    report.updated_version.downloads
+                );
+                assert_eq!(report.diff_stats.as_ref().unwrap().files_changed, 121);
+                assert_eq!(report.diff_stats.as_ref().unwrap().insertions, 19954);
+                assert_eq!(report.diff_stats.as_ref().unwrap().deletions, 5032);
                 assert_eq!(
                     report
                         .diff_stats
                         .as_ref()
                         .unwrap()
                         .modified_build_scripts
-                        .is_empty(),
-                    true
+                        .len(),
+                    1
                 );
             }
         }
@@ -671,8 +720,7 @@ mod test {
         let report = update_review_reports
             .dep_update_review_reports
             .iter()
-            .filter(|report| report.name == "libc")
-            .next()
+            .find(|report| report.name == "libc")
             .unwrap();
         let build_scripts = &report.diff_stats.as_ref().unwrap().modified_build_scripts;
         assert_eq!(build_scripts.len(), 1);
@@ -686,8 +734,7 @@ mod test {
         let report = update_review_reports
             .dep_update_review_reports
             .iter()
-            .filter(|report| report.name == "guppy")
-            .next()
+            .find(|report| report.name == "guppy")
             .unwrap();
         let build_scripts = &report.diff_stats.as_ref().unwrap().modified_build_scripts;
         assert_eq!(build_scripts.len(), 0);
@@ -708,7 +755,7 @@ mod test {
             UpdateAnalyzer::determine_version_conflict(&dep_change_infos, &package_graph_pair.post);
         assert_eq!(version_conflicts.len(), 1);
 
-        let conflict = version_conflicts.iter().next().unwrap();
+        let conflict = version_conflicts.get(0).unwrap();
         match conflict {
             DirectTransitiveVersionConflict { name, .. } => {
                 assert_eq!(name, "target-spec");

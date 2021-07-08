@@ -8,8 +8,12 @@ use guppy::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    cell::RefCell, collections::HashMap, collections::HashSet, fs, iter, iter::FromIterator, ops,
-    path::PathBuf, process::Command,
+    cell::RefCell,
+    collections::HashMap,
+    collections::HashSet,
+    fs, iter, ops,
+    path::{Path, PathBuf},
+    process::Command,
 };
 use tokei::{Config, LanguageType, Languages};
 
@@ -185,7 +189,7 @@ impl CodeAnalyzer {
                 is_direct: true,
                 has_build_script: package.has_build_script(),
                 loc_report: Some(loc_report),
-                unsafe_report: unsafe_report,
+                unsafe_report,
                 dep_report: Some(dep_report),
                 exclusive_dep_report: Some(exclusive_dep_report),
             };
@@ -217,7 +221,7 @@ impl CodeAnalyzer {
     ) -> Vec<PackageMetadata<'a>> {
         // HashSet for quick lookup in dependency subtree
         let mut package_deps: HashSet<&PackageId> =
-            HashSet::from_iter(pacakge_dependencies.iter().map(|dep| dep.id()));
+            pacakge_dependencies.iter().map(|dep| dep.id()).collect();
         // Add root to the tree
         package_deps.insert(package.id());
 
@@ -259,20 +263,16 @@ impl CodeAnalyzer {
 
             let unsafe_report =
                 self.get_unsafe_report(package.name().to_string(), package.version().to_string());
-            if !unsafe_report.is_none() {
+            if let Some(unsafe_report) = unsafe_report {
                 deps_analyzed_for_unsafe += 1;
-                let unsafe_report = unsafe_report.unwrap();
                 if unsafe_report.forbids_unsafe {
                     deps_forbidding_unsafe += 1;
-                } else {
-                    if unsafe_report.used_unsafe_count.expressions > 0 {
-                        deps_using_unsafe += 1;
-                    }
+                } else if unsafe_report.used_unsafe_count.expressions > 0 {
+                    deps_using_unsafe += 1;
                 }
                 deps_total_used_unsafe_details =
                     deps_total_used_unsafe_details + unsafe_report.used_unsafe_count;
             }
-
             if package.has_build_script() {
                 deps_with_build_script += 1;
             }
@@ -345,10 +345,7 @@ impl CodeAnalyzer {
         // and not a virtual manifest file
         // Therefore, we run cargo geiger on all member packages
         // TODO: Revisit this design
-        let package_paths: Vec<PathBuf> = package_paths
-            .iter()
-            .map(|path| PathBuf::from(path))
-            .collect();
+        let package_paths: Vec<PathBuf> = package_paths.iter().map(PathBuf::from).collect();
 
         for path in &package_paths {
             let geiger_report = Self::get_cargo_geiger_report(path)?;
@@ -368,7 +365,7 @@ impl CodeAnalyzer {
         Ok(())
     }
 
-    fn get_cargo_geiger_report(absolute_path: &PathBuf) -> Result<GeigerReport> {
+    fn get_cargo_geiger_report(absolute_path: &Path) -> Result<GeigerReport> {
         let absolute_path = fs::canonicalize(absolute_path)?;
         let absolute_path = absolute_path
             .to_str()
@@ -489,9 +486,9 @@ mod test {
         let code_reports = code_analyzer.analyze_code(&graph).unwrap();
         println!("{:?}", code_reports);
 
-        assert!(code_reports.len() > 0);
+        assert!(!code_reports.is_empty());
         let report = &code_reports[0];
-        assert_eq!(report.unsafe_report.is_none(), false);
+        assert!(report.unsafe_report.is_some());
     }
 
     #[test]
@@ -501,7 +498,7 @@ mod test {
         let path = PathBuf::from("resources/test/valid_dep/Cargo.toml");
         let geiger_report = CodeAnalyzer::get_cargo_geiger_report(&path).unwrap();
         println!("{:?}", geiger_report);
-        assert!(geiger_report.packages.len() > 0);
+        assert!(!geiger_report.packages.is_empty());
     }
 
     #[test]

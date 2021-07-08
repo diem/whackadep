@@ -79,7 +79,7 @@ pub(crate) fn trim_remote_url(url: &str) -> Result<String> {
         .ok_or_else(|| anyhow!("repository url missing repo for {}", url))?;
 
     let url = format!("https://{}/{}/{}", host, owner, repo);
-    return Ok(url);
+    Ok(url)
 }
 
 impl DiffAnalyzer {
@@ -198,7 +198,7 @@ impl DiffAnalyzer {
             name, version
         );
         let dest_file = format!("{}-{}-cratesio", name, version);
-        Ok(self.download_file(&download_path, &dest_file)?)
+        self.download_file(&download_path, &dest_file)
     }
 
     pub fn get_git_repo(&self, name: &str, url: &str) -> Result<Repository> {
@@ -414,7 +414,7 @@ impl DiffAnalyzer {
             "Cargo.lock",
         ]
         .into_iter()
-        .map(|path| PathBuf::from(path))
+        .map(PathBuf::from)
         .collect();
 
         for diff_delta in diff.deltas() {
@@ -524,7 +524,7 @@ mod test {
                 format!("{}-{}", &name, &version).as_str(),
             )
             .unwrap();
-        assert_eq!(path.exists(), true);
+        assert!(path.exists());
     }
 
     #[test]
@@ -533,12 +533,12 @@ mod test {
         let name = "libc";
         let version = "0.2.97";
         let path = diff_analyzer.get_cratesio_version(&name, &version).unwrap();
-        assert_eq!(path.exists(), true);
+        assert!(path.exists());
 
         let repo = diff_analyzer.init_git(&path).unwrap();
-        assert_eq!(repo.path().exists(), true);
+        assert!(repo.path().exists());
         let commit = repo.head().unwrap().peel_to_commit();
-        assert_eq!(commit.is_ok(), true);
+        assert!(commit.is_ok());
 
         // Add git repo as a remote to crate repo
         let url = "https://github.com/rust-lang/libc";
@@ -554,8 +554,8 @@ mod test {
         let name = "libc";
         let url = "https://github.com/rust-lang/libc";
         let repo = diff_analyzer.get_git_repo(&name, url).unwrap();
-        assert_eq!(repo.workdir().is_none(), false);
-        assert_eq!(repo.path().exists(), true);
+        assert!(repo.workdir().is_some());
+        assert!(repo.path().exists());
         // TODO add tests for non-git repos
     }
 
@@ -569,7 +569,7 @@ mod test {
         let oid = diff_analyzer
             .get_head_commit_oid_for_version(&repo, &name, "0.0.8")
             .unwrap();
-        assert_eq!(oid.is_none(), true);
+        assert!(oid.is_none());
         let oid = diff_analyzer
             .get_head_commit_oid_for_version(&repo, &name, "10.0.8")
             .unwrap();
@@ -580,7 +580,7 @@ mod test {
         let oid = diff_analyzer
             .get_head_commit_oid_for_version(&repo, &name, "10.0.8-")
             .unwrap();
-        assert_eq!(oid.is_none(), true);
+        assert!(oid.is_none());
 
         let name = "cargo-guppy";
         let url = "https://github.com/facebookincubator/cargo-guppy";
@@ -659,14 +659,14 @@ mod test {
                     continue;
                 }
 
-                assert_eq!(report.file_diff_stats.is_none(), false);
+                assert!(report.file_diff_stats.is_some());
                 println!("{:?}", report);
 
                 if package.name() == "guppy" {
-                    assert_eq!(report.is_different.unwrap(), false);
+                    assert!(!report.is_different.unwrap());
                 }
                 if package.name() == "octocrab" {
-                    assert_eq!(report.is_different.unwrap(), false);
+                    assert!(!report.is_different.unwrap());
                 }
             }
         }
@@ -715,6 +715,6 @@ mod test {
             })
             .err()
             .unwrap();
-        assert_eq!(diff, false);
+        assert!(!diff);
     }
 }

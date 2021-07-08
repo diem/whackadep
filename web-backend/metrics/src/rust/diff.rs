@@ -139,7 +139,7 @@ mod tests {
         let t_k_2 = out_dir.join("tiny-keccak==2.0.2");
         let t_k_2 = t_k_2.as_path();
 
-        assert_eq!(diff_cargo_crates(t_k_0, t_k_0).await.unwrap(), false);
+        assert!(!diff_cargo_crates(t_k_0, t_k_0).await.unwrap());
         assert!(diff_cargo_crates(t_k_0, t_k_1).await.unwrap());
         assert!(diff_cargo_crates(t_k_1, t_k_2).await.unwrap());
     }

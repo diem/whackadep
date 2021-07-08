@@ -130,7 +130,7 @@ mod tests {
         let libc = graph.packages().find(|p| p.name() == "libc").unwrap();
         let report = cratesio_analyzer.analyze_cratesio(&libc).unwrap();
 
-        assert_eq!(report.is_hosted, true);
+        assert!(report.is_hosted);
         assert!(report.downloads > 0);
         assert!(report.dependents > 0);
     }
@@ -152,6 +152,6 @@ mod tests {
         let downloads = cratesio_analyzer
             .get_version_downloads("guppy", &Version::parse("0.8.0").unwrap())
             .unwrap();
-        assert_eq!(downloads > 10000, true);
+        assert!(downloads > 10000);
     }
 }
