@@ -28,7 +28,7 @@ guppy-summaries = "0.4.0" # guppy summaries
 target-spec = "0.7.0" # guppy stuff
 semver = "0.11.0" # semver of dependencies
 octocrab = "0.8.11"  # interact with github API
-rustsec = "0.22.2" # RUSTSEC advisory stuff
+rustsec = "0.24.1" # RUSTSEC advisory stuff
 
 # bin-specific
 jsonwebtoken = "7.2.0"
