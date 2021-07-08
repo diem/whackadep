@@ -37,12 +37,14 @@ pub async fn audit(repo_path: &Path) -> Result<Report> {
 
     // run audit
     info!("generating rustsec report...");
-    let mut settings = rustsec::report::Settings::default();
-    settings.informational_warnings = vec![
-        Informational::Unmaintained,
-        Informational::Notice,
-        Informational::Unsound,
-    ]; // these are the only three informational advisories at the moment
+    let settings = rustsec::report::Settings {
+        informational_warnings: vec![
+            Informational::Unmaintained,
+            Informational::Notice,
+            Informational::Unsound,
+        ], // these are the only three informational advisories at the moment
+        ..Default::default()
+    };
     info!("settings: {:#?}", settings);
     let mut report = rustsec::Report::generate(&advisory_db, &lockfile, &settings);
 

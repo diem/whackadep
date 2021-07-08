@@ -464,11 +464,10 @@ impl ChangeSummary {
                     .iter()
                     // remove warnings for packages that have
                     .filter(|&w| {
-                        old_warnings
+                        !old_warnings
                             .iter()
                             // TODO: theoretically, we can have a new advisory for the same package...
-                            .find(|old_w| old_w.package.name == w.package.name)
-                            .is_none()
+                            .any(|old_w| old_w.package.name == w.package.name)
                     })
                     .cloned()
                     .collect();

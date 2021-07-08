@@ -151,10 +151,7 @@ fn valid_repo_url(repo: &str) -> bool {
 // Fetches the list of exisiting repositories in analysis database
 async fn get_all_repos(app: App) -> Result<Vec<String>> {
     let config = Config::new(app.db.clone());
-    let repos = match config.get_repos().await {
-        Ok(repos) => repos,
-        Err(error) => return Err(error.into()),
-    };
+    let repos = config.get_repos().await?;
     let repos: Vec<String> = repos.into_iter().map(|repo| repo.repo).collect();
     Ok(repos)
 }
@@ -168,7 +165,7 @@ async fn request_metric_analysis(app: App, repo: String) -> Result<()> {
 
 // Periodically kicks off analysis for all repo
 async fn cron_job(app: App) {
-    let analysis_interval = 1 * 60 * 60; // 1 hour
+    let analysis_interval = 60 * 60; // 1 hour
     let mut interval = time::interval(time::Duration::from_secs(analysis_interval));
 
     loop {

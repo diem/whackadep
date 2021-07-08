@@ -106,14 +106,10 @@ impl MetricsApp {
         info!("analysis done, storing in db...");
 
         // 4. get previous analysis
-        let previous_analysis = if let Some(previous_analysis) = &previous_analysis {
-            Some(PreviousAnalysis {
-                commit: previous_analysis.commit.clone(),
-                timestamp: previous_analysis.timestamp,
-            })
-        } else {
-            None
-        };
+        let previous_analysis = previous_analysis.as_ref().map(|pa| PreviousAnalysis {
+            commit: pa.commit.clone(),
+            timestamp: pa.timestamp,
+        });
         let analysis = Analysis {
             commit,
             repository: repo_url.to_string(),
