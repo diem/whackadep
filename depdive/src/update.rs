@@ -2,6 +2,7 @@
 
 use crate::cratesio::CratesioAnalyzer;
 use anyhow::{anyhow, Result};
+use git2::Diff;
 use guppy::graph::{
     cargo::{CargoOptions, CargoResolverVersion},
     feature::{FeatureFilter, StandardFeatures},
@@ -9,9 +10,15 @@ use guppy::graph::{
         diff::{SummaryDiff, SummaryDiffStatus},
         Summary, SummaryId,
     },
-    PackageGraph,
+    BuildTargetId, PackageGraph,
 };
 use semver::Version;
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+};
+
+use crate::diff::{DiffAnalyzer, HeadCommitNotFoundError};
 
 #[derive(Debug, Clone)]
 pub enum DependencyType {
@@ -22,9 +29,12 @@ pub enum DependencyType {
 #[derive(Debug, Clone)]
 pub struct DependencyChangeInfo {
     pub name: String,
+    pub repository: Option<String>,
     pub dep_type: DependencyType,
     pub old_version: Option<Version>, // None when a dep is added
     pub new_version: Option<Version>, // None when a dep is removed
+    // Build script paths for the dependency
+    pub build_script_paths: HashSet<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -32,6 +42,7 @@ pub struct UpdateReviewReport {
     pub name: String,
     pub prior_version: VersionInfo,
     pub updated_version: VersionInfo,
+    pub diff_stats: Option<VersionDiffStats>,
 }
 
 #[derive(Debug, Clone)]
@@ -41,15 +52,36 @@ pub struct VersionInfo {
     pub downloads: u64,
 }
 
-pub struct UpdateAnalyzer;
+pub struct VersionChangeInfo {
+    pub old_version: Option<Version>, // None when a dep is added
+    pub new_version: Option<Version>, // None when a dep is removed
+}
+
+#[derive(Debug, Clone)]
+pub struct VersionDiffStats {
+    pub files_changed: u64,
+    pub insertions: u64,
+    pub deletions: u64,
+    pub modified_build_scripts: HashSet<String>, // Empty indicates no change in build scripts
+}
+
+pub struct UpdateAnalyzer {
+    cache: RefCell<HashMap<String, UpdateReviewReport>>,
+}
 
 impl UpdateAnalyzer {
+    pub fn new() -> Self {
+        Self {
+            cache: RefCell::new(HashMap::new()),
+        }
+    }
     pub fn analyze_updates(
+        self,
         prior_graph: &PackageGraph,
         post_graph: &PackageGraph,
     ) -> Result<Vec<UpdateReviewReport>> {
         // Analyzing with default options
-        Self::analyze_updates_with_options(
+        self.analyze_updates_with_options(
             prior_graph,
             post_graph,
             &Self::get_default_cargo_options(),
@@ -58,6 +90,7 @@ impl UpdateAnalyzer {
     }
 
     pub fn analyze_updates_with_options<'a>(
+        self,
         prior_graph: &'a PackageGraph,
         post_graph: &'a PackageGraph,
         cargo_opts: &CargoOptions,
@@ -81,7 +114,7 @@ impl UpdateAnalyzer {
 
         let update_review_reports: Vec<UpdateReviewReport> = updated_deps
             .iter()
-            .map(|dep| Self::get_update_review(dep))
+            .map(|dep| self.get_update_review(dep))
             .collect::<Result<_>>()?;
 
         Ok(update_review_reports)
@@ -94,7 +127,7 @@ impl UpdateAnalyzer {
         cargo_opts
     }
 
-    pub fn compare_pacakge_graphs<'a>(
+    fn compare_pacakge_graphs<'a>(
         prior_graph: &'a PackageGraph,
         post_graph: &'a PackageGraph,
         cargo_opts: &CargoOptions,
@@ -107,25 +140,29 @@ impl UpdateAnalyzer {
         let mut dep_change_infos: Vec<DependencyChangeInfo> = Vec::new();
 
         for (summary_id, summary_diff_status) in diff.host_packages.changed.iter() {
-            dep_change_infos.push(Self::get_dependency_change_change_info(
-                summary_id,
-                summary_diff_status,
+            dep_change_infos.push(Self::get_dependency_change_info(
+                prior_graph,
+                post_graph,
+                &summary_id,
+                &summary_diff_status,
                 DependencyType::Host,
-            ));
+            )?);
         }
 
         for (summary_id, summary_diff_status) in diff.target_packages.changed.iter() {
-            dep_change_infos.push(Self::get_dependency_change_change_info(
-                summary_id,
-                summary_diff_status,
+            dep_change_infos.push(Self::get_dependency_change_info(
+                &prior_graph,
+                &post_graph,
+                &summary_id,
+                &summary_diff_status,
                 DependencyType::Target,
-            ));
+            )?);
         }
 
         Ok(dep_change_infos)
     }
 
-    pub fn get_summary<'a>(
+    fn get_summary<'a>(
         graph: &'a PackageGraph,
         feature_filter: impl FeatureFilter<'a>,
         cargo_opts: &CargoOptions,
@@ -138,11 +175,70 @@ impl UpdateAnalyzer {
         Ok(summary)
     }
 
-    pub fn get_dependency_change_change_info(
+    fn get_dependency_change_info(
+        prior_graph: &PackageGraph,
+        post_graph: &PackageGraph,
         summary_id: &SummaryId,
         summary_diff_status: &SummaryDiffStatus,
         dep_type: DependencyType,
-    ) -> DependencyChangeInfo {
+    ) -> Result<DependencyChangeInfo> {
+        let name = summary_id.name.clone();
+        let version_change_info =
+            Self::get_version_change_info_from_summarydiff(&summary_id, &summary_diff_status);
+        let repository = Self::get_repository_from_graphs(&vec![prior_graph, post_graph], &name);
+
+        let mut build_script_paths: HashSet<String> = HashSet::new();
+        let old_version = version_change_info.old_version;
+        if !old_version.is_none() {
+            Self::get_build_script_paths(prior_graph, &name)?
+                .into_iter()
+                .for_each(|x| {
+                    build_script_paths.insert(x);
+                });
+        }
+        let new_version = version_change_info.new_version;
+        if !new_version.is_none() {
+            Self::get_build_script_paths(post_graph, &name)?
+                .into_iter()
+                .for_each(|x| {
+                    build_script_paths.insert(x);
+                });
+        }
+
+        Ok(DependencyChangeInfo {
+            name,
+            repository,
+            dep_type,
+            old_version,
+            new_version,
+            build_script_paths,
+        })
+    }
+
+    fn get_build_script_paths(graph: &PackageGraph, crate_name: &str) -> Result<HashSet<String>> {
+        let package = graph
+            .packages()
+            .find(|p| p.name() == crate_name)
+            .ok_or_else(|| anyhow!("crate not present in package graph"))?;
+
+        let package_path = package
+            .manifest_path()
+            .parent()
+            .ok_or_else(|| anyhow!("invalid Cargo.toml path"))?;
+
+        let build_script_paths: Result<HashSet<String>> = package
+            .build_targets()
+            .filter(|b| b.id() == BuildTargetId::BuildScript)
+            .map(|b| Ok(b.path().strip_prefix(package_path)?.as_str().to_string()))
+            .collect();
+
+        Ok(build_script_paths?)
+    }
+
+    fn get_version_change_info_from_summarydiff(
+        summary_id: &SummaryId,
+        summary_diff_status: &SummaryDiffStatus,
+    ) -> VersionChangeInfo {
         let mut old_version: Option<Version> = None;
         let mut new_version: Option<Version> = None;
 
@@ -164,15 +260,28 @@ impl UpdateAnalyzer {
             }
         }
 
-        DependencyChangeInfo {
-            name: summary_id.name.clone(),
-            dep_type,
+        VersionChangeInfo {
             old_version,
             new_version,
         }
     }
 
-    pub fn get_update_review(dep_change_info: &DependencyChangeInfo) -> Result<UpdateReviewReport> {
+    fn get_repository_from_graphs(graphs: &[&PackageGraph], crate_name: &str) -> Option<String> {
+        graphs
+            .iter()
+            .find_map(|g| Self::get_repository_from_graph(g, crate_name))
+    }
+
+    fn get_repository_from_graph(graph: &PackageGraph, crate_name: &str) -> Option<String> {
+        let package = graph.packages().find(|p| p.name() == crate_name)?;
+        let repository = package.repository()?.to_string();
+        Some(repository)
+    }
+
+    fn get_update_review(
+        &self,
+        dep_change_info: &DependencyChangeInfo,
+    ) -> Result<UpdateReviewReport> {
         if dep_change_info.old_version.is_none()
             || dep_change_info.new_version.is_none()
             || !(dep_change_info.new_version.as_ref().unwrap()
@@ -182,60 +291,164 @@ impl UpdateAnalyzer {
         }
 
         let name = &dep_change_info.name;
+        match self.get_update_review_report_from_cache(name) {
+            Some(report) => return Ok(report),
+            None => (), // proceed with logic
+        }
+
         let cratesio_analyzer = CratesioAnalyzer::new()?;
 
-        let version = dep_change_info.old_version.as_ref().unwrap().clone();
+        let old_version = dep_change_info.old_version.as_ref().unwrap().clone();
         let prior_version = VersionInfo {
             name: name.clone(),
-            version: version.clone(),
-            downloads: cratesio_analyzer.get_version_downloads(&name, &version)?,
+            version: old_version.clone(),
+            downloads: cratesio_analyzer.get_version_downloads(&name, &old_version)?,
         };
 
-        let version = dep_change_info.new_version.as_ref().unwrap().clone();
+        let new_version = dep_change_info.new_version.as_ref().unwrap().clone();
         let updated_version = VersionInfo {
             name: name.clone(),
-            version: version.clone(),
-            downloads: cratesio_analyzer.get_version_downloads(&name, &version)?,
+            version: old_version.clone(),
+            downloads: cratesio_analyzer.get_version_downloads(&name, &new_version)?,
         };
 
-        Ok(UpdateReviewReport {
+        let diff_stats = Self::analyze_version_diff(&dep_change_info)?;
+
+        let report = UpdateReviewReport {
             name: dep_change_info.name.clone(),
             prior_version,
             updated_version,
-        })
+            diff_stats,
+        };
+        self.cache.borrow_mut().insert(name.clone(), report);
+        Ok(self
+            .get_update_review_report_from_cache(name)
+            .ok_or_else(|| anyhow!("fatal cache error for update analyzer"))?)
+    }
+
+    fn analyze_version_diff(
+        dep_change_info: &DependencyChangeInfo,
+    ) -> Result<Option<VersionDiffStats>> {
+        if let (name, Some(repository), Some(old_version), Some(new_version)) = (
+            &dep_change_info.name,
+            &dep_change_info.repository,
+            &dep_change_info.old_version,
+            &dep_change_info.new_version,
+        ) {
+            let diff_analyzer = DiffAnalyzer::new()?;
+            let repo = diff_analyzer.get_git_repo(&name, &repository)?;
+            let diff = match diff_analyzer.get_version_diff(
+                &dep_change_info.name,
+                &repo,
+                &old_version,
+                &new_version,
+            ) {
+                Ok(diff) => diff,
+                Err(error) => match error.root_cause().downcast_ref::<HeadCommitNotFoundError>() {
+                    Some(_err) => return Ok(None),
+                    None => return Err(anyhow!("fatal error in fetching head commit")),
+                },
+            };
+
+            let stats = diff.stats()?;
+
+            let modified_build_scripts: HashSet<String> = dep_change_info
+                .build_script_paths
+                .iter()
+                .filter(|path| Self::is_file_modified(&path, &diff))
+                .map(|path| path.to_string())
+                .collect();
+
+            Ok(Some(VersionDiffStats {
+                files_changed: stats.files_changed() as u64,
+                insertions: stats.insertions() as u64,
+                deletions: stats.deletions() as u64,
+                modified_build_scripts,
+            }))
+        } else {
+            // If repository, old version, or new version is none, there is no update diff
+            Ok(None)
+        }
+    }
+
+    fn is_file_modified(path: &str, diff: &Diff) -> bool {
+        let mut modified_file_paths: HashSet<&str> = HashSet::new();
+
+        for diff_delta in diff.deltas() {
+            let path: Option<&str> = diff_delta.old_file().path().and_then(|path| path.to_str());
+            if let Some(p) = path {
+                modified_file_paths.insert(p);
+            }
+
+            let path: Option<&str> = diff_delta.new_file().path().and_then(|path| path.to_str());
+            if let Some(p) = path {
+                modified_file_paths.insert(p);
+            }
+        }
+
+        modified_file_paths.contains(path)
+    }
+
+    fn get_update_review_report_from_cache(&self, key: &str) -> Option<UpdateReviewReport> {
+        self.cache.borrow().get(key).cloned()
     }
 }
 
 #[cfg(test)]
 mod test {
-    use super::*;
-    use guppy::CargoMetadata;
+    use super::{DependencyType, PackageGraph, StandardFeatures, UpdateAnalyzer};
+    use crate::diff::trim_remote_url;
+    use guppy::{CargoMetadata, MetadataCommand};
+    use std::path::PathBuf;
 
-    fn get_test_graph_pairs() -> (PackageGraph, PackageGraph) {
+    struct PackageGraphPair {
+        prior: PackageGraph,
+        post: PackageGraph,
+    }
+
+    fn get_test_graph_pair_guppy() -> PackageGraphPair {
         let metadata = CargoMetadata::parse_json(include_str!(
-            "../resources/test/prior_dep_change_metadata.json"
+            "../resources/test/prior_guppy_change_metadata.json"
         ))
         .unwrap();
         let prior = metadata.build_graph().unwrap();
 
         let metadata = CargoMetadata::parse_json(include_str!(
-            "../resources/test/post_dep_change_metadata.json"
+            "../resources/test/post_guppy_change_metadata.json"
         ))
         .unwrap();
         let post = metadata.build_graph().unwrap();
 
-        (prior, post)
+        PackageGraphPair { prior, post }
+    }
+
+    fn get_test_graph_pair_libc() -> PackageGraphPair {
+        let metadata = CargoMetadata::parse_json(include_str!(
+            "../resources/test/prior_libc_change_metadata.json"
+        ))
+        .unwrap();
+        let prior = metadata.build_graph().unwrap();
+
+        let metadata = CargoMetadata::parse_json(include_str!(
+            "../resources/test/post_libc_change_metadata.json"
+        ))
+        .unwrap();
+        let post = metadata.build_graph().unwrap();
+
+        PackageGraphPair { prior, post }
+    }
+
+    fn get_test_update_analyzer() -> UpdateAnalyzer {
+        UpdateAnalyzer::new()
     }
 
     #[test]
     fn test_update_compare_package_graph() {
-        let pair = get_test_graph_pairs();
-        let prior = pair.0;
-        let post = pair.1;
+        let package_graph_pair = get_test_graph_pair_guppy();
 
         let dep_change_infos = UpdateAnalyzer::compare_pacakge_graphs(
-            &prior,
-            &post,
+            &package_graph_pair.prior,
+            &package_graph_pair.post,
             &UpdateAnalyzer::get_default_cargo_options(),
             StandardFeatures::All,
         )
@@ -291,13 +504,109 @@ mod test {
     }
 
     #[test]
-    fn test_update_review_report() {
-        let pair = get_test_graph_pairs();
-        let prior = pair.0;
-        let post = pair.1;
+    fn get_repository_from_graphs() {
+        let package_graph_pair = get_test_graph_pair_guppy();
+        let graphs = vec![&package_graph_pair.prior, &package_graph_pair.post];
 
-        let update_review_reports = UpdateAnalyzer::analyze_updates(&prior, &post).unwrap();
+        assert_eq!(
+            "https://github.com/facebookincubator/cargo-guppy",
+            trim_remote_url(&UpdateAnalyzer::get_repository_from_graphs(&graphs, "guppy").unwrap())
+                .unwrap()
+        );
+
+        assert_eq!(
+            "https://github.com/rust-lang/git2-rs",
+            trim_remote_url(&UpdateAnalyzer::get_repository_from_graphs(&graphs, "git2").unwrap())
+                .unwrap()
+        );
+
+        assert_eq!(
+            "https://github.com/XAMPPRocky/octocrab",
+            trim_remote_url(
+                &UpdateAnalyzer::get_repository_from_graphs(&graphs, "octocrab").unwrap()
+            )
+            .unwrap()
+        );
+    }
+
+    #[test]
+    fn test_update_review_report_guppy() {
+        let package_graph_pair = get_test_graph_pair_guppy();
+        let update_analyzer = get_test_update_analyzer();
+        let update_review_reports = update_analyzer
+            .analyze_updates(&package_graph_pair.prior, &package_graph_pair.post)
+            .unwrap();
         assert_eq!(update_review_reports.len(), 2);
+        for report in &update_review_reports {
+            if report.name == "guppy" {
+                assert_eq!(report.diff_stats.as_ref().unwrap().files_changed, 26);
+                assert_eq!(report.diff_stats.as_ref().unwrap().insertions, 373);
+                assert_eq!(report.diff_stats.as_ref().unwrap().deletions, 335);
+                assert_eq!(
+                    report
+                        .diff_stats
+                        .as_ref()
+                        .unwrap()
+                        .modified_build_scripts
+                        .is_empty(),
+                    true
+                );
+            }
+        }
         println!("{:?}", update_review_reports);
+    }
+
+    #[test]
+    fn test_update_build_script_paths() {
+        let graph = MetadataCommand::new()
+            .current_dir(PathBuf::from("resources/test/valid_dep"))
+            .build_graph()
+            .unwrap();
+
+        let build_script_paths = UpdateAnalyzer::get_build_script_paths(&graph, "libc").unwrap();
+        assert_eq!(build_script_paths.len(), 1);
+        assert_eq!(build_script_paths.iter().next().unwrap(), "build.rs");
+
+        let graph = MetadataCommand::new()
+            .current_dir(PathBuf::from("resources/test/valid_dep"))
+            .build_graph()
+            .unwrap();
+        let build_script_paths =
+            UpdateAnalyzer::get_build_script_paths(&graph, "valid_dep").unwrap();
+        // TODO: there is another file build/custom_build.rs that is called
+        // from the build script which won't be available from guppy
+        // we need to add functionaliyt for that.
+        assert_eq!(build_script_paths.len(), 1);
+        assert_eq!(build_script_paths.iter().next().unwrap(), "build/main.rs");
+    }
+
+    #[test]
+    fn test_update_build_script_change() {
+        let package_graph_pair = get_test_graph_pair_libc();
+        let update_analyzer = get_test_update_analyzer();
+        let update_review_reports = update_analyzer
+            .analyze_updates(&package_graph_pair.prior, &package_graph_pair.post)
+            .unwrap();
+        let report = update_review_reports
+            .iter()
+            .filter(|report| report.name == "libc")
+            .next()
+            .unwrap();
+        let build_scripts = &report.diff_stats.as_ref().unwrap().modified_build_scripts;
+        assert_eq!(build_scripts.len(), 1);
+        assert_eq!(build_scripts.iter().next().unwrap(), "build.rs");
+
+        let package_graph_pair = get_test_graph_pair_guppy();
+        let update_analyzer = get_test_update_analyzer();
+        let update_review_reports = update_analyzer
+            .analyze_updates(&package_graph_pair.prior, &package_graph_pair.post)
+            .unwrap();
+        let report = update_review_reports
+            .iter()
+            .filter(|report| report.name == "guppy")
+            .next()
+            .unwrap();
+        let build_scripts = &report.diff_stats.as_ref().unwrap().modified_build_scripts;
+        assert_eq!(build_scripts.len(), 0);
     }
 }

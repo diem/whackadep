@@ -9,6 +9,7 @@ use git2::{
 use guppy::{graph::PackageMetadata, MetadataCommand};
 use regex::Regex;
 use reqwest::blocking::Client;
+use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use std::{
@@ -19,6 +20,7 @@ use std::{
 };
 use tar::Archive;
 use tempfile::{tempdir, TempDir};
+use thiserror::Error;
 use url::Url;
 
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -47,6 +49,39 @@ pub struct DiffAnalyzer {
     client: Client, // for downloading files
 }
 
+#[derive(Debug, Error)]
+#[error("Head commit not found in the repository for {crate_name}:{version}")]
+pub struct HeadCommitNotFoundError {
+    crate_name: String,
+    version: Version,
+}
+
+pub(crate) fn trim_remote_url(url: &str) -> Result<String> {
+    // Trim down remote git urls like GitHub for cloning
+    // in cases where the crate is in a subdirectory of the repo
+    // in the format "host_url/owner/repo"
+    let url = Url::from_str(url)?;
+
+    let host = url
+        .host_str()
+        .ok_or_else(|| anyhow!("invalid host for {}", url))?;
+    // TODO: check if host is from recognized sources, e.g. github, bitbucket, gitlab
+
+    let mut segments = url
+        .path_segments()
+        .ok_or_else(|| anyhow!("error parsing url for {}", url))?;
+    let owner = segments
+        .next()
+        .ok_or_else(|| anyhow!("repository url missing owner for {}", url))?;
+    let repo = segments
+        .next()
+        .map(|repo| repo.trim_end_matches(".git"))
+        .ok_or_else(|| anyhow!("repository url missing repo for {}", url))?;
+
+    let url = format!("https://{}/{}/{}", host, owner, repo);
+    return Ok(url);
+}
+
 impl DiffAnalyzer {
     pub fn new() -> Result<Self> {
         Ok(Self {
@@ -62,7 +97,7 @@ impl DiffAnalyzer {
         let name = package.name().to_string();
         let version = package.version().to_string();
         let repository = match package.repository() {
-            Some(repo) => Self::trim_remote_url(repo)?,
+            Some(repo) => trim_remote_url(repo)?,
             None => {
                 return Ok(CrateSourceDiffReport {
                     name,
@@ -157,30 +192,6 @@ impl DiffAnalyzer {
         })
     }
 
-    fn trim_remote_url(url: &str) -> Result<String> {
-        // Trim down remote git urls like GitHub for cloning
-        // in cases where the crate is in a subdirectory of the repo
-        // in the format "host_url/owner/repo"
-        let url = Url::from_str(url)?;
-
-        let host = url.host_str().ok_or_else(|| anyhow!("invalid host"))?;
-        // TODO: check if host is from recognized sources, e.g. github, bitbucket, gitlab
-
-        let mut segments = url
-            .path_segments()
-            .ok_or_else(|| anyhow!("error parsing url"))?;
-        let owner = segments
-            .next()
-            .ok_or_else(|| anyhow!("repository url missing owner"))?;
-        let repo = segments
-            .next()
-            .map(|repo| repo.trim_end_matches(".git"))
-            .ok_or_else(|| anyhow!("repository url missing repo"))?;
-
-        let url = format!("https://{}/{}/{}", host, owner, repo);
-        return Ok(url);
-    }
-
     fn get_cratesio_version(&self, name: &str, version: &str) -> Result<PathBuf> {
         let download_path = format!(
             "https://crates.io/api/v1/crates/{}/{}/download",
@@ -190,7 +201,7 @@ impl DiffAnalyzer {
         Ok(self.download_file(&download_path, &dest_file)?)
     }
 
-    fn get_git_repo(&self, name: &str, url: &str) -> Result<Repository> {
+    pub fn get_git_repo(&self, name: &str, url: &str) -> Result<Repository> {
         let dest_file = format!("{}-source", name);
         let dest_path = self.dir.path().join(&dest_file);
         let repo = Repository::clone(url, dest_path)?;
@@ -441,6 +452,35 @@ impl DiffAnalyzer {
             files_deleted,
         })
     }
+
+    pub fn get_version_diff<'a>(
+        &'a self,
+        name: &str,
+        repo: &'a Repository,
+        version_a: &Version,
+        version_b: &Version,
+    ) -> Result<Diff<'a>> {
+        let commit_oid_a = self
+            .get_head_commit_oid_for_version(&repo, &name, &version_a.to_string())?
+            .ok_or_else(|| HeadCommitNotFoundError {
+                crate_name: name.to_string(),
+                version: version_a.clone(),
+            })?;
+        let commit_oid_b = self
+            .get_head_commit_oid_for_version(&repo, &name, &version_b.to_string())?
+            .ok_or_else(|| HeadCommitNotFoundError {
+                crate_name: name.to_string(),
+                version: version_b.clone(),
+            })?;
+
+        let diff = repo.diff_tree_to_tree(
+            Some(&repo.find_commit(commit_oid_a)?.tree()?),
+            Some(&repo.find_commit(commit_oid_b)?.tree()?),
+            Some(&mut DiffOptions::new()),
+        )?;
+
+        Ok(diff)
+    }
 }
 
 #[cfg(test)]
@@ -462,7 +502,7 @@ mod test {
     #[test]
     fn test_diff_trim_git_url() {
         let url = "https://github.com/facebookincubator/cargo-guppy/tree/main/guppy";
-        let trimmed_url = DiffAnalyzer::trim_remote_url(url).unwrap();
+        let trimmed_url = trim_remote_url(url).unwrap();
         assert_eq!(
             trimmed_url,
             "https://github.com/facebookincubator/cargo-guppy"
@@ -630,5 +670,51 @@ mod test {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_diff_version_diff() {
+        let diff_analyzer = get_test_diff_analyzer();
+        let name = "guppy";
+        let repository = "https://github.com/facebookincubator/cargo-guppy";
+
+        let repo = diff_analyzer.get_git_repo(&name, &repository).unwrap();
+        let diff = diff_analyzer
+            .get_version_diff(
+                name,
+                &repo,
+                &Version::parse("0.8.0").unwrap(),
+                &Version::parse("0.9.0").unwrap(),
+            )
+            .unwrap();
+        assert_eq!(diff.stats().unwrap().files_changed(), 26);
+        assert_eq!(diff.stats().unwrap().insertions(), 373);
+        assert_eq!(diff.stats().unwrap().deletions(), 335);
+    }
+
+    #[test]
+    fn test_diff_head_commit_not_found_error() {
+        let diff_analyzer = get_test_diff_analyzer();
+        let name = "guppy";
+        let repository = "https://github.com/facebookincubator/cargo-guppy";
+
+        let repo = diff_analyzer.get_git_repo(&name, &repository).unwrap();
+        let diff = diff_analyzer
+            .get_version_diff(
+                name,
+                &repo,
+                &Version::parse("0.0.0").unwrap(),
+                &Version::parse("0.9.0").unwrap(),
+            )
+            .map_err(|error| {
+                error
+                    .root_cause()
+                    .downcast_ref::<HeadCommitNotFoundError>()
+                    // If not the error type, downcast will be None
+                    .is_none()
+            })
+            .err()
+            .unwrap();
+        assert_eq!(diff, false);
     }
 }
