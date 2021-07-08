@@ -232,7 +232,7 @@ impl UpdateAnalyzer {
             .map(|b| Ok(b.path().strip_prefix(package_path)?.as_str().to_string()))
             .collect();
 
-        Ok(build_script_paths?)
+        build_script_paths
     }
 
     fn get_version_change_info_from_summarydiff(
@@ -321,9 +321,9 @@ impl UpdateAnalyzer {
             diff_stats,
         };
         self.cache.borrow_mut().insert(name.clone(), report);
-        Ok(self
+        self
             .get_update_review_report_from_cache(name)
-            .ok_or_else(|| anyhow!("fatal cache error for update analyzer"))?)
+            .ok_or_else(|| anyhow!("fatal cache error for update analyzer"))
     }
 
     fn analyze_version_diff(
