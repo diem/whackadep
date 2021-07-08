@@ -4,8 +4,7 @@ on: [push, pull_request]
 
 env:
   CARGO_INCREMENTAL: 0
-  # Enable this once we've fixed all warnings
-  # RUSTFLAGS: -D warnings
+  RUSTFLAGS: -D warnings
 
 jobs:
   test:
