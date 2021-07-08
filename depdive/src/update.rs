@@ -10,7 +10,7 @@ use guppy::graph::{
         diff::{SummaryDiff, SummaryDiffStatus},
         Summary, SummaryId,
     },
-    BuildTargetId, PackageGraph,
+    BuildTargetId, PackageGraph, PackageMetadata,
 };
 use semver::Version;
 use std::{
@@ -39,6 +39,12 @@ pub struct DependencyChangeInfo {
 
 #[derive(Debug, Clone)]
 pub struct UpdateReviewReport {
+    pub dep_update_review_reports: Vec<DepUpdateReviewReport>,
+    pub version_conflicts: Vec<VersionConflict>,
+}
+
+#[derive(Debug, Clone)]
+pub struct DepUpdateReviewReport {
     pub name: String,
     pub prior_version: VersionInfo,
     pub updated_version: VersionInfo,
@@ -65,8 +71,19 @@ pub struct VersionDiffStats {
     pub modified_build_scripts: HashSet<String>, // Empty indicates no change in build scripts
 }
 
+#[derive(Debug, Clone)]
+pub enum VersionConflict {
+    // Case 1: A dep has two copies of different version
+    //         as a direct and a transitive dep in the graph
+    DirectTransitiveVersionConflict {
+        name: String,
+        direct_dep_version: Version,
+        transitive_dep_version: Version,
+    },
+}
+
 pub struct UpdateAnalyzer {
-    cache: RefCell<HashMap<String, UpdateReviewReport>>,
+    cache: RefCell<HashMap<String, DepUpdateReviewReport>>,
 }
 
 impl UpdateAnalyzer {
@@ -79,7 +96,7 @@ impl UpdateAnalyzer {
         self,
         prior_graph: &PackageGraph,
         post_graph: &PackageGraph,
-    ) -> Result<Vec<UpdateReviewReport>> {
+    ) -> Result<UpdateReviewReport> {
         // Analyzing with default options
         self.analyze_updates_with_options(
             prior_graph,
@@ -95,7 +112,7 @@ impl UpdateAnalyzer {
         post_graph: &'a PackageGraph,
         cargo_opts: &CargoOptions,
         feature_filter: impl FeatureFilter<'a>,
-    ) -> Result<Vec<UpdateReviewReport>> {
+    ) -> Result<UpdateReviewReport> {
         // Get the changed dependency stats
         let dep_change_infos =
             Self::compare_pacakge_graphs(&prior_graph, &post_graph, cargo_opts, feature_filter)?;
@@ -112,12 +129,58 @@ impl UpdateAnalyzer {
             .collect();
         // TODO: add reporting for version downgrades, add, and remove
 
-        let update_review_reports: Vec<UpdateReviewReport> = updated_deps
+        let dep_update_review_reports: Vec<DepUpdateReviewReport> = updated_deps
             .iter()
             .map(|dep| self.get_update_review(dep))
             .collect::<Result<_>>()?;
 
-        Ok(update_review_reports)
+        let version_conflicts: Vec<VersionConflict> =
+            Self::determine_version_conflict(&dep_change_infos, &post_graph);
+
+        Ok(UpdateReviewReport {
+            dep_update_review_reports,
+            version_conflicts,
+        })
+    }
+
+    fn determine_version_conflict(
+        dep_change_infos: &[DependencyChangeInfo],
+        graph: &PackageGraph,
+    ) -> Vec<VersionConflict> {
+        let mut conflicts: Vec<VersionConflict> = Vec::new();
+
+        // Check for direct-transitive version conflict
+        let direct_dependencies = Self::get_direct_dependencies(&graph);
+        for dep_change_info in dep_change_infos {
+            if let (Some(package), Some(new_version)) = (
+                direct_dependencies
+                    .iter()
+                    .find(|dep| dep.name() == dep_change_info.name),
+                dep_change_info.new_version.clone(),
+            ) {
+                if *package.version() != new_version {
+                    conflicts.push(VersionConflict::DirectTransitiveVersionConflict {
+                        name: package.name().to_string(),
+                        direct_dep_version: package.version().clone(),
+                        transitive_dep_version: new_version,
+                    })
+                }
+            }
+        }
+
+        conflicts
+    }
+
+    fn get_direct_dependencies(graph: &PackageGraph) -> Vec<PackageMetadata> {
+        graph
+            .query_workspace()
+            .resolve_with_fn(|_, link| {
+                let (from, to) = link.endpoints();
+                from.in_workspace() && !to.in_workspace()
+            })
+            .packages(guppy::graph::DependencyDirection::Forward)
+            .filter(|pkg| !pkg.in_workspace())
+            .collect()
     }
 
     fn get_default_cargo_options() -> CargoOptions<'static> {
@@ -281,7 +344,7 @@ impl UpdateAnalyzer {
     fn get_update_review(
         &self,
         dep_change_info: &DependencyChangeInfo,
-    ) -> Result<UpdateReviewReport> {
+    ) -> Result<DepUpdateReviewReport> {
         if dep_change_info.old_version.is_none()
             || dep_change_info.new_version.is_none()
             || !(dep_change_info.new_version.as_ref().unwrap()
@@ -314,15 +377,14 @@ impl UpdateAnalyzer {
 
         let diff_stats = Self::analyze_version_diff(&dep_change_info)?;
 
-        let report = UpdateReviewReport {
+        let report = DepUpdateReviewReport {
             name: dep_change_info.name.clone(),
             prior_version,
             updated_version,
             diff_stats,
         };
         self.cache.borrow_mut().insert(name.clone(), report);
-        self
-            .get_update_review_report_from_cache(name)
+        self.get_update_review_report_from_cache(name)
             .ok_or_else(|| anyhow!("fatal cache error for update analyzer"))
     }
 
@@ -389,14 +451,17 @@ impl UpdateAnalyzer {
         modified_file_paths.contains(path)
     }
 
-    fn get_update_review_report_from_cache(&self, key: &str) -> Option<UpdateReviewReport> {
+    fn get_update_review_report_from_cache(&self, key: &str) -> Option<DepUpdateReviewReport> {
         self.cache.borrow().get(key).cloned()
     }
 }
 
 #[cfg(test)]
 mod test {
-    use super::{DependencyType, PackageGraph, StandardFeatures, UpdateAnalyzer};
+    use super::{
+        DependencyType, PackageGraph, StandardFeatures, UpdateAnalyzer,
+        VersionConflict::DirectTransitiveVersionConflict,
+    };
     use crate::diff::trim_remote_url;
     use guppy::{CargoMetadata, MetadataCommand};
     use std::path::PathBuf;
@@ -431,6 +496,22 @@ mod test {
 
         let metadata = CargoMetadata::parse_json(include_str!(
             "../resources/test/post_libc_change_metadata.json"
+        ))
+        .unwrap();
+        let post = metadata.build_graph().unwrap();
+
+        PackageGraphPair { prior, post }
+    }
+
+    fn get_test_graph_pair_conflict() -> PackageGraphPair {
+        let metadata = CargoMetadata::parse_json(include_str!(
+            "../resources/test/prior_conflict_metadata.json"
+        ))
+        .unwrap();
+        let prior = metadata.build_graph().unwrap();
+
+        let metadata = CargoMetadata::parse_json(include_str!(
+            "../resources/test/post_conflict_metadata.json"
         ))
         .unwrap();
         let post = metadata.build_graph().unwrap();
@@ -536,8 +617,8 @@ mod test {
         let update_review_reports = update_analyzer
             .analyze_updates(&package_graph_pair.prior, &package_graph_pair.post)
             .unwrap();
-        assert_eq!(update_review_reports.len(), 2);
-        for report in &update_review_reports {
+        assert_eq!(update_review_reports.dep_update_review_reports.len(), 2);
+        for report in &update_review_reports.dep_update_review_reports {
             if report.name == "guppy" {
                 assert_eq!(report.diff_stats.as_ref().unwrap().files_changed, 26);
                 assert_eq!(report.diff_stats.as_ref().unwrap().insertions, 373);
@@ -588,6 +669,7 @@ mod test {
             .analyze_updates(&package_graph_pair.prior, &package_graph_pair.post)
             .unwrap();
         let report = update_review_reports
+            .dep_update_review_reports
             .iter()
             .filter(|report| report.name == "libc")
             .next()
@@ -602,11 +684,35 @@ mod test {
             .analyze_updates(&package_graph_pair.prior, &package_graph_pair.post)
             .unwrap();
         let report = update_review_reports
+            .dep_update_review_reports
             .iter()
             .filter(|report| report.name == "guppy")
             .next()
             .unwrap();
         let build_scripts = &report.diff_stats.as_ref().unwrap().modified_build_scripts;
         assert_eq!(build_scripts.len(), 0);
+    }
+
+    #[test]
+    fn test_version_conflict() {
+        let package_graph_pair = get_test_graph_pair_conflict();
+        let dep_change_infos = UpdateAnalyzer::compare_pacakge_graphs(
+            &package_graph_pair.prior,
+            &package_graph_pair.post,
+            &UpdateAnalyzer::get_default_cargo_options(),
+            StandardFeatures::All,
+        )
+        .unwrap();
+
+        let version_conflicts =
+            UpdateAnalyzer::determine_version_conflict(&dep_change_infos, &package_graph_pair.post);
+        assert_eq!(version_conflicts.len(), 1);
+
+        let conflict = version_conflicts.iter().next().unwrap();
+        match conflict {
+            DirectTransitiveVersionConflict { name, .. } => {
+                assert_eq!(name, "target-spec");
+            }
+        }
     }
 }
