@@ -487,6 +487,7 @@ impl DiffAnalyzer {
 mod test {
     use super::*;
     use guppy::{graph::PackageGraph, MetadataCommand};
+    use serial_test::serial;
 
     fn get_test_diff_analyzer() -> DiffAnalyzer {
         DiffAnalyzer::new().unwrap()
@@ -528,6 +529,7 @@ mod test {
     }
 
     #[test]
+    #[serial]
     fn test_diff_crate_source() {
         let diff_analyzer = get_test_diff_analyzer();
         let name = "libc";
@@ -549,6 +551,7 @@ mod test {
     }
 
     #[test]
+    #[serial]
     fn test_diff_git_repo() {
         let diff_analyzer = get_test_diff_analyzer();
         let name = "libc";
@@ -560,6 +563,7 @@ mod test {
     }
 
     #[test]
+    #[serial]
     fn test_diff_head_commit_oid_for_version() {
         let diff_analyzer = get_test_diff_analyzer();
 
@@ -609,6 +613,7 @@ mod test {
     }
 
     #[test]
+    #[serial]
     fn test_diff_locate_cargo_toml() {
         let diff_analyzer = get_test_diff_analyzer();
         let name = "guppy";
@@ -626,6 +631,7 @@ mod test {
     }
 
     #[test]
+    #[serial]
     fn test_diff_get_subdirectory_tree() {
         let diff_analyzer = get_test_diff_analyzer();
         let name = "guppy";
@@ -645,6 +651,7 @@ mod test {
     }
 
     #[test]
+    #[serial]
     fn test_diff_crate_source_diff_analyzer() {
         let graph = get_test_graph();
         for package in graph.packages() {
@@ -673,6 +680,7 @@ mod test {
     }
 
     #[test]
+    #[serial]
     fn test_diff_version_diff() {
         let diff_analyzer = get_test_diff_analyzer();
         let name = "guppy";
@@ -693,6 +701,7 @@ mod test {
     }
 
     #[test]
+    #[serial]
     fn test_diff_head_commit_not_found_error() {
         let diff_analyzer = get_test_diff_analyzer();
         let name = "guppy";
