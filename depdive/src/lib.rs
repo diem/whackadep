@@ -7,6 +7,7 @@ use anyhow::Result;
 use guppy::graph::{PackageGraph, PackageMetadata};
 use tabled::Tabled;
 
+mod advisory;
 mod code;
 mod cratesio;
 mod diff;
