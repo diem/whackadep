@@ -679,9 +679,9 @@ mod test {
                     report.updated_version.version,
                     Version::parse("0.9.0").unwrap()
                 );
-                assert_eq!(report.diff_stats.as_ref().unwrap().files_changed, 26);
-                assert_eq!(report.diff_stats.as_ref().unwrap().insertions, 373);
-                assert_eq!(report.diff_stats.as_ref().unwrap().deletions, 335);
+                assert_eq!(report.diff_stats.as_ref().unwrap().files_changed, 6);
+                assert_eq!(report.diff_stats.as_ref().unwrap().insertions, 199);
+                assert_eq!(report.diff_stats.as_ref().unwrap().deletions, 82);
                 assert!(report
                     .diff_stats
                     .as_ref()

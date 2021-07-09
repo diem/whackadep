@@ -147,9 +147,6 @@ impl DiffAnalyzer {
         )?;
         let toml_path = match self.locate_package_toml(&git_repo, &name) {
             Ok(path) => path,
-            // Possible error is that the past version of the given commit had different crate name
-            // e.g., form_urlencoded 1.0.1 was percent encoding
-            // Or, guppy failed to build a graph at the specfied commit,
             Err(_e) => {
                 return Ok(CrateSourceDiffReport {
                     name,
@@ -360,8 +357,10 @@ impl DiffAnalyzer {
             .parent()
             .ok_or_else(|| anyhow!("Fatal: .git file has no parent"))?;
 
-        // TODO: Why would guppy fail to build a graph?
-        // e,g, for combine 3.8.1, guppy fails
+        // Possible error is that the past version of the given commit had different crate name
+        // e.g., form_urlencoded 1.0.1 was percent encoding
+        // Or, guppy failed to build a graph at the specfied commit,
+        // https://github.com/facebookincubator/cargo-guppy/issues/416
         let graph = MetadataCommand::new().current_dir(path).build_graph()?;
 
         // Get crate path relative to the repository
@@ -460,24 +459,31 @@ impl DiffAnalyzer {
         version_a: &Version,
         version_b: &Version,
     ) -> Result<Diff<'a>> {
+        let toml_path = self.locate_package_toml(&repo, &name)?;
+        let toml_path = toml_path
+            .parent()
+            .ok_or_else(|| anyhow!("Cannot find crate directory"))?;
+
         let commit_oid_a = self
             .get_head_commit_oid_for_version(&repo, &name, &version_a.to_string())?
             .ok_or_else(|| HeadCommitNotFoundError {
                 crate_name: name.to_string(),
                 version: version_a.clone(),
             })?;
+        let tree_a = repo.find_commit(commit_oid_a)?.tree()?;
+        let tree_a = self.get_subdirectory_tree(&repo, &tree_a, &toml_path)?;
+
         let commit_oid_b = self
             .get_head_commit_oid_for_version(&repo, &name, &version_b.to_string())?
             .ok_or_else(|| HeadCommitNotFoundError {
                 crate_name: name.to_string(),
                 version: version_b.clone(),
             })?;
+        let tree_b = repo.find_commit(commit_oid_b)?.tree()?;
+        let tree_b = self.get_subdirectory_tree(&repo, &tree_b, &toml_path)?;
 
-        let diff = repo.diff_tree_to_tree(
-            Some(&repo.find_commit(commit_oid_a)?.tree()?),
-            Some(&repo.find_commit(commit_oid_b)?.tree()?),
-            Some(&mut DiffOptions::new()),
-        )?;
+        let diff =
+            repo.diff_tree_to_tree(Some(&tree_a), Some(&tree_b), Some(&mut DiffOptions::new()))?;
 
         Ok(diff)
     }
@@ -695,9 +701,9 @@ mod test {
                 &Version::parse("0.9.0").unwrap(),
             )
             .unwrap();
-        assert_eq!(diff.stats().unwrap().files_changed(), 26);
-        assert_eq!(diff.stats().unwrap().insertions(), 373);
-        assert_eq!(diff.stats().unwrap().deletions(), 335);
+        assert_eq!(diff.stats().unwrap().files_changed(), 6);
+        assert_eq!(diff.stats().unwrap().insertions(), 199);
+        assert_eq!(diff.stats().unwrap().deletions(), 82);
     }
 
     #[test]
