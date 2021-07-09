@@ -23,3 +23,7 @@ Therefore, we have target-spec=0.6.0 as a direct dep
 and target-spec=0.7.0 as a transitive dep to guppy=0.9.0
 which may create some namespace conflict if
 there is such breaking changes.
+
+### rustsec change
+
+updated tokio from 1.7.1 to 1.7.2. 1.7.1 has RUSTSEC-2016-0005.
