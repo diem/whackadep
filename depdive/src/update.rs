@@ -17,7 +17,9 @@ use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
 };
+use url::Url;
 
+use crate::advisory::AdvisoryLookup;
 use crate::diff::{DiffAnalyzer, HeadCommitNotFoundError};
 
 #[derive(Debug, Clone)]
@@ -56,6 +58,14 @@ pub struct VersionInfo {
     pub name: String,
     pub version: Version,
     pub downloads: u64,
+    pub known_advisories: Vec<CrateVersionRustSecAdvisory>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CrateVersionRustSecAdvisory {
+    pub id: String,
+    pub title: String,
+    pub url: Option<Url>,
 }
 
 pub struct VersionChangeInfo {
@@ -360,12 +370,19 @@ impl UpdateAnalyzer {
         }
 
         let cratesio_analyzer = CratesioAnalyzer::new()?;
+        let advisory_lookup = AdvisoryLookup::new()?;
 
         let old_version = dep_change_info.old_version.as_ref().unwrap().clone();
         let prior_version = VersionInfo {
             name: name.clone(),
             version: old_version.clone(),
             downloads: cratesio_analyzer.get_version_downloads(&name, &old_version)?,
+            known_advisories: advisory_lookup
+                .get_crate_version_advisories(&name, &old_version.to_string())?
+                .iter()
+                .filter(|advisory| advisory.metadata.withdrawn.is_none())
+                .map(|advisory| Self::get_crate_version_rustsec_advisory(advisory))
+                .collect(),
         };
 
         let new_version = dep_change_info.new_version.as_ref().unwrap().clone();
@@ -373,6 +390,12 @@ impl UpdateAnalyzer {
             name: name.clone(),
             version: new_version.clone(),
             downloads: cratesio_analyzer.get_version_downloads(&name, &new_version)?,
+            known_advisories: advisory_lookup
+                .get_crate_version_advisories(&name, &new_version.to_string())?
+                .iter()
+                .filter(|advisory| advisory.metadata.withdrawn.is_none())
+                .map(|advisory| Self::get_crate_version_rustsec_advisory(advisory))
+                .collect(),
         };
 
         let diff_stats = Self::analyze_version_diff(&dep_change_info)?;
@@ -386,6 +409,16 @@ impl UpdateAnalyzer {
         self.cache.borrow_mut().insert(name.clone(), report);
         self.get_update_review_report_from_cache(name)
             .ok_or_else(|| anyhow!("fatal cache error for update analyzer"))
+    }
+
+    fn get_crate_version_rustsec_advisory(
+        advisory: &rustsec::advisory::Advisory,
+    ) -> CrateVersionRustSecAdvisory {
+        CrateVersionRustSecAdvisory {
+            id: advisory.id().as_str().to_string(),
+            title: advisory.metadata.title.clone(),
+            url: advisory.metadata.url.clone(),
+        }
     }
 
     fn analyze_version_diff(
@@ -520,6 +553,21 @@ mod test {
         PackageGraphPair { prior, post }
     }
 
+    fn get_test_graph_pair_rustsec() -> PackageGraphPair {
+        let metadata = CargoMetadata::parse_json(include_str!(
+            "../resources/test/prior_rustsec_metadata.json"
+        ))
+        .unwrap();
+        let prior = metadata.build_graph().unwrap();
+
+        let metadata =
+            CargoMetadata::parse_json(include_str!("../resources/test/post_rustsec_metadata.json"))
+                .unwrap();
+        let post = metadata.build_graph().unwrap();
+
+        PackageGraphPair { prior, post }
+    }
+
     fn get_test_update_analyzer() -> UpdateAnalyzer {
         UpdateAnalyzer::new()
     }
@@ -586,7 +634,7 @@ mod test {
     }
 
     #[test]
-    fn get_repository_from_graphs() {
+    fn test_update_get_repository_from_graphs() {
         let package_graph_pair = get_test_graph_pair_guppy();
         let graphs = vec![&package_graph_pair.prior, &package_graph_pair.post];
 
@@ -741,7 +789,7 @@ mod test {
     }
 
     #[test]
-    fn test_version_conflict() {
+    fn test_update_version_conflict() {
         let package_graph_pair = get_test_graph_pair_conflict();
         let dep_change_infos = UpdateAnalyzer::compare_pacakge_graphs(
             &package_graph_pair.prior,
@@ -761,5 +809,30 @@ mod test {
                 assert_eq!(name, "target-spec");
             }
         }
+    }
+
+    #[test]
+    fn test_update_rustsec() {
+        let package_graph_pair = get_test_graph_pair_rustsec();
+        let update_analyzer = get_test_update_analyzer();
+        let reports = update_analyzer
+            .analyze_updates(&package_graph_pair.prior, &package_graph_pair.post)
+            .unwrap();
+        let report = reports
+            .dep_update_review_reports
+            .iter()
+            .find(|report| report.name == "tokio")
+            .unwrap();
+
+        assert!(report
+            .prior_version
+            .known_advisories
+            .iter()
+            .any(|adv| adv.id == "RUSTSEC-2021-0072"));
+        assert!(!report
+            .updated_version
+            .known_advisories
+            .iter()
+            .any(|adv| adv.id == "RUSTSEC-2021-0072"));
     }
 }
