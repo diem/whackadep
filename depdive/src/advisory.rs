@@ -41,6 +41,7 @@ mod test {
     }
 
     #[test]
+    #[ignore] // testing set up of advisory is being implicitly done by other test(s)
     fn test_advisory_lookup() {
         let lookup = get_adivsory_lookup();
         let advisory = lookup.db.get(&Id::from_str("RUSTSEC-2016-0005").unwrap());

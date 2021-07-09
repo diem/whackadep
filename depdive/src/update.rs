@@ -498,6 +498,7 @@ mod test {
     use crate::diff::trim_remote_url;
     use guppy::{CargoMetadata, MetadataCommand};
     use semver::Version;
+    use serial_test::serial;
     use std::path::PathBuf;
 
     struct PackageGraphPair {
@@ -660,6 +661,7 @@ mod test {
     }
 
     #[test]
+    #[serial]
     fn test_update_review_report_guppy() {
         let package_graph_pair = get_test_graph_pair_guppy();
         let update_analyzer = get_test_update_analyzer();
@@ -692,6 +694,7 @@ mod test {
     }
 
     #[test]
+    #[serial]
     fn test_update_review_report_libc() {
         let package_graph_pair = get_test_graph_pair_libc();
         let update_analyzer = get_test_update_analyzer();
@@ -759,6 +762,7 @@ mod test {
     }
 
     #[test]
+    #[serial]
     fn test_update_build_script_change() {
         let package_graph_pair = get_test_graph_pair_libc();
         let update_analyzer = get_test_update_analyzer();
@@ -812,6 +816,7 @@ mod test {
     }
 
     #[test]
+    #[serial]
     fn test_update_rustsec() {
         let package_graph_pair = get_test_graph_pair_rustsec();
         let update_analyzer = get_test_update_analyzer();
