@@ -572,9 +572,9 @@ mod test {
     #[serial]
     fn test_diff_head_commit_oid_for_version() {
         let diff_analyzer = get_test_diff_analyzer();
+        let name = "test-version-tag";
+        let url = "https://github.com/nasifimtiazohi/test-version-tag";
 
-        let name = "tomcat";
-        let url = "https://github.com/apache/tomcat";
         let repo = diff_analyzer.get_git_repo(&name, url).unwrap();
         let oid = diff_analyzer
             .get_head_commit_oid_for_version(&repo, &name, "0.0.8")
@@ -585,36 +585,33 @@ mod test {
             .unwrap();
         assert_eq!(
             oid.unwrap(),
-            Oid::from_str("64520a63e23437b4e92db42bfc70a20d1f9e79c4").unwrap()
+            Oid::from_str("51efd612af12183a682bb3242d41369d2879ad60").unwrap()
         );
         let oid = diff_analyzer
             .get_head_commit_oid_for_version(&repo, &name, "10.0.8-")
             .unwrap();
         assert!(oid.is_none());
 
-        let name = "cargo-guppy";
-        let url = "https://github.com/facebookincubator/cargo-guppy";
-        let repo = diff_analyzer.get_git_repo(&name, url).unwrap();
         let oid = diff_analyzer
             .get_head_commit_oid_for_version(&repo, "hakari", "0.3.0")
             .unwrap();
         assert_eq!(
             oid.unwrap(),
-            Oid::from_str("fe61a8b85feab1963ee1985bf0e4791fdd354aa5").unwrap()
+            Oid::from_str("946ddf053582067b843c19f1270fe92eaa0a7cb3").unwrap()
         );
         let oid = diff_analyzer
             .get_head_commit_oid_for_version(&repo, "guppy", "0.3.0")
             .unwrap();
         assert_eq!(
             oid.unwrap(),
-            Oid::from_str("9fd47f429f7453938279ecbe8b3f1dd077d655fa").unwrap()
+            Oid::from_str("dd7e5609e640f468a7e15a32fe36b607bae13e3e").unwrap()
         );
         let oid = diff_analyzer
             .get_head_commit_oid_for_version(&repo, "guppy-summaries", "0.3.0")
             .unwrap();
         assert_eq!(
             oid.unwrap(),
-            Oid::from_str("7a2c65e6f9fbcd008b240d8574fe7057291caa06").unwrap()
+            Oid::from_str("24e00d39f90baa1daa2ef6f9a2bdb49e581874b3").unwrap()
         );
     }
 
