@@ -432,25 +432,25 @@ impl UpdateAnalyzer {
         ) {
             let diff_analyzer = DiffAnalyzer::new()?;
             let repo = diff_analyzer.get_git_repo(&name, &repository)?;
-            let diff = match diff_analyzer.get_version_diff(
+            let version_diff_info = match diff_analyzer.get_version_diff_info(
                 &dep_change_info.name,
                 &repo,
                 &old_version,
                 &new_version,
             ) {
-                Ok(diff) => diff,
+                Ok(info) => info,
                 Err(error) => match error.root_cause().downcast_ref::<HeadCommitNotFoundError>() {
                     Some(_err) => return Ok(None),
                     None => return Err(anyhow!("fatal error in fetching head commit")),
                 },
             };
 
-            let stats = diff.stats()?;
+            let stats = version_diff_info.diff.stats()?;
 
             let modified_build_scripts: HashSet<String> = dep_change_info
                 .build_script_paths
                 .iter()
-                .filter(|path| Self::is_file_modified(&path, &diff))
+                .filter(|path| Self::is_file_modified(&path, &version_diff_info.diff))
                 .map(|path| path.to_string())
                 .collect();
 
