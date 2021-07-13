@@ -36,3 +36,4 @@ flate2 = "1.0.20" # compression/decompression
 thiserror = "1.0.26"
 indoc = "1.0.3" # multi-line string stuff
 toml = "0.5.8" # toml parsing
+geiger = "0.4.7" # file unsafe scanning
