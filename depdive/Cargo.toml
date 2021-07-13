@@ -33,4 +33,5 @@ camino = "1.0.4" # UTF-8 path stuff
 serial_test = "0.5.1" # avoiding running some tests in parallel
 tar = "0.4.35" # tar file stuff
 flate2 = "1.0.20" # compression/decompression
-thiserror = "1.0.26"
+thiserror = "1.0.26" # custom error handling
+geiger = "0.4.7" # file unsafe scanning

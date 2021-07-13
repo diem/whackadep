@@ -238,6 +238,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "cargo-geiger-serde"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04308ee1907d87ce51de328f1e44c93dede93a7c280263cd297290205cfb434e"
+dependencies = [
+ "semver 0.11.0",
+ "serde",
+ "url",
+]
+
+[[package]]
 name = "cargo-lock"
 version = "7.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -529,6 +540,7 @@ dependencies = [
  "crates_io_api",
  "flate2",
  "futures",
+ "geiger",
  "git2",
  "guppy",
  "guppy-summaries",
@@ -862,6 +874,17 @@ name = "gcc"
 version = "0.3.55"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f5f3913fa0bfe7ee1fd8248b6b9f42a5af4b9d65ec2dd2c3c26132b950ecfc2"
+
+[[package]]
+name = "geiger"
+version = "0.4.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9fb5532fc21016ab274dfe9668f2d7feb24e9ed2eef5e96c3753a80dede77f88"
+dependencies = [
+ "cargo-geiger-serde",
+ "proc-macro2",
+ "syn",
+]
 
 [[package]]
 name = "generic-array"
