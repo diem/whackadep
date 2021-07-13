@@ -2,7 +2,8 @@
 
 use crate::cratesio::CratesioAnalyzer;
 use anyhow::{anyhow, Result};
-use git2::Diff;
+use geiger::RsFileMetrics;
+use git2::{build::CheckoutBuilder, Delta, Diff};
 use guppy::graph::{
     cargo::{CargoOptions, CargoResolverVersion},
     feature::{FeatureFilter, StandardFeatures},
@@ -13,14 +14,17 @@ use guppy::graph::{
     BuildTargetId, PackageGraph, PackageMetadata,
 };
 use semver::Version;
+use serde::{Deserialize, Serialize};
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
+    ops::Sub,
+    path::PathBuf,
 };
 use url::Url;
 
 use crate::advisory::AdvisoryLookup;
-use crate::diff::{DiffAnalyzer, HeadCommitNotFoundError};
+use crate::diff::{DiffAnalyzer, HeadCommitNotFoundError, VersionDiffInfo};
 
 #[derive(Debug, Clone)]
 pub enum DependencyType {
@@ -90,6 +94,43 @@ pub enum VersionConflict {
         direct_dep_version: Version,
         transitive_dep_version: Version,
     },
+}
+
+#[derive(Debug, Clone)]
+pub struct FileUnsafeChangeStats {
+    pub file: String,
+    pub change_type: Delta,
+    pub unsafe_delta: UnsafeDelta, // Delta in Unsafe counter:
+    // Unsafe Delta cannot detect the case where a line is modified
+    // in which case the unsafe counter before and after will be the same
+    // TODO: detect if unsafe code has been modified in a diff
+
+    // Below field indicate the post state of an added/modified file
+    // and will be None in case of a deleted file
+    pub unsafe_status: Option<RsFileMetrics>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+pub struct UnsafeDelta {
+    pub functions: i64,
+    pub expressions: i64,
+    pub impls: i64,
+    pub traits: i64,
+    pub methods: i64,
+}
+
+impl Sub for UnsafeDelta {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
+        Self {
+            functions: self.functions - rhs.functions,
+            expressions: self.expressions - rhs.expressions,
+            impls: self.impls - rhs.impls,
+            traits: self.traits - rhs.traits,
+            methods: self.methods - rhs.methods,
+        }
+    }
 }
 
 pub struct UpdateAnalyzer {
@@ -484,6 +525,108 @@ impl UpdateAnalyzer {
         modified_file_paths.contains(path)
     }
 
+    fn analyze_unsafe_changes_in_diff(
+        version_diff_info: &VersionDiffInfo,
+    ) -> Result<Vec<FileUnsafeChangeStats>> {
+        let repo_path = version_diff_info
+            .repo
+            .path()
+            .parent()
+            .ok_or_else(|| anyhow!("error evaluating local repository path"))?;
+
+        let mut checkout_builder = CheckoutBuilder::new();
+        checkout_builder.force();
+
+        // Checkout repo at prior commit and get unsafe stats for diff files
+        let mut old_files_unsafe_stats: HashMap<PathBuf, Option<RsFileMetrics>> = HashMap::new();
+        version_diff_info.repo.checkout_tree(
+            &version_diff_info
+                .repo
+                .find_object(version_diff_info.commit_a, None)?,
+            Some(&mut checkout_builder),
+        )?;
+        for diff_delta in version_diff_info.diff.deltas() {
+            if let Some(path) = diff_delta.old_file().path() {
+                let old_file_unsafe_stats = geiger::find::find_unsafe_in_file(
+                    &repo_path.join(path),
+                    geiger::IncludeTests::No,
+                )
+                .ok();
+                old_files_unsafe_stats.insert(path.to_path_buf(), old_file_unsafe_stats);
+            }
+        }
+
+        // Checkout repo at post commit and get unsafe stats for diff files
+        let mut new_files_unsafe_stats: HashMap<PathBuf, Option<RsFileMetrics>> = HashMap::new();
+        version_diff_info.repo.checkout_tree(
+            &version_diff_info
+                .repo
+                .find_object(version_diff_info.commit_b, None)?,
+            Some(&mut checkout_builder),
+        )?;
+        for diff_delta in version_diff_info.diff.deltas() {
+            if let Some(path) = diff_delta.new_file().path() {
+                let new_file_unsafe_stats = geiger::find::find_unsafe_in_file(
+                    &repo_path.join(path),
+                    geiger::IncludeTests::No,
+                )
+                .ok();
+                new_files_unsafe_stats.insert(path.to_path_buf(), new_file_unsafe_stats);
+            }
+        }
+
+        // Calculate changes in unsafe counter for each file
+        let mut files_unsafe_change_stats: Vec<FileUnsafeChangeStats> = Vec::new();
+        for diff_delta in version_diff_info.diff.deltas() {
+            let old_file_unsafe_stats = diff_delta
+                .old_file()
+                .path()
+                .and_then(|path| old_files_unsafe_stats.get(path))
+                .and_then(|path| path.clone());
+            let new_file_unsafe_stats = diff_delta
+                .new_file()
+                .path()
+                .and_then(|path| new_files_unsafe_stats.get(path))
+                .and_then(|path| path.clone());
+
+            if old_file_unsafe_stats.is_none() && new_file_unsafe_stats.is_none() {
+                // Not a rust file
+                continue;
+            }
+
+            files_unsafe_change_stats.push(FileUnsafeChangeStats {
+                file: diff_delta
+                    .new_file()
+                    .path()
+                    .or_else(|| diff_delta.old_file().path())
+                    .and_then(|path| path.to_str())
+                    .ok_or_else(|| anyhow!("fatal error: diff contains no files"))?
+                    .to_string(),
+                change_type: diff_delta.status(),
+                unsafe_delta: Self::get_unsafe_delta_from_rs_file_metrics(&new_file_unsafe_stats)
+                    - Self::get_unsafe_delta_from_rs_file_metrics(&old_file_unsafe_stats),
+                unsafe_status: new_file_unsafe_stats,
+            })
+        }
+
+        Ok(files_unsafe_change_stats)
+    }
+
+    fn get_unsafe_delta_from_rs_file_metrics(
+        rs_file_metrics: &Option<RsFileMetrics>,
+    ) -> UnsafeDelta {
+        match rs_file_metrics {
+            Some(rfm) => UnsafeDelta {
+                functions: rfm.counters.functions.unsafe_ as i64,
+                expressions: rfm.counters.exprs.unsafe_ as i64,
+                impls: rfm.counters.item_impls.unsafe_ as i64,
+                traits: rfm.counters.item_traits.unsafe_ as i64,
+                methods: rfm.counters.methods.unsafe_ as i64,
+            },
+            None => UnsafeDelta::default(),
+        }
+    }
+
     fn get_update_review_report_from_cache(&self, key: &str) -> Option<DepUpdateReviewReport> {
         self.cache.borrow().get(key).cloned()
     }
@@ -492,7 +635,7 @@ impl UpdateAnalyzer {
 #[cfg(test)]
 mod test {
     use super::{
-        DependencyType, PackageGraph, StandardFeatures, UpdateAnalyzer,
+        DependencyType, DiffAnalyzer, PackageGraph, StandardFeatures, UpdateAnalyzer,
         VersionConflict::DirectTransitiveVersionConflict,
     };
     use crate::diff::trim_remote_url;
@@ -839,5 +982,95 @@ mod test {
             .known_advisories
             .iter()
             .any(|adv| adv.id == "RUSTSEC-2021-0072"));
+    }
+
+    #[test]
+    #[serial]
+    fn test_update_geiger() {
+        let name = "test_unsafe";
+        let repository = "https://github.com/nasifimtiazohi/test-version-tag";
+        let diff_analyzer = DiffAnalyzer::new().unwrap();
+        let repo = diff_analyzer.get_git_repo(&name, &repository).unwrap();
+
+        let version_diff_info = diff_analyzer
+            .get_version_diff_info(
+                &name,
+                &repo,
+                &Version::parse("2.0.0").unwrap(),
+                &Version::parse("2.1.0").unwrap(),
+            )
+            .unwrap();
+        let files_unsafe_change_stats =
+            UpdateAnalyzer::analyze_unsafe_changes_in_diff(&version_diff_info).unwrap();
+        let file = files_unsafe_change_stats
+            .iter()
+            .find(|stat| stat.file == "src/main.rs")
+            .unwrap();
+        assert_eq!(file.unsafe_delta.functions, 1);
+        assert_eq!(file.unsafe_delta.methods, 1);
+        assert_eq!(file.unsafe_delta.traits, 1);
+        assert_eq!(file.unsafe_delta.impls, 0);
+        assert_eq!(file.unsafe_delta.expressions, 4);
+        let file = files_unsafe_change_stats
+            .iter()
+            .find(|stat| stat.file == "src/newanother.rs")
+            .unwrap();
+        assert_eq!(file.unsafe_delta.functions, 0);
+        assert_eq!(file.unsafe_delta.methods, 0);
+        assert_eq!(file.unsafe_delta.traits, 0);
+        assert_eq!(file.unsafe_delta.impls, 0);
+        assert_eq!(file.unsafe_delta.expressions, 0);
+
+        let version_diff_info = diff_analyzer
+            .get_version_diff_info(
+                &name,
+                &repo,
+                &Version::parse("2.1.0").unwrap(),
+                &Version::parse("2.4.0").unwrap(),
+            )
+            .unwrap();
+        let files_unsafe_change_stats =
+            UpdateAnalyzer::analyze_unsafe_changes_in_diff(&version_diff_info).unwrap();
+        println!("{:?}", files_unsafe_change_stats);
+
+        let file = files_unsafe_change_stats
+            .iter()
+            .find(|stat| stat.file == "src/main.rs")
+            .unwrap();
+        assert_eq!(file.unsafe_delta.functions, -1);
+        assert_eq!(file.unsafe_delta.methods, -1);
+        assert_eq!(file.unsafe_delta.traits, -1);
+        assert_eq!(file.unsafe_delta.impls, 0);
+        assert_eq!(file.unsafe_delta.expressions, -2);
+        let file = files_unsafe_change_stats
+            .iter()
+            .find(|stat| stat.file == "src/newanother.rs")
+            .unwrap();
+        assert_eq!(file.unsafe_delta.functions, 1);
+        assert_eq!(file.unsafe_delta.methods, 1);
+        assert_eq!(file.unsafe_delta.traits, 1);
+        assert_eq!(file.unsafe_delta.impls, 0);
+        assert_eq!(file.unsafe_delta.expressions, 2);
+
+        let version_diff_info = diff_analyzer
+            .get_version_diff_info(
+                &name,
+                &repo,
+                &Version::parse("2.4.0").unwrap(),
+                &Version::parse("2.5.0").unwrap(),
+            )
+            .unwrap();
+        let files_unsafe_change_stats =
+            UpdateAnalyzer::analyze_unsafe_changes_in_diff(&version_diff_info).unwrap();
+        println!("{:?}", files_unsafe_change_stats);
+
+        let file = files_unsafe_change_stats
+            .iter()
+            .find(|stat| stat.file == "src/main.rs")
+            .unwrap();
+        // A line has changes withing unsafe block
+        // but the total counter remains same
+        // TODO: how to detect such changes?
+        assert_eq!(file.unsafe_delta.expressions, 0);
     }
 }
