@@ -56,6 +56,13 @@ pub struct HeadCommitNotFoundError {
     version: Version,
 }
 
+pub(crate) struct VersionDiffInfo<'a> {
+    pub repo: &'a Repository,
+    pub commit_a: Oid,
+    pub commit_b: Oid,
+    pub diff: Diff<'a>,
+}
+
 pub(crate) fn trim_remote_url(url: &str) -> Result<String> {
     // Trim down remote git urls like GitHub for cloning
     // in cases where the crate is in a subdirectory of the repo
@@ -452,13 +459,15 @@ impl DiffAnalyzer {
         })
     }
 
-    pub fn get_version_diff<'a>(
+    pub(crate) fn get_version_diff_info<'a>(
         &'a self,
         name: &str,
         repo: &'a Repository,
         version_a: &Version,
         version_b: &Version,
-    ) -> Result<Diff<'a>> {
+    ) -> Result<VersionDiffInfo<'a>> {
+        // TODO: This function works only in cases where the root directory
+        // of the git repository contains a Cargo.toml file
         let toml_path = self.locate_package_toml(&repo, &name)?;
         let toml_path = toml_path
             .parent()
@@ -485,7 +494,12 @@ impl DiffAnalyzer {
         let diff =
             repo.diff_tree_to_tree(Some(&tree_a), Some(&tree_b), Some(&mut DiffOptions::new()))?;
 
-        Ok(diff)
+        Ok(VersionDiffInfo {
+            repo,
+            commit_a: commit_oid_a,
+            commit_b: commit_oid_b,
+            diff,
+        })
     }
 }
 
@@ -690,14 +704,25 @@ mod test {
         let repository = "https://github.com/facebookincubator/cargo-guppy";
 
         let repo = diff_analyzer.get_git_repo(&name, &repository).unwrap();
-        let diff = diff_analyzer
-            .get_version_diff(
+        let version_diff_info = diff_analyzer
+            .get_version_diff_info(
                 name,
                 &repo,
                 &Version::parse("0.8.0").unwrap(),
                 &Version::parse("0.9.0").unwrap(),
             )
             .unwrap();
+
+        assert_eq!(
+            version_diff_info.commit_a,
+            Oid::from_str("dc6dcc151821e787ac02379bcd0319b26c962f55").unwrap()
+        );
+        assert_eq!(
+            version_diff_info.commit_b,
+            Oid::from_str("fe61a8b85feab1963ee1985bf0e4791fdd354aa5").unwrap()
+        );
+
+        let diff = version_diff_info.diff;
         assert_eq!(diff.stats().unwrap().files_changed(), 6);
         assert_eq!(diff.stats().unwrap().insertions(), 199);
         assert_eq!(diff.stats().unwrap().deletions(), 82);
@@ -712,7 +737,7 @@ mod test {
 
         let repo = diff_analyzer.get_git_repo(&name, &repository).unwrap();
         let diff = diff_analyzer
-            .get_version_diff(
+            .get_version_diff_info(
                 name,
                 &repo,
                 &Version::parse("0.0.0").unwrap(),
