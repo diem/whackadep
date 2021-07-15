@@ -41,6 +41,11 @@ impl SuperPackageGenerator {
         Ok(&self.dir)
     }
 
+    fn _get_dir(&self) -> &TempDir {
+        // For testing purpose
+        &self.dir
+    }
+
     fn write_super_toml_dependencies(&self, graph: &PackageGraph) -> Result<()> {
         let mut toml = String::from("\n[dependencies]");
 
@@ -217,8 +222,9 @@ fn get_direct_dependencies_features(graph: &PackageGraph) -> Result<HashMap<Stri
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::diff::DiffAnalyzer;
+    use git2::{build::CheckoutBuilder, Oid};
     use guppy::MetadataCommand;
-    use std::io::{BufRead, BufReader};
     use std::path::PathBuf;
 
     fn get_test_super_package_generator() -> SuperPackageGenerator {
@@ -291,7 +297,6 @@ mod test {
             .copy_cargo_lock_if_exists(graph.workspace().root())
             .unwrap();
 
-
         let super_lock = read_to_string(super_package.dir.path().join("Cargo.lock")).unwrap();
         let lock = read_to_string(graph.workspace().root().join("Cargo.lock")).unwrap();
         assert!(super_lock.eq(&lock));
@@ -331,5 +336,57 @@ mod test {
     #[test]
     fn test_super_toml_invlaid_cargo_toml() {
         assert!(TomlChecker::get_toml_type(Utf8Path::new("../Cargo.lock")).is_err());
+    }
+
+    #[test]
+    fn test_super_toml_cargo_lock() {
+        let da = DiffAnalyzer::new().unwrap();
+        let repo = da
+            .get_git_repo("whackadep", "https://github.com/diem/whackadep")
+            .unwrap();
+        let mut checkout_builder = CheckoutBuilder::new();
+        checkout_builder.force();
+        repo.checkout_tree(
+            &repo
+                .find_object(
+                    Oid::from_str("6b50de6941e00c3cd7fd34c1bf64793f514f434f").unwrap(),
+                    None,
+                )
+                .unwrap(),
+            Some(&mut checkout_builder),
+        )
+        .unwrap();
+        let path = repo.path().parent().unwrap();
+        let graph = MetadataCommand::new()
+            .current_dir(path)
+            .build_graph()
+            .unwrap();
+        assert_super_package_equals_graph(&graph);
+
+        // Now test without copying the cargo lock which should fail
+        let super_package = get_test_super_package_generator();
+        super_package.setup_empty_package().unwrap();
+        super_package.write_super_toml_dependencies(&graph).unwrap();
+        let dir = super_package._get_dir();
+
+        let super_graph = MetadataCommand::new()
+            .manifest_path(dir.path().join("Cargo.toml"))
+            .build_graph()
+            .unwrap();
+        // Dep graph won't be the same as a dep graph generated from the Cargo.Toml
+        // won't match an old Cargo.lock
+        assert_ne!(
+            get_all_dependencies(&graph).len(),
+            get_all_dependencies(&super_graph).len()
+        );
+        let mut hs: HashSet<(String, semver::Version)> = HashSet::new();
+        for dep in &get_all_dependencies(&graph) {
+            hs.insert((dep.name().to_string(), dep.version().clone()));
+        }
+        let mut super_hs: HashSet<(String, semver::Version)> = HashSet::new();
+        for dep in &get_all_dependencies(&super_graph) {
+            super_hs.insert((dep.name().to_string(), dep.version().clone()));
+        }
+        assert!(!(hs.len() == super_hs.len() && hs.iter().all(|k| super_hs.contains(k))));
     }
 }
