@@ -1,5 +1,6 @@
 //! This module abstracts various manipulation with Cargo.toml and Cargo.lock files
 //! 1. It can create a custom package that repicates the full dependency build of a given workspace
+//! 2. Check a Cargo.toml is a package or a virtual manifest toml
 //! TODO: This module can work as a stand-alone crate; isolate and publish
 
 use anyhow::{anyhow, Result};
@@ -10,9 +11,10 @@ use guppy::{
 };
 use indoc::indoc;
 use std::collections::{HashMap, HashSet};
-use std::fs::{copy, create_dir_all, File, OpenOptions};
+use std::fs::{copy, create_dir_all, read_to_string, File, OpenOptions};
 use std::io::Write;
 use tempfile::{tempdir, TempDir};
+use toml::Value;
 
 /// For a given workspace,
 /// This returns a temporary directory of a valid package
@@ -115,6 +117,44 @@ impl SuperPackageGenerator {
                 edition = "2018"
 
             "#})
+    }
+}
+
+pub struct TomlChecker;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TomlType {
+    Package,
+    VirtualManifest,
+}
+
+impl TomlChecker {
+    fn is_package_toml(path: &Utf8Path) -> Result<bool> {
+        let toml = read_to_string(path)?;
+        let toml: Value = toml::from_str(&toml)?;
+        Ok(toml.get("package").is_some())
+    }
+
+    fn is_virtual_manifest_toml(path: &Utf8Path) -> Result<bool> {
+        let toml = read_to_string(path)?;
+        let toml: Value = toml::from_str(&toml)?;
+        Ok(toml.get("package").is_none() && toml.get("workspace").is_some())
+    }
+
+    pub fn get_toml_type(path: &Utf8Path) -> Result<TomlType> {
+        if !path.ends_with("Cargo.toml") {
+            return Err(anyhow!("{} does not point to a Cargo.toml file", path));
+        }
+
+        if Self::is_package_toml(&path)? {
+            Ok(TomlType::Package)
+        } else if Self::is_virtual_manifest_toml(&path)? {
+            Ok(TomlType::VirtualManifest)
+        } else {
+            Err(anyhow!(
+                "Cargo.toml is neither package nor workspace. Check format"
+            ))
+        }
     }
 }
 
@@ -272,5 +312,24 @@ mod test {
     fn test_super_toml_package() {
         assert_super_package_equals_graph(&get_graph_valid_dep());
         assert_super_package_equals_graph(&get_graph_whackadep())
+    }
+
+    #[test]
+    fn test_super_toml_type() {
+        assert_eq!(
+            TomlChecker::get_toml_type(Utf8Path::new("resources/test/valid_dep/Cargo.toml"))
+                .unwrap(),
+            TomlType::Package
+        );
+
+        assert_eq!(
+            TomlChecker::get_toml_type(Utf8Path::new("../Cargo.toml")).unwrap(),
+            TomlType::VirtualManifest
+        );
+    }
+
+    #[test]
+    fn test_super_toml_invlaid_cargo_toml() {
+        assert!(TomlChecker::get_toml_type(Utf8Path::new("../Cargo.lock")).is_err());
     }
 }
