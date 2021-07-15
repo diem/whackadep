@@ -2,11 +2,15 @@
 //! 1. It can create a custom package that repicates the full dependency build of a given workspace
 //! TODO: This module can work as a stand-alone crate; isolate and publish
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use camino::Utf8Path;
-use guppy::graph::{PackageGraph, PackageMetadata};
+use guppy::{
+    graph::{DependencyDirection, PackageGraph, PackageMetadata},
+    DependencyKind,
+};
 use indoc::indoc;
-use std::fs::{copy, create_dir_all, File};
+use std::collections::{HashMap, HashSet};
+use std::fs::{copy, create_dir_all, File, OpenOptions};
 use std::io::Write;
 use tempfile::{tempdir, TempDir};
 
@@ -29,7 +33,50 @@ impl SuperPackageGenerator {
         // See if the manifest path has an associated Cargo.lock
         self.copy_cargo_lock_if_exists(graph.workspace().root())?;
 
+        // Generate super toml
+        self.write_super_toml_dependencies(&graph)?;
+
         Ok(&self.dir)
+    }
+
+    fn write_super_toml_dependencies(&self, graph: &PackageGraph) -> Result<()> {
+        let mut toml = String::from("\n[dependencies]");
+
+        let deps = get_direct_dependencies(&graph);
+        let feature_map = get_direct_dependencies_features(&graph)?;
+
+        for dep in &deps {
+            let feaure_info = feature_map
+                .get(dep.name())
+                .ok_or_else(|| anyhow!("direct dep {} not found in feature map", dep.name()))?;
+
+            let mut line = format!(
+                "\n{} = {{version = \"={}\", features =[",
+                dep.name(),
+                dep.version()
+            );
+
+            let features: Vec<String> = feaure_info
+                .features
+                .iter()
+                .map(|s| format!("\"{}\"", s))
+                .collect();
+            line.push_str(&features.join(","));
+            line.push(']');
+
+            if !feaure_info.default_feature_enabled {
+                line.push_str(" , default_features = false");
+            }
+
+            line.push('}');
+
+            toml.push_str(&line);
+        }
+        let path = self.dir.path().join("Cargo.toml");
+        let mut file = OpenOptions::new().append(true).open(&path).unwrap();
+        write!(file, "{}", toml).unwrap();
+
+        Ok(())
     }
 
     fn copy_cargo_lock_if_exists(&self, workspace_path: &Utf8Path) -> Result<()> {
@@ -85,11 +132,54 @@ fn get_direct_dependencies(graph: &PackageGraph) -> Vec<PackageMetadata> {
         .collect()
 }
 
+#[derive(Debug, Clone, Default)]
+struct FeatureInfo {
+    default_feature_enabled: bool,
+    features: HashSet<String>,
+}
+
+fn get_direct_dependencies_features(graph: &PackageGraph) -> Result<HashMap<String, FeatureInfo>> {
+    let mut feature_map: HashMap<String, FeatureInfo> = HashMap::new();
+
+    // For all workspace members
+    for member in graph.packages().filter(|pkg| pkg.in_workspace()) {
+        let links = member
+            .direct_links_directed(DependencyDirection::Forward)
+            .filter(|link| !link.to().in_workspace());
+        // For all direct dependencies
+        for link in links {
+            let package = link.dep_name();
+            if !feature_map.contains_key(package) {
+                feature_map.insert(package.to_string(), FeatureInfo::default());
+            }
+            let feature_info = feature_map
+                .get_mut(package)
+                .ok_or_else(|| anyhow!("error in constructing feature map"))?;
+
+            // Not considering dev features
+            // TODO: Write dev-dependencies separately in supertoml
+            let dep_req_kinds = [DependencyKind::Normal, DependencyKind::Build];
+            for req_kind in dep_req_kinds {
+                let dep_req = link.req_for_kind(req_kind);
+                // If default feature is enabled for any, make it true
+                feature_info.default_feature_enabled = feature_info.default_feature_enabled
+                    || dep_req.default_features().enabled_on_any();
+                dep_req.features().for_each(|f| {
+                    feature_info.features.insert(f.to_string());
+                })
+            }
+        }
+    }
+
+    Ok(feature_map)
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
     use guppy::MetadataCommand;
     use std::io::{BufRead, BufReader};
+    use std::path::PathBuf;
 
     fn get_test_super_package_generator() -> SuperPackageGenerator {
         SuperPackageGenerator::new().unwrap()
@@ -97,6 +187,48 @@ mod test {
 
     fn get_graph_whackadep() -> PackageGraph {
         MetadataCommand::new().build_graph().unwrap()
+    }
+
+    fn get_graph_valid_dep() -> PackageGraph {
+        MetadataCommand::new()
+            .current_dir(PathBuf::from("resources/test/valid_dep"))
+            .build_graph()
+            .unwrap()
+    }
+
+    fn get_all_dependencies(graph: &PackageGraph) -> Vec<PackageMetadata> {
+        graph
+            .query_workspace()
+            .resolve_with_fn(|_, link| !link.to().in_workspace())
+            .packages(guppy::graph::DependencyDirection::Forward)
+            .filter(|pkg| !pkg.in_workspace())
+            .collect()
+    }
+
+    fn assert_super_package_equals_graph(graph: &PackageGraph) {
+        let super_package = get_test_super_package_generator();
+        let dir = super_package.get_super_package_directory(&graph).unwrap();
+
+        let super_graph = MetadataCommand::new()
+            .manifest_path(dir.path().join("Cargo.toml"))
+            .build_graph()
+            .unwrap();
+        assert_eq!(
+            get_all_dependencies(&graph).len(),
+            get_all_dependencies(&super_graph).len()
+        );
+
+        let mut hs: HashSet<(String, semver::Version)> = HashSet::new();
+        for dep in &get_all_dependencies(&graph) {
+            hs.insert((dep.name().to_string(), dep.version().clone()));
+        }
+
+        let mut super_hs: HashSet<(String, semver::Version)> = HashSet::new();
+        for dep in &get_all_dependencies(&super_graph) {
+            super_hs.insert((dep.name().to_string(), dep.version().clone()));
+        }
+
+        assert!(hs.len() == super_hs.len() && hs.iter().all(|k| super_hs.contains(k)));
     }
 
     #[test]
@@ -123,5 +255,22 @@ mod test {
         let super_lock = read_to_string(super_package.dir.path().join("Cargo.lock")).unwrap();
         let lock = read_to_string(graph.workspace().root().join("Cargo.lock")).unwrap();
         assert!(super_lock.eq(&lock));
+    }
+
+    #[test]
+    fn test_super_toml_feature_map() {
+        let graph = get_graph_whackadep();
+        let direct_deps = get_direct_dependencies(&graph);
+        let feature_map = get_direct_dependencies_features(&graph).unwrap();
+        assert_eq!(direct_deps.len(), feature_map.len());
+
+        // TODO: test with various feature combination
+        // although known combinations gets tested in full testing for whacakdep
+    }
+
+    #[test]
+    fn test_super_toml_package() {
+        assert_super_package_equals_graph(&get_graph_valid_dep());
+        assert_super_package_equals_graph(&get_graph_whackadep())
     }
 }
