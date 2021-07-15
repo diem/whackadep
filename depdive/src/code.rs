@@ -8,16 +8,12 @@ use guppy::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    cell::RefCell,
-    collections::HashMap,
-    collections::HashSet,
-    fs, iter, ops,
-    path::{Path, PathBuf},
+    cell::RefCell, collections::HashMap, collections::HashSet, fs, iter, ops, path::Path,
     process::Command,
 };
 use tokei::{Config, LanguageType, Languages};
 
-use crate::super_toml::SuperPackageGenerator;
+use crate::super_toml::{SuperPackageGenerator, TomlChecker, TomlType};
 
 #[derive(Debug, Clone)]
 pub struct CodeReport {
@@ -335,45 +331,32 @@ impl CodeAnalyzer {
     }
 
     fn run_cargo_geiger(&self, graph: &PackageGraph) -> Result<()> {
-        // Get path to all packages in the workspace
-        let package_paths: Vec<&str> = graph
-            .workspace()
-            .iter()
-            .map(|pkg| pkg.manifest_path().as_str())
-            .collect();
-        // Run Geiger report for each member packages and store result in cache
-        // TODO: How to avoid multiple calls for Cargo Geiger and run only once?
-        self.get_cargo_geiger_report_for_workspace(package_paths)?;
-
-        // TODO: replace above functionality with below logic
-        // If the root manifest is a package toml run cargo geiger
-        // Else make a super package to replicate the dep graph
-        // and run cargo geiger on that package
-        let super_package = SuperPackageGenerator::new()?;
-        let _dir = super_package.get_super_package_directory(&graph)?;
-
+        let toml_path = graph.workspace().root().join("Cargo.toml");
+        match TomlChecker::get_toml_type(&toml_path)? {
+            TomlType::Package => self.run_cargo_geiger_on_package_toml(toml_path.as_ref())?,
+            TomlType::VirtualManifest => self.run_cargo_geiger_on_virtual_manifest(&graph)?,
+        }
         Ok(())
     }
 
-    fn get_cargo_geiger_report_for_workspace(&self, package_paths: Vec<&str>) -> Result<()> {
-        // Cargo geiger only works with package tomls
-        // and not a virtual manifest file
-        // Therefore, we run cargo geiger on all member packages
-        // TODO: Revisit this design
-        let package_paths: Vec<PathBuf> = package_paths.iter().map(PathBuf::from).collect();
+    fn run_cargo_geiger_on_virtual_manifest(&self, graph: &PackageGraph) -> Result<()> {
+        let super_package = SuperPackageGenerator::new()?;
+        let dir = super_package.get_super_package_directory(&graph)?;
+        let toml_path = dir.path().join("Cargo.toml");
+        self.run_cargo_geiger_on_package_toml(&toml_path)?;
+        Ok(())
+    }
 
-        for path in &package_paths {
-            let geiger_report = Self::get_cargo_geiger_report(path)?;
-            let geiger_packages = geiger_report.packages;
-            for geiger_package in &geiger_packages {
-                let package = &geiger_package.package.id;
-                let key = (package.name.clone(), package.version.clone());
-                if self.get_cargo_geiger_report_from_cache(&key).is_none() {
-                    // TODO: can the used unsafe code change for separate builds?
-                    self.geiger_cache
-                        .borrow_mut()
-                        .insert(key, geiger_package.clone());
-                }
+    fn run_cargo_geiger_on_package_toml(&self, path: &Path) -> Result<()> {
+        let geiger_report = Self::get_cargo_geiger_report(path)?;
+        let geiger_packages = geiger_report.packages;
+        for geiger_package in &geiger_packages {
+            let package = &geiger_package.package.id;
+            let key = (package.name.clone(), package.version.clone());
+            if self.get_cargo_geiger_report_from_cache(&key).is_none() {
+                self.geiger_cache
+                    .borrow_mut()
+                    .insert(key, geiger_package.clone());
             }
         }
 
@@ -445,9 +428,16 @@ mod test {
     use serial_test::serial;
     use std::path::PathBuf;
 
-    fn get_test_graph() -> PackageGraph {
+    fn get_test_graph_valid_dep() -> PackageGraph {
         MetadataCommand::new()
             .current_dir(PathBuf::from("resources/test/valid_dep"))
+            .build_graph()
+            .unwrap()
+    }
+
+    fn get_test_graph_whackadep() -> PackageGraph {
+        MetadataCommand::new()
+            .current_dir(PathBuf::from(".."))
             .build_graph()
             .unwrap()
     }
@@ -458,7 +448,7 @@ mod test {
 
     #[test]
     fn test_loc_report_for_valid_package() {
-        let graph = get_test_graph();
+        let graph = get_test_graph_valid_dep();
         let code_analyzer = get_test_code_analyzer();
         let pkg = graph.packages().find(|p| p.name() == "libc").unwrap();
         let report = code_analyzer.get_loc_report(pkg.manifest_path()).unwrap();
@@ -478,7 +468,7 @@ mod test {
 
     #[test]
     fn test_code_dep_report_for_valid_report() {
-        let graph = get_test_graph();
+        let graph = get_test_graph_valid_dep();
         let code_analyzer = get_test_code_analyzer();
         let package = graph.packages().find(|p| p.name() == "octocrab").unwrap();
         let dependencies = code_analyzer
@@ -497,7 +487,7 @@ mod test {
     #[serial]
     fn test_code_analyzer() {
         let code_analyzer = get_test_code_analyzer();
-        let graph = get_test_graph();
+        let graph = get_test_graph_valid_dep();
         let code_reports = code_analyzer.analyze_code(&graph).unwrap();
         println!("{:?}", code_reports);
 
@@ -508,7 +498,7 @@ mod test {
 
     #[test]
     #[serial]
-    #[ignore]
+    #[ignore] // Covered by the next two tests
     fn test_code_cargo_geiger() {
         let path = PathBuf::from("resources/test/valid_dep/Cargo.toml");
         let geiger_report = CodeAnalyzer::get_cargo_geiger_report(&path).unwrap();
@@ -518,27 +508,28 @@ mod test {
 
     #[test]
     #[serial]
-    #[ignore]
     fn test_code_geiger_report_for_workspace() {
         let code_analyzer = get_test_code_analyzer();
-        let graph = MetadataCommand::new()
-            .current_dir(PathBuf::from(".."))
-            .build_graph()
-            .unwrap();
+        let graph = get_test_graph_whackadep();
 
-        // Get path to all packages in the workspace
-        let package_paths: Vec<&str> = graph
-            .workspace()
-            .iter()
-            .map(|pkg| pkg.manifest_path().as_str())
-            .collect();
-
-        code_analyzer
-            .get_cargo_geiger_report_for_workspace(package_paths)
-            .unwrap();
+        code_analyzer.run_cargo_geiger(&graph).unwrap();
         println!(
             "Total keys in geiger cache: {}",
             code_analyzer.geiger_cache.borrow().len()
+        );
+        assert!(code_analyzer.geiger_cache.borrow().len() > 0);
+    }
+
+    #[test]
+    #[serial]
+    fn test_code_geiger_report_for_package() {
+        let code_analyzer = get_test_code_analyzer();
+        let graph = get_test_graph_valid_dep();
+
+        code_analyzer.run_cargo_geiger(&graph).unwrap();
+        println!(
+            "Total keys in geiger cache: {}",
+            code_analyzer.geiger_cache.borrow().len(),
         );
         assert!(code_analyzer.geiger_cache.borrow().len() > 0);
     }
