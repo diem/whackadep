@@ -17,6 +17,8 @@ use std::{
 };
 use tokei::{Config, LanguageType, Languages};
 
+use crate::super_toml::SuperPackageGenerator;
+
 #[derive(Debug, Clone)]
 pub struct CodeReport {
     pub name: String,
@@ -149,15 +151,7 @@ impl CodeAnalyzer {
     pub fn analyze_code(self, graph: &PackageGraph) -> Result<Vec<CodeReport>> {
         let mut code_reports: Vec<CodeReport> = Vec::new();
 
-        // Get path to all packages in the workspace
-        let package_paths: Vec<&str> = graph
-            .workspace()
-            .iter()
-            .map(|pkg| pkg.manifest_path().as_str())
-            .collect();
-        // Run Geiger report for each member packages and store result in cache
-        // TODO: How to avoid multiple calls for Cargo Geiger and run only once?
-        self.get_cargo_geiger_report_for_workspace(package_paths)?;
+        self.run_cargo_geiger(&graph)?;
 
         // Get direct dependencies of the whole workspace
         let direct_dependencies: Vec<PackageMetadata> = graph
@@ -338,6 +332,27 @@ impl CodeAnalyzer {
             .ok_or_else(|| anyhow!("Caching error"))?
             .clone();
         Ok(code_report)
+    }
+
+    fn run_cargo_geiger(&self, graph: &PackageGraph) -> Result<()> {
+        // Get path to all packages in the workspace
+        let package_paths: Vec<&str> = graph
+            .workspace()
+            .iter()
+            .map(|pkg| pkg.manifest_path().as_str())
+            .collect();
+        // Run Geiger report for each member packages and store result in cache
+        // TODO: How to avoid multiple calls for Cargo Geiger and run only once?
+        self.get_cargo_geiger_report_for_workspace(package_paths)?;
+
+        // TODO: replace above functionality with below logic
+        // If the root manifest is a package toml run cargo geiger
+        // Else make a super package to replicate the dep graph
+        // and run cargo geiger on that package
+        let super_package = SuperPackageGenerator::new()?;
+        let _dir = super_package.get_super_package_directory()?;
+
+        Ok(())
     }
 
     fn get_cargo_geiger_report_for_workspace(&self, package_paths: Vec<&str>) -> Result<()> {

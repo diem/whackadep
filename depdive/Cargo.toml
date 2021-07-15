@@ -34,3 +34,4 @@ serial_test = "0.5.1" # avoiding running some tests in parallel
 tar = "0.4.35" # tar file stuff
 flate2 = "1.0.20" # compression/decompression
 thiserror = "1.0.26"
+indoc = "1.0.3" # multi-line string stuff
