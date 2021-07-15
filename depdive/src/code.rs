@@ -350,7 +350,7 @@ impl CodeAnalyzer {
         // Else make a super package to replicate the dep graph
         // and run cargo geiger on that package
         let super_package = SuperPackageGenerator::new()?;
-        let _dir = super_package.get_super_package_directory()?;
+        let _dir = super_package.get_super_package_directory(&graph)?;
 
         Ok(())
     }
