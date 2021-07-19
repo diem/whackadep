@@ -12,9 +12,11 @@ use guppy::{
 use indoc::indoc;
 use std::collections::{HashMap, HashSet};
 use std::fs::{copy, create_dir_all, read_to_string, File, OpenOptions};
+use std::hash::{Hash, Hasher};
 use std::io::Write;
 use tempfile::{tempdir, TempDir};
 use toml::Value;
+use twox_hash::XxHash64;
 
 /// For a given workspace,
 /// This returns a temporary directory of a valid package
@@ -50,15 +52,16 @@ impl SuperPackageGenerator {
         let mut toml = String::from("\n[dependencies]");
 
         let deps = get_direct_dependencies(&graph);
-        let feature_map = get_direct_dependencies_features(&graph)?;
+        let feature_map = FeatureMapGenerator::get_direct_dependencies_features(&graph)?;
 
         for dep in &deps {
             let feaure_info = feature_map
-                .get(dep.name())
+                .get(&FeatureMapGenerator::get_featuremap_key_from_packagemetadata(&dep))
                 .ok_or_else(|| anyhow!("direct dep {} not found in feature map", dep.name()))?;
 
             let mut line = format!(
-                "\n{} = {{version = \"={}\", features =[",
+                "\n{} = {{package=\"{}\", version = \"={}\", features =[",
+                self.get_unique_name(&dep),
                 dep.name(),
                 dep.version()
             );
@@ -84,6 +87,14 @@ impl SuperPackageGenerator {
         write!(file, "{}", toml).unwrap();
 
         Ok(())
+    }
+
+    fn get_unique_name(&self, dep: &PackageMetadata) -> String {
+        let mut hasher = XxHash64::default();
+        dep.version().to_string().hash(&mut hasher);
+        dep.source().hash(&mut hasher);
+        let hash = hasher.finish();
+        format!("{}-{:x}", dep.name(), hash)
     }
 
     fn copy_cargo_lock_if_exists(&self, workspace_path: &Utf8Path) -> Result<()> {
@@ -183,40 +194,51 @@ struct FeatureInfo {
     features: HashSet<String>,
 }
 
-fn get_direct_dependencies_features(graph: &PackageGraph) -> Result<HashMap<String, FeatureInfo>> {
-    let mut feature_map: HashMap<String, FeatureInfo> = HashMap::new();
+struct FeatureMapGenerator;
 
-    // For all workspace members
-    for member in graph.packages().filter(|pkg| pkg.in_workspace()) {
-        let links = member
-            .direct_links_directed(DependencyDirection::Forward)
-            .filter(|link| !link.to().in_workspace());
-        // For all direct dependencies
-        for link in links {
-            let package = link.dep_name();
-            if !feature_map.contains_key(package) {
-                feature_map.insert(package.to_string(), FeatureInfo::default());
-            }
-            let feature_info = feature_map
-                .get_mut(package)
-                .ok_or_else(|| anyhow!("error in constructing feature map"))?;
+impl FeatureMapGenerator {
+    fn get_direct_dependencies_features(
+        graph: &PackageGraph,
+    ) -> Result<HashMap<String, FeatureInfo>> {
+        let mut feature_map: HashMap<String, FeatureInfo> = HashMap::new();
 
-            // Not considering dev features
-            // TODO: Write dev-dependencies separately in supertoml
-            let dep_req_kinds = [DependencyKind::Normal, DependencyKind::Build];
-            for req_kind in dep_req_kinds {
-                let dep_req = link.req_for_kind(req_kind);
-                // If default feature is enabled for any, make it true
-                feature_info.default_feature_enabled = feature_info.default_feature_enabled
-                    || dep_req.default_features().enabled_on_any();
-                dep_req.features().for_each(|f| {
-                    feature_info.features.insert(f.to_string());
-                })
+        // For all workspace members
+        for member in graph.packages().filter(|pkg| pkg.in_workspace()) {
+            let links = member
+                .direct_links_directed(DependencyDirection::Forward)
+                .filter(|link| !link.to().in_workspace());
+            // For all direct dependencies
+            for link in links {
+                let key = Self::get_featuremap_key_from_packagemetadata(&link.to());
+                if !feature_map.contains_key(&key) {
+                    feature_map.insert(key.clone(), FeatureInfo::default());
+                }
+
+                let feature_info = feature_map
+                    .get_mut(&key)
+                    .ok_or_else(|| anyhow!("error in constructing feature map"))?;
+
+                // Not considering dev features
+                // TODO: Write dev-dependencies separately in supertoml
+                let dep_req_kinds = [DependencyKind::Normal, DependencyKind::Build];
+                for req_kind in dep_req_kinds {
+                    let dep_req = link.req_for_kind(req_kind);
+                    // If default feature is enabled for any, make it true
+                    feature_info.default_feature_enabled = feature_info.default_feature_enabled
+                        || dep_req.default_features().enabled_on_any();
+                    dep_req.features().for_each(|f| {
+                        feature_info.features.insert(f.to_string());
+                    })
+                }
             }
         }
+
+        Ok(feature_map)
     }
 
-    Ok(feature_map)
+    fn get_featuremap_key_from_packagemetadata(package: &PackageMetadata) -> String {
+        format!("{}:{}", package.name(), package.version())
+    }
 }
 
 #[cfg(test)]
@@ -306,7 +328,7 @@ mod test {
     fn test_super_toml_feature_map() {
         let graph = get_graph_whackadep();
         let direct_deps = get_direct_dependencies(&graph);
-        let feature_map = get_direct_dependencies_features(&graph).unwrap();
+        let feature_map = FeatureMapGenerator::get_direct_dependencies_features(&graph).unwrap();
         assert_eq!(direct_deps.len(), feature_map.len());
 
         // TODO: test with various feature combination
