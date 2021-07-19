@@ -12,6 +12,7 @@ mod code;
 mod cratesio;
 mod diff;
 mod github;
+mod super_toml;
 mod update;
 
 // Usage metrics pulled from crates.io API

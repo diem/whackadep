@@ -16,5 +16,6 @@ libc = "0.2.97"
 gitlab = "0.1312.0"
 octocrab = "0.9.1"
 guppy = "0.8.0"
+syn = { version = "1.0.73", default_features = false }
 
 [workspace]
