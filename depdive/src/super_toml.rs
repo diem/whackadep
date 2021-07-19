@@ -6,7 +6,7 @@
 use anyhow::{anyhow, Result};
 use camino::Utf8Path;
 use guppy::{
-    graph::{DependencyDirection, PackageGraph, PackageMetadata},
+    graph::{DependencyDirection, ExternalSource, PackageGraph, PackageMetadata, PackageSource},
     DependencyKind,
 };
 use indoc::indoc;
@@ -76,6 +76,34 @@ impl SuperPackageGenerator {
 
             if !feaure_info.default_feature_enabled {
                 line.push_str(" , default_features = false");
+            }
+
+            // Handle source path
+            match dep.source() {
+                PackageSource::External(..) => {
+                    if let Some(source) = dep.source().parse_external() {
+                        match source {
+                            ExternalSource::Registry(..) => (), // TODO: handle non crates.io registries
+                            ExternalSource::Git {
+                                repository,
+                                resolved,
+                                ..
+                            } => {
+                                line.push_str(&format!(
+                                    ", git = \"{}\", rev = \"{}\"",
+                                    repository, resolved
+                                ));
+                            }
+                            _ => (), // This enum is non-exhaustive
+                        }
+                    }
+                }
+                _ => {
+                    if let Some(path) = dep.source().local_path() {
+                        let absolute_path = graph.workspace().root().join(path);
+                        line.push_str(&format!(", path = \"{}\"", absolute_path));
+                    }
+                }
             }
 
             line.push('}');
