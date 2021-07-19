@@ -281,7 +281,7 @@ mod test {
         SuperPackageGenerator::new().unwrap()
     }
 
-    fn get_graph_whackadep() -> PackageGraph {
+    fn get_test_graph_whackadep() -> PackageGraph {
         MetadataCommand::new().build_graph().unwrap()
     }
 
@@ -341,7 +341,7 @@ mod test {
 
     #[test]
     fn test_super_toml_copy_cargo_lock() {
-        let graph = get_graph_whackadep();
+        let graph = get_test_graph_whackadep();
         let super_package = get_test_super_package_generator();
         super_package
             .copy_cargo_lock_if_exists(graph.workspace().root())
@@ -354,19 +354,16 @@ mod test {
 
     #[test]
     fn test_super_toml_feature_map() {
-        let graph = get_graph_whackadep();
+        let graph = get_test_graph_whackadep();
         let direct_deps = get_direct_dependencies(&graph);
         let feature_map = FeatureMapGenerator::get_direct_dependencies_features(&graph).unwrap();
         assert_eq!(direct_deps.len(), feature_map.len());
-
-        // TODO: test with various feature combination
-        // although known combinations gets tested in full testing for whacakdep
     }
 
     #[test]
     fn test_super_toml_package() {
         assert_super_package_equals_graph(&get_graph_valid_dep());
-        assert_super_package_equals_graph(&get_graph_whackadep())
+        assert_super_package_equals_graph(&get_test_graph_whackadep())
     }
 
     #[test]
@@ -438,5 +435,21 @@ mod test {
             super_hs.insert((dep.name().to_string(), dep.version().clone()));
         }
         assert!(!(hs.len() == super_hs.len() && hs.iter().all(|k| super_hs.contains(k))));
+    }
+
+    #[test]
+    fn test_suoer_toml_on_diem() {
+        // TODO: replace diem, whackadep, valid_dep with a test repo that involves
+        // all different challenges a virtual manifest can present
+        let da = DiffAnalyzer::new().unwrap();
+        let repo = da
+            .get_git_repo("diem", "https://github.com/diem/diem.git")
+            .unwrap();
+        let path = repo.path().parent().unwrap();
+        let graph = MetadataCommand::new()
+            .current_dir(path)
+            .build_graph()
+            .unwrap();
+        assert_super_package_equals_graph(&graph);
     }
 }

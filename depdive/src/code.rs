@@ -423,6 +423,8 @@ impl CodeAnalyzer {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::diff::DiffAnalyzer;
+    use chrono::Utc;
     use guppy::CargoMetadata;
     use guppy::{graph::PackageGraph, MetadataCommand};
     use serial_test::serial;
@@ -504,6 +506,37 @@ mod test {
         let geiger_report = CodeAnalyzer::get_cargo_geiger_report(&path).unwrap();
         println!("{:?}", geiger_report);
         assert!(!geiger_report.packages.is_empty());
+    }
+
+    #[test]
+    #[serial]
+    #[ignore]
+    fn test_code_geiger_report_for_diem() {
+        let code_analyzer = get_test_code_analyzer();
+        let da = DiffAnalyzer::new().unwrap();
+        let repo = da
+            .get_git_repo("diem", "https://github.com/diem/diem.git")
+            .unwrap();
+        let path = repo.path().parent().unwrap();
+        let graph = MetadataCommand::new()
+            .current_dir(path)
+            .build_graph()
+            .unwrap();
+
+        let start = Utc::now().time();
+        code_analyzer.run_cargo_geiger(&graph).unwrap();
+        let end = Utc::now().time();
+
+        println!(
+            "geiger took {:?} minutes on diem",
+            (end - start).num_minutes()
+        );
+
+        println!(
+            "Total keys in geiger cache: {}",
+            code_analyzer.geiger_cache.borrow().len()
+        );
+        assert!(code_analyzer.geiger_cache.borrow().len() > 0);
     }
 
     #[test]
