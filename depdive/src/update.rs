@@ -37,6 +37,8 @@ pub struct DependencyChangeInfo {
     pub name: String,
     pub repository: Option<String>,
     pub dep_type: DependencyType,
+    // TODO: accomodate to specify source and commits here
+    // e.g., crate_a updating from commit_a to commit_b from repo_a
     pub old_version: Option<Version>, // None when a dep is added
     pub new_version: Option<Version>, // None when a dep is removed
     // Build script paths for the dependency
@@ -157,7 +159,8 @@ impl Sub for UnsafeDelta {
 }
 
 pub struct UpdateAnalyzer {
-    cache: RefCell<HashMap<String, DepUpdateReviewReport>>,
+    // the key will be crate name, old version, and updated version
+    cache: RefCell<HashMap<(String, Version, Version), DepUpdateReviewReport>>,
 }
 
 impl UpdateAnalyzer {
@@ -204,10 +207,14 @@ impl UpdateAnalyzer {
             .collect();
         // TODO: add reporting for version downgrades, add, and remove
 
-        let dep_update_review_reports: Vec<DepUpdateReviewReport> = updated_deps
-            .iter()
-            .map(|dep| self.get_update_review(dep))
-            .collect::<Result<_>>()?;
+        // clean cache if there's anything in a weird scenario
+        // And store all the distinct update review in the cache
+        self.cache.borrow_mut().clear();
+        for dep in &updated_deps {
+            self.get_update_review(dep)?;
+        }
+        let dep_update_review_reports: Vec<DepUpdateReviewReport> =
+            self.cache.borrow_mut().drain().map(|(_k, v)| v).collect();
 
         let version_conflicts: Vec<VersionConflict> =
             Self::determine_version_conflict(&dep_change_infos, &post_graph);
@@ -420,69 +427,74 @@ impl UpdateAnalyzer {
         &self,
         dep_change_info: &DependencyChangeInfo,
     ) -> Result<DepUpdateReviewReport> {
-        if dep_change_info.old_version.is_none()
-            || dep_change_info.new_version.is_none()
-            || dep_change_info.new_version.as_ref().unwrap()
-                <= dep_change_info.old_version.as_ref().unwrap()
-        {
-            return Err(anyhow!("dependency change does not represent an update"));
+        if let (Some(old_version), Some(new_version)) = (
+            dep_change_info.old_version.as_ref(),
+            dep_change_info.new_version.as_ref(),
+        ) {
+            if new_version < old_version {
+                return Err(anyhow!("dependency change is a downgrade - not update "));
+            }
+
+            let name = &dep_change_info.name;
+            let key = (name.clone(), old_version.clone(), new_version.clone());
+
+            if let Some(report) = self.get_update_review_report_from_cache(&key) {
+                return Ok(report);
+            }
+
+            let cratesio_analyzer = CratesioAnalyzer::new()?;
+            let advisory_lookup = AdvisoryLookup::new()?;
+
+            let prior_version = VersionInfo {
+                name: name.clone(),
+                version: old_version.clone(),
+                downloads: cratesio_analyzer.get_version_downloads(&name, &old_version)?,
+                crate_source_diff_report: DiffAnalyzer::new()?.analyze_crate_source_diff(
+                    name,
+                    &old_version.to_string(),
+                    dep_change_info.repository.as_deref(),
+                )?,
+                known_advisories: advisory_lookup
+                    .get_crate_version_advisories(&name, &old_version.to_string())?
+                    .iter()
+                    .filter(|advisory| advisory.metadata.withdrawn.is_none())
+                    .map(|advisory| Self::get_crate_version_rustsec_advisory(advisory))
+                    .collect(),
+            };
+
+            let updated_version = VersionInfo {
+                name: name.clone(),
+                version: new_version.clone(),
+                downloads: cratesio_analyzer.get_version_downloads(&name, &new_version)?,
+                crate_source_diff_report: DiffAnalyzer::new()?.analyze_crate_source_diff(
+                    name,
+                    &new_version.to_string(),
+                    dep_change_info.repository.as_deref(),
+                )?,
+                known_advisories: advisory_lookup
+                    .get_crate_version_advisories(&name, &new_version.to_string())?
+                    .iter()
+                    .filter(|advisory| advisory.metadata.withdrawn.is_none())
+                    .map(|advisory| Self::get_crate_version_rustsec_advisory(advisory))
+                    .collect(),
+            };
+
+            let diff_stats = Self::analyze_version_diff(&dep_change_info)?;
+
+            let report = DepUpdateReviewReport {
+                name: dep_change_info.name.clone(),
+                prior_version,
+                updated_version,
+                diff_stats,
+            };
+            self.cache.borrow_mut().insert(key.clone(), report);
+            self.get_update_review_report_from_cache(&key)
+                .ok_or_else(|| anyhow!("fatal cache error for update analyzer"))
+        } else {
+            Err(anyhow!(
+                "dependency change is either an addition or removal - not update"
+            ))
         }
-
-        let name = &dep_change_info.name;
-        if let Some(report) = self.get_update_review_report_from_cache(name) {
-            return Ok(report);
-        }
-
-        let cratesio_analyzer = CratesioAnalyzer::new()?;
-        let advisory_lookup = AdvisoryLookup::new()?;
-
-        let old_version = dep_change_info.old_version.as_ref().unwrap().clone();
-        let prior_version = VersionInfo {
-            name: name.clone(),
-            version: old_version.clone(),
-            downloads: cratesio_analyzer.get_version_downloads(&name, &old_version)?,
-            crate_source_diff_report: DiffAnalyzer::new()?.analyze_crate_source_diff(
-                name,
-                &old_version.to_string(),
-                dep_change_info.repository.as_deref(),
-            )?,
-            known_advisories: advisory_lookup
-                .get_crate_version_advisories(&name, &old_version.to_string())?
-                .iter()
-                .filter(|advisory| advisory.metadata.withdrawn.is_none())
-                .map(|advisory| Self::get_crate_version_rustsec_advisory(advisory))
-                .collect(),
-        };
-
-        let new_version = dep_change_info.new_version.as_ref().unwrap().clone();
-        let updated_version = VersionInfo {
-            name: name.clone(),
-            version: new_version.clone(),
-            downloads: cratesio_analyzer.get_version_downloads(&name, &new_version)?,
-            crate_source_diff_report: DiffAnalyzer::new()?.analyze_crate_source_diff(
-                name,
-                &new_version.to_string(),
-                dep_change_info.repository.as_deref(),
-            )?,
-            known_advisories: advisory_lookup
-                .get_crate_version_advisories(&name, &new_version.to_string())?
-                .iter()
-                .filter(|advisory| advisory.metadata.withdrawn.is_none())
-                .map(|advisory| Self::get_crate_version_rustsec_advisory(advisory))
-                .collect(),
-        };
-
-        let diff_stats = Self::analyze_version_diff(&dep_change_info)?;
-
-        let report = DepUpdateReviewReport {
-            name: dep_change_info.name.clone(),
-            prior_version,
-            updated_version,
-            diff_stats,
-        };
-        self.cache.borrow_mut().insert(name.clone(), report);
-        self.get_update_review_report_from_cache(name)
-            .ok_or_else(|| anyhow!("fatal cache error for update analyzer"))
     }
 
     fn get_crate_version_rustsec_advisory(
@@ -727,7 +739,10 @@ impl UpdateAnalyzer {
         }
     }
 
-    fn get_update_review_report_from_cache(&self, key: &str) -> Option<DepUpdateReviewReport> {
+    fn get_update_review_report_from_cache(
+        &self,
+        key: &(String, Version, Version),
+    ) -> Option<DepUpdateReviewReport> {
         self.cache.borrow().get(key).cloned()
     }
 }
@@ -954,50 +969,49 @@ mod test {
         let update_review_reports = update_analyzer
             .analyze_updates(&package_graph_pair.prior, &package_graph_pair.post)
             .unwrap();
-        assert_eq!(update_review_reports.dep_update_review_reports.len(), 2);
-        for report in &update_review_reports.dep_update_review_reports {
-            if report.name == "libc" {
-                assert_eq!(report.prior_version.name, report.name);
-                assert_eq!(report.prior_version.name, report.updated_version.name);
-                assert_eq!(
-                    report.prior_version.version,
-                    Version::parse("0.2.92").unwrap()
-                );
-                assert_eq!(
-                    report.updated_version.version,
-                    Version::parse("0.2.93").unwrap()
-                );
-                // downloads for old 0.2.92 and 0.2.93 with an order of magnitude of difference
-                // to be the exact same is very low, equal stats is likely a bug
-                assert_ne!(
-                    report.prior_version.downloads,
-                    report.updated_version.downloads
-                );
-                assert_eq!(report.diff_stats.as_ref().unwrap().files_changed, 78);
-                assert_eq!(report.diff_stats.as_ref().unwrap().rust_files_changed, 73);
-                assert_eq!(report.diff_stats.as_ref().unwrap().insertions, 1333);
-                assert_eq!(report.diff_stats.as_ref().unwrap().deletions, 4942);
-                assert_eq!(
-                    report
-                        .diff_stats
-                        .as_ref()
-                        .unwrap()
-                        .modified_build_scripts
-                        .len(),
-                    1
-                );
-                assert_eq!(
-                    report
-                        .diff_stats
-                        .as_ref()
-                        .unwrap()
-                        .unsafe_file_changed
-                        .len(),
-                    12
-                );
-            }
-        }
-        println!("{:?}", update_review_reports);
+        assert_eq!(update_review_reports.dep_update_review_reports.len(), 1);
+        let report = update_review_reports
+            .dep_update_review_reports
+            .get(0)
+            .unwrap();
+        assert_eq!(report.prior_version.name, report.name);
+        assert_eq!(report.prior_version.name, report.updated_version.name);
+        assert_eq!(
+            report.prior_version.version,
+            Version::parse("0.2.92").unwrap()
+        );
+        assert_eq!(
+            report.updated_version.version,
+            Version::parse("0.2.93").unwrap()
+        );
+        // downloads for old 0.2.92 and 0.2.93 with an order of magnitude of difference
+        // to be the exact same is very low, equal stats is likely a bug
+        assert_ne!(
+            report.prior_version.downloads,
+            report.updated_version.downloads
+        );
+        assert_eq!(report.diff_stats.as_ref().unwrap().files_changed, 78);
+        assert_eq!(report.diff_stats.as_ref().unwrap().rust_files_changed, 73);
+        assert_eq!(report.diff_stats.as_ref().unwrap().insertions, 1333);
+        assert_eq!(report.diff_stats.as_ref().unwrap().deletions, 4942);
+        assert_eq!(
+            report
+                .diff_stats
+                .as_ref()
+                .unwrap()
+                .modified_build_scripts
+                .len(),
+            1
+        );
+        assert_eq!(
+            report
+                .diff_stats
+                .as_ref()
+                .unwrap()
+                .unsafe_file_changed
+                .len(),
+            12
+        );
     }
 
     #[test]
