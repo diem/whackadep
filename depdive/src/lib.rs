@@ -133,7 +133,11 @@ impl DependencyAnalyzer {
 
         println!("analyzing difference in crates.io hosted source vs git source");
         let crate_source_report = diff::DiffAnalyzer::new()?;
-        let crate_source_report = crate_source_report.analyze_crate_source_diff(package)?;
+        let crate_source_report = crate_source_report.analyze_crate_source_diff(
+            package.name(),
+            &package.version().to_string(),
+            package.repository(),
+        )?;
 
         let mut cratesio_source_diff_analyzed = false;
         let mut cratesio_different_from_source = false;
@@ -144,8 +148,8 @@ impl DependencyAnalyzer {
             // If is_different has value then should below ones as well
             cratesio_different_from_source = crate_source_report.is_different.unwrap();
             let diff_report = crate_source_report.file_diff_stats.unwrap();
-            files_added = diff_report.files_added;
-            files_modified = diff_report.files_modified;
+            files_added = diff_report.files_added.len() as u64;
+            files_modified = diff_report.files_modified.len() as u64;
         }
 
         let tabled_crate_source_diff_report = TabledCrateSourceDiffReport {

@@ -6,7 +6,7 @@ use git2::{
     AutotagOption, Delta, Diff, DiffOptions, Direction, FetchOptions, IndexAddOption, Oid,
     Repository, Signature, Tree,
 };
-use guppy::{graph::PackageMetadata, MetadataCommand};
+use guppy::MetadataCommand;
 use regex::Regex;
 use reqwest::blocking::Client;
 use semver::Version;
@@ -23,7 +23,7 @@ use tempfile::{tempdir, TempDir};
 use thiserror::Error;
 use url::Url;
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct CrateSourceDiffReport {
     // This type presents information on the difference
     // between crates.io source code
@@ -37,11 +37,11 @@ pub struct CrateSourceDiffReport {
     pub file_diff_stats: Option<FileDiffStats>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct FileDiffStats {
-    pub files_added: u64,
-    pub files_modified: u64,
-    pub files_deleted: u64,
+    pub files_added: HashSet<String>,
+    pub files_modified: HashSet<String>,
+    pub files_deleted: HashSet<String>,
 }
 
 pub struct DiffAnalyzer {
@@ -99,11 +99,16 @@ impl DiffAnalyzer {
 
     pub fn analyze_crate_source_diff(
         self,
-        package: &PackageMetadata,
+        name: &str,
+        version: &str,
+        repository: Option<&str>,
     ) -> Result<CrateSourceDiffReport> {
-        let name = package.name().to_string();
-        let version = package.version().to_string();
-        let repository = match package.repository() {
+        // TODO make return type an Option
+        // and return None when repository is not present
+        let name = name.to_string();
+        let version = version.to_string();
+
+        let repository = match repository {
             Some(repo) => trim_remote_url(repo)?,
             None => {
                 return Ok(CrateSourceDiffReport {
@@ -188,7 +193,8 @@ impl DiffAnalyzer {
                 release_commit_analyzed: Some(true),
                 // Ignoring files from source not included in crates.io, possibly ignored
                 is_different: Some(
-                    file_diff_stats.files_added > 0 || file_diff_stats.files_modified > 0,
+                    !file_diff_stats.files_added.is_empty()
+                        || !file_diff_stats.files_modified.is_empty(),
                 ),
                 file_diff_stats: Some(file_diff_stats),
             }
@@ -415,29 +421,31 @@ impl DiffAnalyzer {
     // }
 
     fn get_crate_source_file_diff_report(&self, diff: &Diff) -> Result<FileDiffStats> {
-        let mut files_added = 0;
-        let mut files_modified = 0;
-        let mut files_deleted = 0;
+        let mut files_added: HashSet<String> = HashSet::new();
+        let mut files_modified: HashSet<String> = HashSet::new();
+        let mut files_deleted: HashSet<String> = HashSet::new();
 
         // Ignore below files as they are changed whenever publishing to crates.io
         // TODO: compare Cargo.toml.orig in crates.io with Cargo.toml in git
-        let ignore_paths: HashSet<PathBuf> = vec![
+        let ignore_paths: HashSet<&str> = vec![
             ".cargo_vcs_info.json",
             "Cargo.toml",
             "Cargo.toml.orig",
             "Cargo.lock",
         ]
         .into_iter()
-        .map(PathBuf::from)
         .collect();
 
         for diff_delta in diff.deltas() {
-            if ignore_paths.contains(
-                diff_delta
-                    .new_file()
-                    .path()
-                    .ok_or_else(|| anyhow!("no new file path for {:?}", diff_delta))?,
-            ) {
+            let path = diff_delta
+                .new_file()
+                .path()
+                .or_else(|| diff_delta.old_file().path())
+                .ok_or_else(|| anyhow!("no file path for {:?}", diff_delta))?
+                .to_str()
+                .ok_or_else(|| anyhow!("path error in git diff"))?
+                .to_string();
+            if ignore_paths.contains(path.as_str()) {
                 continue;
             }
 
@@ -447,14 +455,14 @@ impl DiffAnalyzer {
             // to avoid noise in warning
             match diff_delta.status() {
                 Delta::Added => {
-                    files_added += diff_delta.nfiles() as u64;
+                    files_added.insert(path);
                 }
                 Delta::Modified => {
                     // modification counts modified file as 2 files
-                    files_modified += (diff_delta.nfiles() / 2) as u64;
+                    files_modified.insert(path);
                 }
                 Delta::Deleted => {
-                    files_deleted += diff_delta.nfiles() as u64;
+                    files_deleted.insert(path);
                 }
                 _ => (),
             }
@@ -725,7 +733,13 @@ mod test {
             if package.name() == "guppy" || package.name() == "octocrab" {
                 println!("testing {}, {}", package.name(), package.version());
                 let diff_analyzer = get_test_diff_analyzer();
-                let report = diff_analyzer.analyze_crate_source_diff(&package).unwrap();
+                let report = diff_analyzer
+                    .analyze_crate_source_diff(
+                        package.name(),
+                        &package.version().to_string(),
+                        package.repository(),
+                    )
+                    .unwrap();
                 if report.release_commit_found.is_none()
                     || !report.release_commit_found.unwrap()
                     || !report.release_commit_analyzed.unwrap()
