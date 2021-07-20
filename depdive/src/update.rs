@@ -24,7 +24,7 @@ use std::{
 use url::Url;
 
 use crate::advisory::AdvisoryLookup;
-use crate::diff::{DiffAnalyzer, HeadCommitNotFoundError, VersionDiffInfo};
+use crate::diff::{CrateSourceDiffReport, DiffAnalyzer, HeadCommitNotFoundError, VersionDiffInfo};
 
 #[derive(Debug, Clone)]
 pub enum DependencyType {
@@ -62,10 +62,11 @@ pub struct VersionInfo {
     pub name: String,
     pub version: Version,
     pub downloads: u64,
+    pub crate_source_diff_report: CrateSourceDiffReport,
     pub known_advisories: Vec<CrateVersionRustSecAdvisory>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CrateVersionRustSecAdvisory {
     pub id: String,
     pub title: String,
@@ -440,6 +441,11 @@ impl UpdateAnalyzer {
             name: name.clone(),
             version: old_version.clone(),
             downloads: cratesio_analyzer.get_version_downloads(&name, &old_version)?,
+            crate_source_diff_report: DiffAnalyzer::new()?.analyze_crate_source_diff(
+                name,
+                &old_version.to_string(),
+                dep_change_info.repository.as_deref(),
+            )?,
             known_advisories: advisory_lookup
                 .get_crate_version_advisories(&name, &old_version.to_string())?
                 .iter()
@@ -453,6 +459,11 @@ impl UpdateAnalyzer {
             name: name.clone(),
             version: new_version.clone(),
             downloads: cratesio_analyzer.get_version_downloads(&name, &new_version)?,
+            crate_source_diff_report: DiffAnalyzer::new()?.analyze_crate_source_diff(
+                name,
+                &new_version.to_string(),
+                dep_change_info.repository.as_deref(),
+            )?,
             known_advisories: advisory_lookup
                 .get_crate_version_advisories(&name, &new_version.to_string())?
                 .iter()
