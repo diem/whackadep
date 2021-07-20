@@ -80,6 +80,7 @@ pub struct VersionChangeInfo {
 #[derive(Debug, Clone)]
 pub struct VersionDiffStats {
     pub files_changed: u64,
+    pub rust_files_changed: u64,
     pub insertions: u64,
     pub deletions: u64,
     pub modified_build_scripts: HashSet<String>, // Empty indicates no change in build scripts
@@ -551,6 +552,7 @@ impl UpdateAnalyzer {
 
         Ok(VersionDiffStats {
             files_changed: stats.files_changed() as u64,
+            rust_files_changed: files_unsafe_change_stats.len() as u64,
             insertions: stats.insertions() as u64,
             deletions: stats.deletions() as u64,
             modified_build_scripts,
@@ -910,6 +912,7 @@ mod test {
                     Version::parse("0.9.0").unwrap()
                 );
                 assert_eq!(report.diff_stats.as_ref().unwrap().files_changed, 9);
+                assert_eq!(report.diff_stats.as_ref().unwrap().rust_files_changed, 4);
                 assert_eq!(report.diff_stats.as_ref().unwrap().insertions, 244);
                 assert_eq!(report.diff_stats.as_ref().unwrap().deletions, 179);
                 assert!(report
@@ -960,6 +963,7 @@ mod test {
                     report.updated_version.downloads
                 );
                 assert_eq!(report.diff_stats.as_ref().unwrap().files_changed, 78);
+                assert_eq!(report.diff_stats.as_ref().unwrap().rust_files_changed, 73);
                 assert_eq!(report.diff_stats.as_ref().unwrap().insertions, 1333);
                 assert_eq!(report.diff_stats.as_ref().unwrap().deletions, 4942);
                 assert_eq!(
