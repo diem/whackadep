@@ -432,6 +432,12 @@ impl DiffAnalyzer {
             "Cargo.toml",
             "Cargo.toml.orig",
             "Cargo.lock",
+            "README.md",
+            "CHANGELOG.md",
+            "LICENSE.md",
+            "LICENSE-MIT",
+            "LICENSE-APACHE",
+            "crates-io.md",
         ]
         .into_iter()
         .collect();
