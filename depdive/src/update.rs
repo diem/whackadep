@@ -82,7 +82,7 @@ pub struct VersionChangeInfo {
 
 #[derive(Debug, Clone)]
 pub struct VersionDiffStats {
-    pub files_changed: u64,
+    pub files_changed: HashSet<String>,
     pub rust_files_changed: u64,
     pub insertions: u64,
     pub deletions: u64,
@@ -562,7 +562,18 @@ impl UpdateAnalyzer {
         dep_change_info: &DependencyChangeInfo,
         version_diff_info: &VersionDiffInfo,
     ) -> Result<VersionDiffStats> {
-        let stats = version_diff_info.diff.stats()?;
+        let mut files_changed: HashSet<String> = HashSet::new();
+        for diff_delta in version_diff_info.diff.deltas() {
+            files_changed.insert(
+                diff_delta
+                    .new_file()
+                    .path()
+                    .or_else(|| diff_delta.old_file().path())
+                    .and_then(|path| path.to_str())
+                    .ok_or_else(|| anyhow!("fatal error: diff contains no files"))?
+                    .to_string(),
+            );
+        }
 
         let modified_build_scripts: HashSet<String> = dep_change_info
             .build_script_paths
@@ -574,10 +585,10 @@ impl UpdateAnalyzer {
         let files_unsafe_change_stats = Self::analyze_unsafe_changes_in_diff(&version_diff_info)?;
 
         Ok(VersionDiffStats {
-            files_changed: stats.files_changed() as u64,
+            files_changed,
             rust_files_changed: files_unsafe_change_stats.len() as u64,
-            insertions: stats.insertions() as u64,
-            deletions: stats.deletions() as u64,
+            insertions: version_diff_info.diff.stats()?.insertions() as u64,
+            deletions: version_diff_info.diff.stats()?.deletions() as u64,
             modified_build_scripts,
             unsafe_file_changed: files_unsafe_change_stats
                 .into_iter()
@@ -937,7 +948,7 @@ mod test {
                     report.updated_version.version,
                     Version::parse("0.9.0").unwrap()
                 );
-                assert_eq!(report.diff_stats.as_ref().unwrap().files_changed, 9);
+                assert_eq!(report.diff_stats.as_ref().unwrap().files_changed.len(), 9);
                 assert_eq!(report.diff_stats.as_ref().unwrap().rust_files_changed, 4);
                 assert_eq!(report.diff_stats.as_ref().unwrap().insertions, 244);
                 assert_eq!(report.diff_stats.as_ref().unwrap().deletions, 179);
@@ -990,7 +1001,7 @@ mod test {
             report.prior_version.downloads,
             report.updated_version.downloads
         );
-        assert_eq!(report.diff_stats.as_ref().unwrap().files_changed, 78);
+        assert_eq!(report.diff_stats.as_ref().unwrap().files_changed.len(), 78);
         assert_eq!(report.diff_stats.as_ref().unwrap().rust_files_changed, 73);
         assert_eq!(report.diff_stats.as_ref().unwrap().insertions, 1333);
         assert_eq!(report.diff_stats.as_ref().unwrap().deletions, 4942);
