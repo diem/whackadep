@@ -43,8 +43,8 @@ impl SuperPackageGenerator {
         Ok(&self.dir)
     }
 
-    fn _get_dir(&self) -> &TempDir {
-        // For testing purpose
+    #[cfg(test)]
+    fn get_dir(&self) -> &TempDir {
         &self.dir
     }
 
@@ -414,7 +414,7 @@ mod test {
         let super_package = get_test_super_package_generator();
         super_package.setup_empty_package().unwrap();
         super_package.write_super_toml_dependencies(&graph).unwrap();
-        let dir = super_package._get_dir();
+        let dir = super_package.get_dir();
 
         let super_graph = MetadataCommand::new()
             .manifest_path(dir.path().join("Cargo.toml"))
