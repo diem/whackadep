@@ -16,9 +16,9 @@ mod advisory;
 mod code;
 mod cratesio;
 mod diff;
-mod ghcomment;
+pub mod ghcomment;
 mod github;
-mod super_toml;
+pub mod super_toml;
 mod update;
 
 use ghcomment::{Emoji::*, GitHubCommentGenerator, TextStyle::*};
