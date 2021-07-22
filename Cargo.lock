@@ -556,6 +556,7 @@ dependencies = [
  "rust-crypto",
  "rustsec",
  "semver 0.11.0",
+ "separator",
  "serde",
  "serde_json",
  "serial_test",
@@ -2590,6 +2591,12 @@ checksum = "00b0bef5b7f9e0df16536d3961cfb6e84331c065b4066afb39768d0e319411f7"
 dependencies = [
  "pest",
 ]
+
+[[package]]
+name = "separator"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f97841a747eef040fcd2e7b3b9a220a7205926e60488e673d9e4926d27772ce5"
 
 [[package]]
 name = "serde"
