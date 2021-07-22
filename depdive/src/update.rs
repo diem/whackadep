@@ -35,13 +35,17 @@ pub enum DependencyType {
 #[derive(Debug, Clone)]
 pub struct DependencyChangeInfo {
     pub name: String,
-    pub repository: Option<String>,
     pub dep_type: DependencyType,
-    // TODO: accomodate to specify source and commits here
-    // e.g., crate_a updating from commit_a to commit_b from repo_a
-    pub old_version: Option<Version>, // None when a dep is added
-    pub new_version: Option<Version>, // None when a dep is removed
-    // Build script paths for the dependency
+    pub old_version_info: Option<VersionSourceInfo>, // None when a dep is added
+    pub new_version_info: Option<VersionSourceInfo>, // None when a dep is removed
+}
+
+#[derive(Debug, Clone)]
+pub struct VersionSourceInfo {
+    // TODO: accomodate to specify source and commits here for cases like
+    // crate_a updating from commit_a to commit_b from repo_a
+    pub version: Version,
+    pub repository: Option<String>,
     pub build_script_paths: HashSet<String>,
 }
 
@@ -64,7 +68,8 @@ pub struct VersionInfo {
     pub name: String,
     pub version: Version,
     pub downloads: u64,
-    pub crate_source_diff_report: CrateSourceDiffReport,
+    pub crate_source_diff_report: Option<CrateSourceDiffReport>, // We can optionally present this report
+    // based on the use case
     pub known_advisories: Vec<CrateVersionRustSecAdvisory>,
 }
 
@@ -198,8 +203,8 @@ impl UpdateAnalyzer {
         let updated_deps: Vec<DependencyChangeInfo> = dep_change_infos
             .iter()
             .filter(
-                |dep| match (dep.old_version.as_ref(), dep.new_version.as_ref()) {
-                    (Some(old), Some(new)) => new > old,
+                |dep| match (dep.old_version_info.as_ref(), dep.new_version_info.as_ref()) {
+                    (Some(old), Some(new)) => new.version > old.version,
                     _ => false,
                 },
             )
@@ -234,17 +239,17 @@ impl UpdateAnalyzer {
         // Check for direct-transitive version conflict
         let direct_dependencies = Self::get_direct_dependencies(&graph);
         for dep_change_info in dep_change_infos {
-            if let (Some(package), Some(new_version)) = (
+            if let (Some(package), Some(new_version_info)) = (
                 direct_dependencies
                     .iter()
                     .find(|dep| dep.name() == dep_change_info.name),
-                dep_change_info.new_version.clone(),
+                dep_change_info.new_version_info.clone(),
             ) {
-                if *package.version() != new_version {
+                if *package.version() != new_version_info.version {
                     conflicts.push(VersionConflict::DirectTransitiveVersionConflict {
                         name: package.name().to_string(),
                         direct_dep_version: package.version().clone(),
-                        transitive_dep_version: new_version,
+                        transitive_dep_version: new_version_info.version,
                     })
                 }
             }
@@ -330,33 +335,47 @@ impl UpdateAnalyzer {
         let name = summary_id.name.clone();
         let version_change_info =
             Self::get_version_change_info_from_summarydiff(&summary_id, &summary_diff_status);
-        let repository = Self::get_repository_from_graphs(&[prior_graph, post_graph], &name);
 
-        let mut build_script_paths: HashSet<String> = HashSet::new();
-        let old_version = version_change_info.old_version;
-        if old_version.is_some() {
+        let mut old_version_info: Option<VersionSourceInfo> = None;
+        if let Some(old_version) = version_change_info.old_version {
+            let repository = Self::get_repository_from_graph(&prior_graph, &name);
+            let mut build_script_paths: HashSet<String> = HashSet::new();
             Self::get_build_script_paths(prior_graph, &name)?
                 .into_iter()
                 .for_each(|x| {
                     build_script_paths.insert(x);
                 });
+
+            old_version_info = Some(VersionSourceInfo {
+                version: old_version,
+                repository,
+                build_script_paths,
+            });
         }
-        let new_version = version_change_info.new_version;
-        if new_version.is_some() {
+
+        let mut new_version_info: Option<VersionSourceInfo> = None;
+        if let Some(new_version) = version_change_info.new_version {
+            let repository = Self::get_repository_from_graph(&post_graph, &name);
+
+            let mut build_script_paths: HashSet<String> = HashSet::new();
             Self::get_build_script_paths(post_graph, &name)?
                 .into_iter()
                 .for_each(|x| {
                     build_script_paths.insert(x);
                 });
+
+            new_version_info = Some(VersionSourceInfo {
+                version: new_version,
+                repository,
+                build_script_paths,
+            })
         }
 
         Ok(DependencyChangeInfo {
             name,
-            repository,
             dep_type,
-            old_version,
-            new_version,
-            build_script_paths,
+            old_version_info,
+            new_version_info,
         })
     }
 
@@ -411,12 +430,6 @@ impl UpdateAnalyzer {
         }
     }
 
-    fn get_repository_from_graphs(graphs: &[&PackageGraph], crate_name: &str) -> Option<String> {
-        graphs
-            .iter()
-            .find_map(|g| Self::get_repository_from_graph(g, crate_name))
-    }
-
     fn get_repository_from_graph(graph: &PackageGraph, crate_name: &str) -> Option<String> {
         let package = graph.packages().find(|p| p.name() == crate_name)?;
         let repository = package.repository()?.to_string();
@@ -427,10 +440,13 @@ impl UpdateAnalyzer {
         &self,
         dep_change_info: &DependencyChangeInfo,
     ) -> Result<DepUpdateReviewReport> {
-        if let (Some(old_version), Some(new_version)) = (
-            dep_change_info.old_version.as_ref(),
-            dep_change_info.new_version.as_ref(),
+        if let (Some(old_version_info), Some(new_version_info)) = (
+            dep_change_info.old_version_info.as_ref(),
+            dep_change_info.new_version_info.as_ref(),
         ) {
+            let new_version = &new_version_info.version;
+            let old_version = &old_version_info.version;
+
             if new_version < old_version {
                 return Err(anyhow!("dependency change is a downgrade - not update "));
             }
@@ -449,11 +465,8 @@ impl UpdateAnalyzer {
                 name: name.clone(),
                 version: old_version.clone(),
                 downloads: cratesio_analyzer.get_version_downloads(&name, &old_version)?,
-                crate_source_diff_report: DiffAnalyzer::new()?.analyze_crate_source_diff(
-                    name,
-                    &old_version.to_string(),
-                    dep_change_info.repository.as_deref(),
-                )?,
+                crate_source_diff_report: None, // We do not need to do this heavy calculation
+                // for the old_version in the update report
                 known_advisories: advisory_lookup
                     .get_crate_version_advisories(&name, &old_version.to_string())?
                     .iter()
@@ -466,11 +479,11 @@ impl UpdateAnalyzer {
                 name: name.clone(),
                 version: new_version.clone(),
                 downloads: cratesio_analyzer.get_version_downloads(&name, &new_version)?,
-                crate_source_diff_report: DiffAnalyzer::new()?.analyze_crate_source_diff(
+                crate_source_diff_report: Some(DiffAnalyzer::new()?.analyze_crate_source_diff(
                     name,
                     &new_version.to_string(),
-                    dep_change_info.repository.as_deref(),
-                )?,
+                    new_version_info.repository.as_deref(),
+                )?),
                 known_advisories: advisory_lookup
                     .get_crate_version_advisories(&name, &new_version.to_string())?
                     .iter()
@@ -510,11 +523,13 @@ impl UpdateAnalyzer {
     fn analyze_version_diff(
         dep_change_info: &DependencyChangeInfo,
     ) -> Result<Option<VersionDiffStats>> {
-        if let (name, Some(old_version), Some(new_version)) = (
+        if let (name, Some(old_version_info), Some(new_version_info)) = (
             &dep_change_info.name,
-            &dep_change_info.old_version,
-            &dep_change_info.new_version,
+            &dep_change_info.old_version_info,
+            &dep_change_info.new_version_info,
         ) {
+            let new_version = &new_version_info.version;
+            let old_version = &old_version_info.version;
             let diff_analyzer = DiffAnalyzer::new()?;
 
             if let (Ok(repo_old_version), Ok(repo_new_version)) = (
@@ -528,8 +543,9 @@ impl UpdateAnalyzer {
                     &dep_change_info,
                     &version_diff_info,
                 )?))
-            } else if let Some(repository) = &dep_change_info.repository {
+            } else if let Some(repository) = &new_version_info.repository {
                 // Get version diff info from git source if avaialbe
+                // We take here the repo for the new version as the latest source
                 let repo = diff_analyzer.get_git_repo(&name, &repository)?;
                 let version_diff_info = match diff_analyzer.get_version_diff_info(
                     &name,
@@ -575,8 +591,19 @@ impl UpdateAnalyzer {
             );
         }
 
-        let modified_build_scripts: HashSet<String> = dep_change_info
-            .build_script_paths
+        let mut build_script_paths: HashSet<String> = HashSet::new();
+        if let Some(info) = &dep_change_info.old_version_info {
+            info.build_script_paths.iter().for_each(|p| {
+                build_script_paths.insert(p.clone());
+            });
+        }
+        if let Some(info) = &dep_change_info.new_version_info {
+            info.build_script_paths.iter().for_each(|p| {
+                build_script_paths.insert(p.clone());
+            });
+        }
+
+        let modified_build_scripts: HashSet<String> = build_script_paths
             .iter()
             .filter(|path| Self::is_file_modified(&path, &version_diff_info.diff))
             .map(|path| path.to_string())
@@ -880,7 +907,7 @@ mod test {
             8,
             dep_change_infos
                 .iter()
-                .filter(|dep| dep.old_version.is_none() && dep.new_version.is_some())
+                .filter(|dep| dep.old_version_info.is_none() && dep.new_version_info.is_some())
                 .count()
         );
 
@@ -889,7 +916,7 @@ mod test {
             10,
             dep_change_infos
                 .iter()
-                .filter(|dep| dep.old_version.is_some() && dep.new_version.is_none())
+                .filter(|dep| dep.old_version_info.is_some() && dep.new_version_info.is_none())
                 .count()
         );
 
@@ -898,32 +925,29 @@ mod test {
             2,
             dep_change_infos
                 .iter()
-                .filter(|dep| dep.old_version.is_some() && dep.new_version.is_some())
+                .filter(|dep| dep.old_version_info.is_some() && dep.new_version_info.is_some())
                 .count()
         );
     }
 
     #[test]
-    fn test_update_get_repository_from_graphs() {
+    fn test_update_get_repository_from_graph() {
         let package_graph_pair = get_test_graph_pair_guppy();
-        let graphs = vec![&package_graph_pair.prior, &package_graph_pair.post];
 
         assert_eq!(
             "https://github.com/facebookincubator/cargo-guppy",
-            trim_remote_url(&UpdateAnalyzer::get_repository_from_graphs(&graphs, "guppy").unwrap())
-                .unwrap()
+            trim_remote_url(
+                &UpdateAnalyzer::get_repository_from_graph(&package_graph_pair.prior, "guppy")
+                    .unwrap()
+            )
+            .unwrap()
         );
 
         assert_eq!(
             "https://github.com/rust-lang/git2-rs",
-            trim_remote_url(&UpdateAnalyzer::get_repository_from_graphs(&graphs, "git2").unwrap())
-                .unwrap()
-        );
-
-        assert_eq!(
-            "https://github.com/XAMPPRocky/octocrab",
             trim_remote_url(
-                &UpdateAnalyzer::get_repository_from_graphs(&graphs, "octocrab").unwrap()
+                &UpdateAnalyzer::get_repository_from_graph(&package_graph_pair.post, "git2")
+                    .unwrap()
             )
             .unwrap()
         );
