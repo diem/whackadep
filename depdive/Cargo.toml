@@ -39,3 +39,4 @@ toml = "0.5.8" # toml parsing
 geiger = "0.4.7" # file unsafe scanning
 twox-hash = "1.6.0"
 separator = "0.4.1" # number formatting with comma
+structopt = "0.3.22"

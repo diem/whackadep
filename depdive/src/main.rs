@@ -1,43 +1,76 @@
 use anyhow::Result;
-use depdive::{
-    DependencyGraphAnalyzer, TabledCrateSourceDiffReport, TabledCratesioReport, TabledGitHubReport,
-};
-use guppy::MetadataCommand;
-use tabled::{Style, Table};
+use depdive::UpdateAnalyzer;
+use std::path::Path;
+use structopt::StructOpt;
+
+#[derive(Debug, StructOpt)]
+#[structopt(about = "Rust dependency analysis")]
+struct Args {
+    #[structopt(subcommand)]
+    cmd: Command,
+}
+
+#[derive(Debug, StructOpt)]
+enum Command {
+    #[structopt(name = "update-review")]
+    UpdateReview {
+        #[structopt(subcommand)]
+        cmd: UpdateReviewCommand,
+    },
+}
+
+#[derive(Debug, StructOpt)]
+enum UpdateReviewCommand {
+    #[structopt(name = "paths")]
+    Paths {
+        /// Path to repository old state
+        prior: String,
+        /// Path to repository new state post update
+        post: String,
+    },
+
+    #[structopt(name = "commits")]
+    Commits {
+        /// Path to the git repository
+        path: String,
+        /// Commit sha prior to update
+        prior: String,
+        /// Commit sha post update
+        post: String,
+    },
+}
+
+fn update_analyzer_from_paths(prior: &str, post: &str) -> Result<()> {
+    let report = UpdateAnalyzer::run_update_analyzer_from_paths(Path::new(prior), Path::new(post))?
+        .unwrap_or_default();
+    println!("{}", report);
+    Ok(())
+}
+
+fn update_analyzer_from_repo_commits(
+    path: &str,
+    prior_commit: &str,
+    post_commit: &str,
+) -> Result<()> {
+    let report = UpdateAnalyzer::run_update_analyzer_from_repo_commits(
+        Path::new(path),
+        prior_commit,
+        post_commit,
+    )?
+    .unwrap_or_default();
+    println!("{}", report);
+    Ok(())
+}
 
 fn main() -> Result<()> {
-    let graph = MetadataCommand::new().build_graph()?;
+    let args = Args::from_iter(std::env::args());
 
-    let depdive_report = DependencyGraphAnalyzer.analyze_dep_graph(&graph)?;
-
-    let table: Vec<TabledCratesioReport> = depdive_report
-        .crate_stats
-        .iter()
-        .map(|r| r.tabled_cratesio_report.clone())
-        .collect();
-    let table = Table::new(table).with(Style::github_markdown()).to_string();
-    println!("{}", table);
-
-    let table: Vec<TabledGitHubReport> = depdive_report
-        .crate_stats
-        .iter()
-        .map(|r| r.tabled_github_report.clone())
-        .collect();
-    let table = Table::new(table).with(Style::github_markdown()).to_string();
-    println!("{}", table);
-
-    let table: Vec<TabledCrateSourceDiffReport> = depdive_report
-        .crate_stats
-        .iter()
-        .map(|r| r.tabled_crate_source_diff_report.clone())
-        .collect();
-    let table = Table::new(table).with(Style::github_markdown()).to_string();
-    println!("{}", table);
-
-    let table = Table::new(depdive_report.code_stats)
-        .with(Style::github_markdown())
-        .to_string();
-    println!("{}", table);
-
-    Ok(())
+    match args.cmd {
+        Command::UpdateReview { cmd } => match cmd {
+            UpdateReviewCommand::Paths { prior, post } => update_analyzer_from_paths(&prior, &post),
+            UpdateReviewCommand::Commits { path, prior, post } => {
+                update_analyzer_from_repo_commits(&path, &prior, &post)
+            }
+        },
+    }
 }
