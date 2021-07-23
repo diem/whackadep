@@ -249,8 +249,8 @@ impl FeatureMapGenerator {
                 // Not considering dev features
                 // TODO: Write dev-dependencies separately in supertoml
                 let dep_req_kinds = [DependencyKind::Normal, DependencyKind::Build];
-                for req_kind in dep_req_kinds {
-                    let dep_req = link.req_for_kind(req_kind);
+                for req_kind in &dep_req_kinds {
+                    let dep_req = link.req_for_kind(*req_kind);
                     // If default feature is enabled for any, make it true
                     feature_info.default_feature_enabled = feature_info.default_feature_enabled
                         || dep_req.default_features().enabled_on_any();
