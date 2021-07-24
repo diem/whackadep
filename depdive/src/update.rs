@@ -222,7 +222,7 @@ impl UpdateAnalyzer {
             self.cache.borrow_mut().drain().map(|(_k, v)| v).collect();
 
         let version_conflicts: Vec<VersionConflict> =
-            Self::determine_version_conflict(&dep_change_infos, &post_graph);
+            Self::determine_version_conflict(&updated_deps, &post_graph);
 
         Ok(UpdateReviewReport {
             dep_update_review_reports,
