@@ -1,5 +1,5 @@
 use anyhow::Result;
-use depdive::{DependencyAnalyzer, UpdateAnalyzer};
+use depdive::{DependencyAnalyzer, DependencyGraphAnalyzer, UpdateAnalyzer};
 use std::path::Path;
 use structopt::StructOpt;
 
@@ -33,6 +33,14 @@ enum Command {
 enum DepReviewCommand {
     #[structopt(name = "package-metrics")]
     PackageMetrics {
+        /// Path to repo
+        path: String,
+        #[structopt(long)]
+        /// if only direct deps should be analyzed
+        only_direct: Option<bool>,
+    },
+    #[structopt(name = "code-metrics")]
+    CodeMetrics {
         /// Path to repo
         path: String,
         #[structopt(long)]
@@ -93,6 +101,15 @@ fn get_package_metrics_for_deps_in_json(path: &str, only_direct: Option<bool>) -
     Ok(())
 }
 
+fn get_code_metrics_for_deps_in_json(path: &str, only_direct: Option<bool>) -> Result<()> {
+    let report = DependencyGraphAnalyzer::get_code_metrics_in_json_from_path(
+        Path::new(path),
+        only_direct.unwrap_or(false),
+    )?;
+    println!("{}", report);
+    Ok(())
+}
+
 fn main() -> Result<()> {
     let args = Args::from_iter(std::env::args());
 
@@ -106,6 +123,9 @@ fn main() -> Result<()> {
         Command::DepReview { cmd } => match cmd {
             DepReviewCommand::PackageMetrics { path, only_direct } => {
                 get_package_metrics_for_deps_in_json(&path, only_direct)
+            }
+            DepReviewCommand::CodeMetrics { path, only_direct } => {
+                get_code_metrics_for_deps_in_json(&path, only_direct)
             }
         },
     }

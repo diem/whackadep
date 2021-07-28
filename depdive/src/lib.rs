@@ -238,6 +238,18 @@ impl DependencyAnalyzer {
 pub struct DependencyGraphAnalyzer;
 
 impl DependencyGraphAnalyzer {
+    pub fn get_code_metrics_in_json_from_path(path: &Path, only_direct: bool) -> Result<String> {
+        let graph = MetadataCommand::new().current_dir(path).build_graph()?;
+        Self::get_code_metrics_in_json(&graph, only_direct)
+    }
+
+    fn get_code_metrics_in_json(graph: &PackageGraph, only_direct: bool) -> Result<String> {
+        let code_reports = code::CodeAnalyzer::new();
+        let reports = code_reports.analyze_code(graph, only_direct)?;
+        let json_output = serde_json::to_string(&reports)?;
+        Ok(json_output)
+    }
+
     pub fn analyze_dep_graph(&self, graph: &PackageGraph) -> Result<DepDiveReport> {
         // Group stats
         println!("analyzing code metrics");

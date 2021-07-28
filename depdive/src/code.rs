@@ -17,7 +17,7 @@ use tokei::{Config, LanguageType, Languages};
 use crate::guppy_wrapper::{get_all_dependencies, get_direct_dependencies};
 use crate::super_toml::{SuperPackageGenerator, TomlChecker, TomlType};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CodeReport {
     pub name: String,
     pub version: String,
