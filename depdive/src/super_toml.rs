@@ -3,6 +3,7 @@
 //! 2. Check a Cargo.toml is a package or a virtual manifest toml
 //! TODO: This module can work as a stand-alone crate; isolate and publish
 
+use crate::guppy_wrapper::get_direct_dependencies;
 use anyhow::{anyhow, Result};
 use camino::Utf8Path;
 use guppy::{
@@ -202,20 +203,6 @@ impl TomlChecker {
     }
 }
 
-// TODO: crate a new module `guppy_wrapper`
-// that holds common function like below to be used throughout this crate
-fn get_direct_dependencies(graph: &PackageGraph) -> Vec<PackageMetadata> {
-    graph
-        .query_workspace()
-        .resolve_with_fn(|_, link| {
-            let (from, to) = link.endpoints();
-            from.in_workspace() && !to.in_workspace()
-        })
-        .packages(guppy::graph::DependencyDirection::Forward)
-        .filter(|pkg| !pkg.in_workspace())
-        .collect()
-}
-
 #[derive(Debug, Clone, Default)]
 struct FeatureInfo {
     default_feature_enabled: bool,
@@ -273,6 +260,7 @@ impl FeatureMapGenerator {
 mod test {
     use super::*;
     use crate::diff::DiffAnalyzer;
+    use crate::guppy_wrapper::get_all_dependencies;
     use git2::{build::CheckoutBuilder, Oid};
     use guppy::MetadataCommand;
     use std::path::PathBuf;
@@ -290,15 +278,6 @@ mod test {
             .current_dir(PathBuf::from("resources/test/valid_dep"))
             .build_graph()
             .unwrap()
-    }
-
-    fn get_all_dependencies(graph: &PackageGraph) -> Vec<PackageMetadata> {
-        graph
-            .query_workspace()
-            .resolve_with_fn(|_, link| !link.to().in_workspace())
-            .packages(guppy::graph::DependencyDirection::Forward)
-            .filter(|pkg| !pkg.in_workspace())
-            .collect()
     }
 
     fn assert_super_package_equals_graph(graph: &PackageGraph) {
