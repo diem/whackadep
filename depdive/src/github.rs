@@ -41,6 +41,7 @@ pub struct Issue {
     pub created_at: DateTime<FixedOffset>,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct GitHubReport {
     pub name: String,               // name of the crate
     pub repository: Option<String>, // repository url

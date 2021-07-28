@@ -1,5 +1,5 @@
 use anyhow::Result;
-use depdive::UpdateAnalyzer;
+use depdive::{DependencyAnalyzer, UpdateAnalyzer};
 use std::path::Path;
 use structopt::StructOpt;
 
@@ -13,9 +13,31 @@ struct Args {
 #[derive(Debug, StructOpt)]
 enum Command {
     #[structopt(name = "update-review")]
+    /// Return a review of the dep updates
+    /// between a prior and post state
     UpdateReview {
         #[structopt(subcommand)]
         cmd: UpdateReviewCommand,
+    },
+
+    #[structopt(name = "dep-review")]
+    /// Returns usage and activity metrics in Json
+    /// for all dependencies of a cargo project
+    DepReview {
+        #[structopt(subcommand)]
+        cmd: DepReviewCommand,
+    },
+}
+
+#[derive(Debug, StructOpt)]
+enum DepReviewCommand {
+    #[structopt(name = "package-metrics")]
+    PackageMetrics {
+        /// Path to repo
+        path: String,
+        #[structopt(long)]
+        /// if only direct deps should be analyzed
+        only_direct: Option<bool>,
     },
 }
 
@@ -62,6 +84,15 @@ fn update_analyzer_from_repo_commits(
     Ok(())
 }
 
+fn get_package_metrics_for_deps_in_json(path: &str, only_direct: Option<bool>) -> Result<()> {
+    let report = DependencyAnalyzer::get_dep_pacakge_metrics_in_json_from_path(
+        Path::new(path),
+        only_direct.unwrap_or(false),
+    )?;
+    println!("{}", report);
+    Ok(())
+}
+
 fn main() -> Result<()> {
     let args = Args::from_iter(std::env::args());
 
@@ -70,6 +101,11 @@ fn main() -> Result<()> {
             UpdateReviewCommand::Paths { prior, post } => update_analyzer_from_paths(&prior, &post),
             UpdateReviewCommand::Commits { path, prior, post } => {
                 update_analyzer_from_repo_commits(&path, &prior, &post)
+            }
+        },
+        Command::DepReview { cmd } => match cmd {
+            DepReviewCommand::PackageMetrics { path, only_direct } => {
+                get_package_metrics_for_deps_in_json(&path, only_direct)
             }
         },
     }

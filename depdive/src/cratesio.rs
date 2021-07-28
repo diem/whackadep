@@ -12,9 +12,10 @@
 use anyhow::{anyhow, Result};
 use guppy::graph::PackageMetadata;
 use semver::Version;
+use serde::{Deserialize, Serialize};
 use tabled::Tabled;
 
-#[derive(Tabled, Default)]
+#[derive(Tabled, Default, Serialize, Deserialize)]
 pub struct CratesioReport {
     pub name: String,
     pub is_hosted: bool,
