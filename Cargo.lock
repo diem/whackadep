@@ -558,7 +558,6 @@ dependencies = [
  "serde_json",
  "serial_test",
  "structopt",
- "tabled",
  "tar",
  "tempfile",
  "thiserror",
@@ -1895,15 +1894,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "papergrid"
-version = "0.1.16"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78ca46bbfa9e734c7bfd8c651d0f651fb487a8dba24398c9b75d0ff4c24cd9ab"
-dependencies = [
- "unicode-width",
-]
-
-[[package]]
 name = "parking_lot"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2938,27 +2928,6 @@ dependencies = [
  "quote",
  "syn",
  "unicode-xid",
-]
-
-[[package]]
-name = "tabled"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52de73e877d42cb0a309562fbde7a18047328dd8d905d68ae94a3f937fdb590c"
-dependencies = [
- "papergrid",
- "tabled_derive",
-]
-
-[[package]]
-name = "tabled_derive"
-version = "0.1.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "121d5fb24dd75f15c79da0340d7a75b5519b21c243f9f2791a971c9789750a98"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
