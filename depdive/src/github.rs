@@ -64,7 +64,7 @@ pub struct RepoStats {
 pub struct ActivityMetrics {
     pub days_since_last_commit: u64, // on default branch
     pub days_since_last_open_issue: Option<u64>,
-    pub open_issues_labeld_bug: u64,
+    pub open_issues_labeled_bug: u64,
     pub open_issues_labeled_security: u64,
     pub recent_activity: RecentActivity,
 }
@@ -205,7 +205,7 @@ impl GitHubAnalyzer {
             .get_time_since_last_open_issue(repo_fullname)?
             .map(|duration| duration.num_days() as u64);
 
-        let open_issues_labeld_bug =
+        let open_issues_labeled_bug =
             self.get_total_open_issue_count_for_label(repo_fullname, "bug")?;
         let open_issues_labeled_security =
             self.get_total_open_issue_count_for_label(repo_fullname, "security")?;
@@ -216,7 +216,7 @@ impl GitHubAnalyzer {
         Ok(ActivityMetrics {
             days_since_last_commit,
             days_since_last_open_issue,
-            open_issues_labeld_bug,
+            open_issues_labeled_bug,
             open_issues_labeled_security,
             recent_activity,
         })
