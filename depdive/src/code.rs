@@ -6,6 +6,7 @@ use guppy::{
     graph::{DependencyDirection, PackageGraph, PackageMetadata},
     PackageId,
 };
+use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
     cell::RefCell, collections::HashMap, collections::HashSet, fs, iter, ops, path::Path,
@@ -13,6 +14,7 @@ use std::{
 };
 use tokei::{Config, LanguageType, Languages};
 
+use crate::guppy_wrapper::{get_all_dependencies, get_direct_dependencies};
 use crate::super_toml::{SuperPackageGenerator, TomlChecker, TomlType};
 
 #[derive(Debug, Clone)]
@@ -144,23 +146,24 @@ impl CodeAnalyzer {
         }
     }
 
-    pub fn analyze_code(self, graph: &PackageGraph) -> Result<Vec<CodeReport>> {
+    pub fn analyze_code(self, graph: &PackageGraph, only_direct: bool) -> Result<Vec<CodeReport>> {
         let mut code_reports: Vec<CodeReport> = Vec::new();
 
         self.run_cargo_geiger(&graph)?;
 
         // Get direct dependencies of the whole workspace
-        let direct_dependencies: Vec<PackageMetadata> = graph
-            .query_workspace()
-            .resolve_with_fn(|_, link| {
-                let (from, to) = link.endpoints();
-                from.in_workspace() && !to.in_workspace()
-            })
-            .packages(guppy::graph::DependencyDirection::Forward)
-            .filter(|pkg| !pkg.in_workspace())
+        let all_deps = get_all_dependencies(&graph);
+        let direct_deps: HashSet<(&str, &Version)> = get_direct_dependencies(&graph)
+            .iter()
+            .map(|pkg| (pkg.name(), pkg.version()))
             .collect();
 
-        for package in &direct_dependencies {
+        for package in &all_deps {
+            let is_direct = direct_deps.contains(&(package.name(), package.version()));
+            if only_direct && !is_direct {
+                continue;
+            }
+
             let loc_report = self.get_loc_report(package.manifest_path())?;
             let unsafe_report =
                 self.get_unsafe_report(package.name().to_string(), package.version().to_string());
@@ -176,7 +179,7 @@ impl CodeAnalyzer {
             let code_report = CodeReport {
                 name: package.name().to_string(),
                 version: package.version().to_string(),
-                is_direct: true,
+                is_direct,
                 has_build_script: package.has_build_script(),
                 loc_report: Some(loc_report),
                 unsafe_report,
@@ -488,14 +491,17 @@ mod test {
     #[test]
     #[serial]
     fn test_code_analyzer() {
-        let code_analyzer = get_test_code_analyzer();
         let graph = get_test_graph_valid_dep();
-        let code_reports = code_analyzer.analyze_code(&graph).unwrap();
-        println!("{:?}", code_reports);
 
-        assert!(!code_reports.is_empty());
-        let report = &code_reports[0];
+        let code_analyzer = get_test_code_analyzer();
+        let code_reports_all = code_analyzer.analyze_code(&graph, false).unwrap();
+        assert!(!code_reports_all.is_empty());
+        let report = &code_reports_all[0];
         assert!(report.unsafe_report.is_some());
+
+        let code_analyzer = get_test_code_analyzer();
+        let code_reports_direct = code_analyzer.analyze_code(&graph, true).unwrap();
+        assert!(code_reports_all.len() > code_reports_direct.len());
     }
 
     #[test]
