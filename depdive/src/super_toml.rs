@@ -39,7 +39,7 @@ impl SuperPackageGenerator {
         self.copy_cargo_lock_if_exists(graph.workspace().root())?;
 
         // Generate super toml
-        self.write_super_toml_dependencies(&graph)?;
+        self.write_super_toml_dependencies(graph)?;
 
         Ok(&self.dir)
     }
@@ -52,17 +52,17 @@ impl SuperPackageGenerator {
     fn write_super_toml_dependencies(&self, graph: &PackageGraph) -> Result<()> {
         let mut toml = String::from("\n[dependencies]");
 
-        let deps = get_direct_dependencies(&graph);
-        let feature_map = FeatureMapGenerator::get_direct_dependencies_features(&graph)?;
+        let deps = get_direct_dependencies(graph);
+        let feature_map = FeatureMapGenerator::get_direct_dependencies_features(graph)?;
 
         for dep in &deps {
             let feaure_info = feature_map
-                .get(&FeatureMapGenerator::get_featuremap_key_from_packagemetadata(&dep))
+                .get(&FeatureMapGenerator::get_featuremap_key_from_packagemetadata(dep))
                 .ok_or_else(|| anyhow!("direct dep {} not found in feature map", dep.name()))?;
 
             let mut line = format!(
                 "\n{} = {{package=\"{}\", version = \"={}\", features =[",
-                self.get_unique_name(&dep),
+                self.get_unique_name(dep),
                 dep.name(),
                 dep.version()
             );
@@ -191,9 +191,9 @@ impl TomlChecker {
             return Err(anyhow!("{} does not point to a Cargo.toml file", path));
         }
 
-        if Self::is_package_toml(&path)? {
+        if Self::is_package_toml(path)? {
             Ok(TomlType::Package)
-        } else if Self::is_virtual_manifest_toml(&path)? {
+        } else if Self::is_virtual_manifest_toml(path)? {
             Ok(TomlType::VirtualManifest)
         } else {
             Err(anyhow!(
@@ -282,19 +282,19 @@ mod test {
 
     fn assert_super_package_equals_graph(graph: &PackageGraph) {
         let super_package = get_test_super_package_generator();
-        let dir = super_package.get_super_package_directory(&graph).unwrap();
+        let dir = super_package.get_super_package_directory(graph).unwrap();
 
         let super_graph = MetadataCommand::new()
             .manifest_path(dir.path().join("Cargo.toml"))
             .build_graph()
             .unwrap();
         assert_eq!(
-            get_all_dependencies(&graph).len(),
+            get_all_dependencies(graph).len(),
             get_all_dependencies(&super_graph).len()
         );
 
         let mut hs: HashSet<(String, semver::Version)> = HashSet::new();
-        for dep in &get_all_dependencies(&graph) {
+        for dep in &get_all_dependencies(graph) {
             hs.insert((dep.name().to_string(), dep.version().clone()));
         }
 

@@ -149,11 +149,11 @@ impl CodeAnalyzer {
     pub fn analyze_code(self, graph: &PackageGraph, only_direct: bool) -> Result<Vec<CodeReport>> {
         let mut code_reports: Vec<CodeReport> = Vec::new();
 
-        self.run_cargo_geiger(&graph)?;
+        self.run_cargo_geiger(graph)?;
 
         // Get direct dependencies of the whole workspace
-        let all_deps = get_all_dependencies(&graph);
-        let direct_deps: HashSet<(&str, &Version)> = get_direct_dependencies(&graph)
+        let all_deps = get_all_dependencies(graph);
+        let direct_deps: HashSet<(&str, &Version)> = get_direct_dependencies(graph)
             .iter()
             .map(|pkg| (pkg.name(), pkg.version()))
             .collect();
@@ -169,7 +169,7 @@ impl CodeAnalyzer {
                 self.get_unsafe_report(package.name().to_string(), package.version().to_string());
 
             //All dependencies of this package
-            let dependencies = self.get_package_dependencies(&graph, &package)?;
+            let dependencies = self.get_package_dependencies(graph, package)?;
             let dep_report = self.get_dep_report(&dependencies)?;
 
             //Exclusive deps from this package
@@ -337,14 +337,14 @@ impl CodeAnalyzer {
         let toml_path = graph.workspace().root().join("Cargo.toml");
         match TomlChecker::get_toml_type(&toml_path)? {
             TomlType::Package => self.run_cargo_geiger_on_package_toml(toml_path.as_ref())?,
-            TomlType::VirtualManifest => self.run_cargo_geiger_on_virtual_manifest(&graph)?,
+            TomlType::VirtualManifest => self.run_cargo_geiger_on_virtual_manifest(graph)?,
         }
         Ok(())
     }
 
     fn run_cargo_geiger_on_virtual_manifest(&self, graph: &PackageGraph) -> Result<()> {
         let super_package = SuperPackageGenerator::new()?;
-        let dir = super_package.get_super_package_directory(&graph)?;
+        let dir = super_package.get_super_package_directory(graph)?;
         let toml_path = dir.path().join("Cargo.toml");
         self.run_cargo_geiger_on_package_toml(&toml_path)?;
         Ok(())
@@ -419,7 +419,7 @@ impl CodeAnalyzer {
     ) -> Option<GeigerPackageInfo> {
         // Cargo geiger may not have a result for a valid dependency
         // e.g., openssl not present for geiger report for valid_dep test crate
-        self.geiger_cache.borrow().get(&key).cloned()
+        self.geiger_cache.borrow().get(key).cloned()
     }
 }
 

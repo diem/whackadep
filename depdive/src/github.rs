@@ -198,7 +198,7 @@ impl GitHubAnalyzer {
         default_branch: &str,
     ) -> Result<ActivityMetrics> {
         let days_since_last_commit = self
-            .get_time_since_last_commit(&repo_fullname, &default_branch)?
+            .get_time_since_last_commit(repo_fullname, default_branch)?
             .num_days() as u64;
 
         let days_since_last_open_issue = self

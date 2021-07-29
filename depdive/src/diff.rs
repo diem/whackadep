@@ -171,8 +171,7 @@ impl DiffAnalyzer {
         let toml_path = toml_path
             .parent()
             .ok_or_else(|| anyhow!("Fatal: toml path returned as root"))?;
-        let crate_git_tree =
-            self.get_subdirectory_tree(&crate_repo, &crate_git_tree, &toml_path)?;
+        let crate_git_tree = self.get_subdirectory_tree(&crate_repo, &crate_git_tree, toml_path)?;
 
         let diff = crate_repo.diff_tree_to_tree(
             Some(&crate_git_tree),
@@ -206,7 +205,7 @@ impl DiffAnalyzer {
         name: &str,
         version: &str,
     ) -> Result<Repository> {
-        let path = self.get_cratesio_version(&name, &version)?;
+        let path = self.get_cratesio_version(name, version)?;
         self.init_git(&path)
     }
 
@@ -298,7 +297,7 @@ impl DiffAnalyzer {
         ];
 
         for pattern in &patterns {
-            let re = Regex::new(&pattern)?;
+            let re = Regex::new(pattern)?;
 
             // drain filter hashmap if tag matches the pattern
             let mut candidate_tags: Vec<&str> = Vec::new();
@@ -402,7 +401,7 @@ impl DiffAnalyzer {
             // Root of the repository path marked by an empty string
             return Ok(tree.clone());
         }
-        let tree = tree.get_path(path)?.to_object(&repo)?.id();
+        let tree = tree.get_path(path)?.to_object(repo)?.id();
         let tree = repo.find_tree(tree)?;
         Ok(tree)
     }
@@ -490,28 +489,28 @@ impl DiffAnalyzer {
     ) -> Result<VersionDiffInfo<'a>> {
         // TODO: This function works only in cases where the root directory
         // of the git repository contains a Cargo.toml file
-        let toml_path = self.locate_package_toml(&repo, &name)?;
+        let toml_path = self.locate_package_toml(repo, name)?;
         let toml_path = toml_path
             .parent()
             .ok_or_else(|| anyhow!("Cannot find crate directory"))?;
 
         let commit_oid_a = self
-            .get_head_commit_oid_for_version(&repo, &name, &version_a.to_string())?
+            .get_head_commit_oid_for_version(repo, name, &version_a.to_string())?
             .ok_or_else(|| HeadCommitNotFoundError {
                 crate_name: name.to_string(),
                 version: version_a.clone(),
             })?;
         let tree_a = repo.find_commit(commit_oid_a)?.tree()?;
-        let tree_a = self.get_subdirectory_tree(&repo, &tree_a, &toml_path)?;
+        let tree_a = self.get_subdirectory_tree(repo, &tree_a, toml_path)?;
 
         let commit_oid_b = self
-            .get_head_commit_oid_for_version(&repo, &name, &version_b.to_string())?
+            .get_head_commit_oid_for_version(repo, name, &version_b.to_string())?
             .ok_or_else(|| HeadCommitNotFoundError {
                 crate_name: name.to_string(),
                 version: version_b.clone(),
             })?;
         let tree_b = repo.find_commit(commit_oid_b)?.tree()?;
-        let tree_b = self.get_subdirectory_tree(&repo, &tree_b, &toml_path)?;
+        let tree_b = self.get_subdirectory_tree(repo, &tree_b, toml_path)?;
 
         let diff =
             repo.diff_tree_to_tree(Some(&tree_a), Some(&tree_b), Some(&mut DiffOptions::new()))?;
@@ -539,7 +538,7 @@ impl DiffAnalyzer {
         // make repo_b a branch of repo_a
         let head_b = repo_version_b.head()?.peel_to_commit()?;
         self.setup_remote(
-            &repo_version_a,
+            repo_version_a,
             &repo_version_b
                 .path()
                 .to_str()
@@ -559,7 +558,7 @@ impl DiffAnalyzer {
         )?;
 
         Ok(VersionDiffInfo {
-            repo: &repo_version_a,
+            repo: repo_version_a,
             commit_a: version_a_commit.id(),
             commit_b: version_b_commit.id(),
             diff,
@@ -618,7 +617,7 @@ mod test {
         let diff_analyzer = get_test_diff_analyzer();
         let name = "libc";
         let version = "0.2.97";
-        let path = diff_analyzer.get_cratesio_version(&name, &version).unwrap();
+        let path = diff_analyzer.get_cratesio_version(name, version).unwrap();
         assert!(path.exists());
 
         let repo = diff_analyzer.init_git(&path).unwrap();
@@ -640,7 +639,7 @@ mod test {
         let diff_analyzer = get_test_diff_analyzer();
         let name = "libc";
         let url = "https://github.com/rust-lang/libc";
-        let repo = diff_analyzer.get_git_repo(&name, url).unwrap();
+        let repo = diff_analyzer.get_git_repo(name, url).unwrap();
         assert!(repo.workdir().is_some());
         assert!(repo.path().exists());
         // TODO add tests for non-git repos
@@ -653,20 +652,20 @@ mod test {
         let name = "test-version-tag";
         let url = "https://github.com/nasifimtiazohi/test-version-tag";
 
-        let repo = diff_analyzer.get_git_repo(&name, url).unwrap();
+        let repo = diff_analyzer.get_git_repo(name, url).unwrap();
         let oid = diff_analyzer
-            .get_head_commit_oid_for_version(&repo, &name, "0.0.8")
+            .get_head_commit_oid_for_version(&repo, name, "0.0.8")
             .unwrap();
         assert!(oid.is_none());
         let oid = diff_analyzer
-            .get_head_commit_oid_for_version(&repo, &name, "10.0.8")
+            .get_head_commit_oid_for_version(&repo, name, "10.0.8")
             .unwrap();
         assert_eq!(
             oid.unwrap(),
             Oid::from_str("51efd612af12183a682bb3242d41369d2879ad60").unwrap()
         );
         let oid = diff_analyzer
-            .get_head_commit_oid_for_version(&repo, &name, "10.0.8-")
+            .get_head_commit_oid_for_version(&repo, name, "10.0.8-")
             .unwrap();
         assert!(oid.is_none());
 
@@ -699,14 +698,14 @@ mod test {
         let diff_analyzer = get_test_diff_analyzer();
         let name = "guppy";
         let url = "https://github.com/facebookincubator/cargo-guppy";
-        let repo = diff_analyzer.get_git_repo(&name, url).unwrap();
+        let repo = diff_analyzer.get_git_repo(name, url).unwrap();
         let path = diff_analyzer.locate_package_toml(&repo, name).unwrap();
         assert_eq!("guppy/Cargo.toml", path.to_str().unwrap());
 
         let diff_analyzer = get_test_diff_analyzer();
         let name = "octocrab";
         let url = "https://github.com/XAMPPRocky/octocrab";
-        let repo = diff_analyzer.get_git_repo(&name, url).unwrap();
+        let repo = diff_analyzer.get_git_repo(name, url).unwrap();
         let path = diff_analyzer.locate_package_toml(&repo, name).unwrap();
         assert_eq!("Cargo.toml", path.to_str().unwrap());
     }
@@ -717,7 +716,7 @@ mod test {
         let diff_analyzer = get_test_diff_analyzer();
         let name = "guppy";
         let url = "https://github.com/facebookincubator/cargo-guppy";
-        let repo = diff_analyzer.get_git_repo(&name, url).unwrap();
+        let repo = diff_analyzer.get_git_repo(name, url).unwrap();
         let tree = repo
             .find_commit(Oid::from_str("dc6dcc151821e787ac02379bcd0319b26c962f55").unwrap())
             .unwrap()
@@ -773,7 +772,7 @@ mod test {
         let name = "guppy";
         let repository = "https://github.com/facebookincubator/cargo-guppy";
 
-        let repo = diff_analyzer.get_git_repo(&name, &repository).unwrap();
+        let repo = diff_analyzer.get_git_repo(name, repository).unwrap();
         let version_diff_info = diff_analyzer
             .get_version_diff_info(
                 name,
@@ -807,10 +806,10 @@ mod test {
         let version_b = "0.9.0";
 
         let repo_a = diff_analyzer
-            .get_git_repo_for_cratesio_version(&name, &version_a)
+            .get_git_repo_for_cratesio_version(name, version_a)
             .unwrap();
         let repo_b = diff_analyzer
-            .get_git_repo_for_cratesio_version(&name, &version_b)
+            .get_git_repo_for_cratesio_version(name, version_b)
             .unwrap();
 
         let version_diff_info = diff_analyzer
@@ -830,7 +829,7 @@ mod test {
         let name = "guppy";
         let repository = "https://github.com/facebookincubator/cargo-guppy";
 
-        let repo = diff_analyzer.get_git_repo(&name, &repository).unwrap();
+        let repo = diff_analyzer.get_git_repo(name, repository).unwrap();
         let diff = diff_analyzer
             .get_version_diff_info(
                 name,

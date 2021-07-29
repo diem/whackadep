@@ -70,7 +70,7 @@ impl GitHubCommentGenerator {
         for item in items {
             s.push_str(&format!(
                 "\n   * {}",
-                Self::get_text(item.as_ref(), &text_style)
+                Self::get_text(item.as_ref(), text_style)
             ))
         }
 

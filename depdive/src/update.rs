@@ -197,7 +197,7 @@ impl UpdateAnalyzer {
     ) -> Result<UpdateReviewReport> {
         // Get the changed dependency stats
         let dep_change_infos =
-            Self::compare_pacakge_graphs(&prior_graph, &post_graph, cargo_opts, feature_filter)?;
+            Self::compare_pacakge_graphs(prior_graph, post_graph, cargo_opts, feature_filter)?;
 
         // Filter version updates
         let updated_deps: Vec<DependencyChangeInfo> = dep_change_infos
@@ -222,7 +222,7 @@ impl UpdateAnalyzer {
             self.cache.borrow_mut().drain().map(|(_k, v)| v).collect();
 
         let version_conflicts: Vec<VersionConflict> =
-            Self::determine_version_conflict(&updated_deps, &post_graph);
+            Self::determine_version_conflict(&updated_deps, post_graph);
 
         Ok(UpdateReviewReport {
             dep_update_review_reports,
@@ -237,7 +237,7 @@ impl UpdateAnalyzer {
         let mut conflicts: Vec<VersionConflict> = Vec::new();
 
         // Check for direct-transitive version conflict
-        let direct_dependencies = Self::get_direct_dependencies(&graph);
+        let direct_dependencies = Self::get_direct_dependencies(graph);
         for dep_change_info in dep_change_infos {
             if let (Some(package), Some(new_version_info)) = (
                 direct_dependencies
@@ -283,8 +283,8 @@ impl UpdateAnalyzer {
         cargo_opts: &CargoOptions,
         mut feature_filter: impl FeatureFilter<'a>,
     ) -> Result<Vec<DependencyChangeInfo>> {
-        let prior_summary = Self::get_summary(&prior_graph, &mut feature_filter, &cargo_opts)?;
-        let post_summary = Self::get_summary(&post_graph, &mut feature_filter, &cargo_opts)?;
+        let prior_summary = Self::get_summary(prior_graph, &mut feature_filter, cargo_opts)?;
+        let post_summary = Self::get_summary(post_graph, &mut feature_filter, cargo_opts)?;
         let diff = SummaryDiff::new(&prior_summary, &post_summary);
 
         let mut dep_change_infos: Vec<DependencyChangeInfo> = Vec::new();
@@ -293,18 +293,18 @@ impl UpdateAnalyzer {
             dep_change_infos.push(Self::get_dependency_change_info(
                 prior_graph,
                 post_graph,
-                &summary_id,
-                &summary_diff_status,
+                summary_id,
+                summary_diff_status,
                 DependencyType::Host,
             )?);
         }
 
         for (summary_id, summary_diff_status) in diff.target_packages.changed.iter() {
             dep_change_infos.push(Self::get_dependency_change_info(
-                &prior_graph,
-                &post_graph,
-                &summary_id,
-                &summary_diff_status,
+                prior_graph,
+                post_graph,
+                summary_id,
+                summary_diff_status,
                 DependencyType::Target,
             )?);
         }
@@ -334,11 +334,11 @@ impl UpdateAnalyzer {
     ) -> Result<DependencyChangeInfo> {
         let name = summary_id.name.clone();
         let version_change_info =
-            Self::get_version_change_info_from_summarydiff(&summary_id, &summary_diff_status);
+            Self::get_version_change_info_from_summarydiff(summary_id, summary_diff_status);
 
         let mut old_version_info: Option<VersionSourceInfo> = None;
         if let Some(old_version) = version_change_info.old_version {
-            let repository = Self::get_repository_from_graph(&prior_graph, &name);
+            let repository = Self::get_repository_from_graph(prior_graph, &name);
             let mut build_script_paths: HashSet<String> = HashSet::new();
             Self::get_build_script_paths(prior_graph, &name)?
                 .into_iter()
@@ -355,7 +355,7 @@ impl UpdateAnalyzer {
 
         let mut new_version_info: Option<VersionSourceInfo> = None;
         if let Some(new_version) = version_change_info.new_version {
-            let repository = Self::get_repository_from_graph(&post_graph, &name);
+            let repository = Self::get_repository_from_graph(post_graph, &name);
 
             let mut build_script_paths: HashSet<String> = HashSet::new();
             Self::get_build_script_paths(post_graph, &name)?
@@ -464,11 +464,11 @@ impl UpdateAnalyzer {
             let prior_version = VersionInfo {
                 name: name.clone(),
                 version: old_version.clone(),
-                downloads: cratesio_analyzer.get_version_downloads(&name, &old_version)?,
+                downloads: cratesio_analyzer.get_version_downloads(name, old_version)?,
                 crate_source_diff_report: None, // We do not need to do this heavy calculation
                 // for the old_version in the update report
                 known_advisories: advisory_lookup
-                    .get_crate_version_advisories(&name, &old_version.to_string())?
+                    .get_crate_version_advisories(name, &old_version.to_string())?
                     .iter()
                     .filter(|advisory| advisory.metadata.withdrawn.is_none())
                     .map(|advisory| Self::get_crate_version_rustsec_advisory(advisory))
@@ -478,21 +478,21 @@ impl UpdateAnalyzer {
             let updated_version = VersionInfo {
                 name: name.clone(),
                 version: new_version.clone(),
-                downloads: cratesio_analyzer.get_version_downloads(&name, &new_version)?,
+                downloads: cratesio_analyzer.get_version_downloads(name, new_version)?,
                 crate_source_diff_report: Some(DiffAnalyzer::new()?.analyze_crate_source_diff(
                     name,
                     &new_version.to_string(),
                     new_version_info.repository.as_deref(),
                 )?),
                 known_advisories: advisory_lookup
-                    .get_crate_version_advisories(&name, &new_version.to_string())?
+                    .get_crate_version_advisories(name, &new_version.to_string())?
                     .iter()
                     .filter(|advisory| advisory.metadata.withdrawn.is_none())
                     .map(|advisory| Self::get_crate_version_rustsec_advisory(advisory))
                     .collect(),
             };
 
-            let diff_stats = Self::analyze_version_diff(&dep_change_info)?;
+            let diff_stats = Self::analyze_version_diff(dep_change_info)?;
 
             let report = DepUpdateReviewReport {
                 name: dep_change_info.name.clone(),
@@ -533,25 +533,25 @@ impl UpdateAnalyzer {
             let diff_analyzer = DiffAnalyzer::new()?;
 
             if let (Ok(repo_old_version), Ok(repo_new_version)) = (
-                diff_analyzer.get_git_repo_for_cratesio_version(&name, &old_version.to_string()),
-                diff_analyzer.get_git_repo_for_cratesio_version(&name, &new_version.to_string()),
+                diff_analyzer.get_git_repo_for_cratesio_version(name, &old_version.to_string()),
+                diff_analyzer.get_git_repo_for_cratesio_version(name, &new_version.to_string()),
             ) {
                 // Get version diff info from crates.io if avalaiable on crates.io
                 let version_diff_info = diff_analyzer
                     .get_version_diff_info_between_repos(&repo_old_version, &repo_new_version)?;
                 Ok(Some(Self::get_version_diff_stats(
-                    &dep_change_info,
+                    dep_change_info,
                     &version_diff_info,
                 )?))
             } else if let Some(repository) = &new_version_info.repository {
                 // Get version diff info from git source if avaialbe
                 // We take here the repo for the new version as the latest source
-                let repo = diff_analyzer.get_git_repo(&name, &repository)?;
+                let repo = diff_analyzer.get_git_repo(name, repository)?;
                 let version_diff_info = match diff_analyzer.get_version_diff_info(
-                    &name,
+                    name,
                     &repo,
-                    &old_version,
-                    &new_version,
+                    old_version,
+                    new_version,
                 ) {
                     Ok(info) => info,
                     Err(error) => {
@@ -562,7 +562,7 @@ impl UpdateAnalyzer {
                     }
                 };
                 Ok(Some(Self::get_version_diff_stats(
-                    &dep_change_info,
+                    dep_change_info,
                     &version_diff_info,
                 )?))
             } else {
@@ -605,11 +605,11 @@ impl UpdateAnalyzer {
 
         let modified_build_scripts: HashSet<String> = build_script_paths
             .iter()
-            .filter(|path| Self::is_file_modified(&path, &version_diff_info.diff))
+            .filter(|path| Self::is_file_modified(path, &version_diff_info.diff))
             .map(|path| path.to_string())
             .collect();
 
-        let files_unsafe_change_stats = Self::analyze_unsafe_changes_in_diff(&version_diff_info)?;
+        let files_unsafe_change_stats = Self::analyze_unsafe_changes_in_diff(version_diff_info)?;
 
         Ok(VersionDiffStats {
             files_changed,
@@ -1159,11 +1159,11 @@ mod test {
         let name = "test_unsafe";
         let repository = "https://github.com/nasifimtiazohi/test-version-tag";
         let diff_analyzer = DiffAnalyzer::new().unwrap();
-        let repo = diff_analyzer.get_git_repo(&name, &repository).unwrap();
+        let repo = diff_analyzer.get_git_repo(name, repository).unwrap();
 
         let version_diff_info = diff_analyzer
             .get_version_diff_info(
-                &name,
+                name,
                 &repo,
                 &Version::parse("2.0.0").unwrap(),
                 &Version::parse("2.1.0").unwrap(),
@@ -1192,7 +1192,7 @@ mod test {
 
         let version_diff_info = diff_analyzer
             .get_version_diff_info(
-                &name,
+                name,
                 &repo,
                 &Version::parse("2.1.0").unwrap(),
                 &Version::parse("2.4.0").unwrap(),
@@ -1223,7 +1223,7 @@ mod test {
 
         let version_diff_info = diff_analyzer
             .get_version_diff_info(
-                &name,
+                name,
                 &repo,
                 &Version::parse("2.4.0").unwrap(),
                 &Version::parse("2.5.0").unwrap(),
@@ -1249,11 +1249,11 @@ mod test {
         let name = "test_unsafe";
         let repository = "https://github.com/nasifimtiazohi/test-version-tag";
         let diff_analyzer = DiffAnalyzer::new().unwrap();
-        let repo = diff_analyzer.get_git_repo(&name, &repository).unwrap();
+        let repo = diff_analyzer.get_git_repo(name, repository).unwrap();
 
         let version_diff_info = diff_analyzer
             .get_version_diff_info(
-                &name,
+                name,
                 &repo,
                 &Version::parse("2.6.0").unwrap(),
                 &Version::parse("3.1.0").unwrap(),

@@ -52,8 +52,8 @@ impl DependencyAnalyzer {
     fn get_dep_pacakge_metrics_in_json(graph: &PackageGraph, only_direct: bool) -> Result<String> {
         let mut output: Vec<PackageMetrics> = Vec::new();
 
-        let all_deps = get_all_dependencies(&graph);
-        let direct_deps: HashSet<(&str, &Version)> = get_direct_dependencies(&graph)
+        let all_deps = get_all_dependencies(graph);
+        let direct_deps: HashSet<(&str, &Version)> = get_direct_dependencies(graph)
             .iter()
             .map(|pkg| (pkg.name(), pkg.version()))
             .collect();
@@ -124,14 +124,14 @@ impl UpdateAnalyzer {
         post_graph: &PackageGraph,
     ) -> Result<UpdateReviewReport> {
         let update_analyzer = update::UpdateAnalyzer::new();
-        update_analyzer.analyze_updates(&prior_graph, &post_graph)
+        update_analyzer.analyze_updates(prior_graph, post_graph)
     }
 
     pub fn get_summary_report(
         prior_graph: &PackageGraph,
         post_graph: &PackageGraph,
     ) -> Result<Option<String>> {
-        let update_review_report = Self::run_update_analyzer(&prior_graph, &post_graph)?;
+        let update_review_report = Self::run_update_analyzer(prior_graph, post_graph)?;
         if update_review_report.dep_update_review_reports.is_empty()
             && update_review_report.version_conflicts.is_empty()
         {
@@ -188,7 +188,7 @@ impl UpdateAnalyzer {
                     } else {
                         AdvisoryStatus::Introduced
                     };
-                    add_to_advisory_highlights(&a, status);
+                    add_to_advisory_highlights(a, status);
                 });
             report
                 .prior_version
@@ -196,7 +196,7 @@ impl UpdateAnalyzer {
                 .iter()
                 .filter(|a| !report.updated_version.known_advisories.contains(a))
                 .for_each(|a| {
-                    add_to_advisory_highlights(&a, AdvisoryStatus::Fixed);
+                    add_to_advisory_highlights(a, AdvisoryStatus::Fixed);
                 });
 
             // a closure for generating hyperlink of an advisory
@@ -476,7 +476,7 @@ mod test {
         println!(
             "{}",
             UpdateAnalyzer::run_update_analyzer_from_repo_commits(
-                &path,
+                path,
                 "20da44ad0918e6f260e9f150a60f28ec3b8665b2",
                 "2b2e529d96b6fbd9b5d111ecdd21acb61e95a28f"
             )
@@ -530,7 +530,7 @@ mod test {
 
         println!(
             "{}",
-            UpdateAnalyzer::run_update_analyzer_from_paths(&path_a, &path_b)
+            UpdateAnalyzer::run_update_analyzer_from_paths(path_a, path_b)
                 .unwrap()
                 .unwrap()
         );
@@ -548,7 +548,7 @@ mod test {
             .ok_or_else(|| anyhow!("repository path not found for {}", repository))
             .unwrap();
         assert!(UpdateAnalyzer::run_update_analyzer_from_repo_commits(
-            &path,
+            path,
             "516b1d9cb619de459da0ba07e8fd74743d2fa9a0",
             "44f91c93c0d0b522bac22d90028698e392fada41"
         )
