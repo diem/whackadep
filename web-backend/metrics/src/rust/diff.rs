@@ -87,8 +87,8 @@ pub async fn is_diff_in_buildrs(
     let out_dir = tempdir()?;
     let out_dir = out_dir.path();
 
-    download_cargo_crate(cargo_crate_original_version, &out_dir).await?;
-    download_cargo_crate(cargo_crate_new_version, &out_dir).await?;
+    download_cargo_crate(cargo_crate_original_version, out_dir).await?;
+    download_cargo_crate(cargo_crate_new_version, out_dir).await?;
 
     let original_crate = out_dir.join(cargo_crate_original_version);
     let original_crate = original_crate.as_path();
@@ -107,7 +107,7 @@ mod tests {
     async fn test_download_cargo_crate() {
         let out_dir = tempdir().unwrap();
         let out_dir = out_dir.path();
-        download_cargo_crate("cargo-download==0.1.2", &out_dir)
+        download_cargo_crate("cargo-download==0.1.2", out_dir)
             .await
             .unwrap();
         assert!(out_dir.join("cargo-download==0.1.2").exists());
@@ -120,13 +120,13 @@ mod tests {
         // tiny-keccak-2.0.0 does not have build.rs
         // tiny-keccak-2.0.1 does have build.rs
         // tiny-keccak-2.0.2 has diff from 2.0.1
-        download_cargo_crate("tiny-keccak==2.0.0", &out_dir)
+        download_cargo_crate("tiny-keccak==2.0.0", out_dir)
             .await
             .unwrap();
-        download_cargo_crate("tiny-keccak==2.0.1", &out_dir)
+        download_cargo_crate("tiny-keccak==2.0.1", out_dir)
             .await
             .unwrap();
-        download_cargo_crate("tiny-keccak==2.0.2", &out_dir)
+        download_cargo_crate("tiny-keccak==2.0.2", out_dir)
             .await
             .unwrap();
 

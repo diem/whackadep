@@ -450,7 +450,7 @@ impl ChangeSummary {
             .vulnerabilities
             .iter()
             // remove what is contained in the previous vulns
-            .filter(|v| !old.rustsec.vulnerabilities.contains(&v))
+            .filter(|v| !old.rustsec.vulnerabilities.contains(v))
             .cloned()
             .collect();
         rust_changes.new_rustsec.vulnerabilities = new_vulnerabilities;

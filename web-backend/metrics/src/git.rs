@@ -66,7 +66,7 @@ mod tests {
     async fn test_t() {
         let dir = tempdir().unwrap();
 
-        assert!(Repo::new(&dir.path()).is_err());
+        assert!(Repo::new(dir.path()).is_err());
 
         Repo::clone("https://github.com/mimoo/disco.git", dir.path())
             .await
