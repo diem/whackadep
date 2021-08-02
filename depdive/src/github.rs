@@ -7,6 +7,7 @@ use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, USER_AGENT};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::str::FromStr;
+use thiserror::Error;
 use url::Url;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -100,6 +101,16 @@ pub struct GitHubAnalyzer {
     client: reqwest::blocking::Client,
 }
 
+#[derive(Debug, Error)]
+pub enum GitHubRepoError {
+    #[error("{} is not a valid github url", url)]
+    InvalidUrl { url: Url },
+    #[error("repository not found: {}", url)]
+    RepoNotFound { url: Url },
+    #[error("http request to GitHub failed, {:?}", error)]
+    Unknown { error: anyhow::Error },
+}
+
 impl GitHubAnalyzer {
     fn construct_headers() -> Result<HeaderMap> {
         let mut headers = HeaderMap::new();
@@ -129,15 +140,18 @@ impl GitHubAnalyzer {
             None => return Ok(GitHubReport::new(name.to_string(), None)),
         };
 
-        let is_github_repo = Self::is_github_url(&repository);
-        if !is_github_repo {
-            return Ok(GitHubReport::new(
-                name.to_string(),
-                Some(repository.to_string()),
-            ));
-        }
-
-        let repo_fullname = Self::get_github_repo_fullname(&repository)?;
+        let repo_fullname = match self.get_github_repo_fullname(&repository) {
+            Ok(name) => name,
+            Err(error) => match error {
+                GitHubRepoError::Unknown { .. } => return Err(error.into()),
+                _ => {
+                    return Ok(GitHubReport::new(
+                        name.to_string(),
+                        Some(repository.to_string()),
+                    ))
+                }
+            },
+        };
 
         // Get Overall stats for a given repo
         let repo_stats = self.get_github_repo_stats(&repo_fullname)?;
@@ -153,7 +167,7 @@ impl GitHubAnalyzer {
         Ok(GitHubReport {
             name: name.to_string(),
             repository: Some(repository.to_string()),
-            is_github_repo,
+            is_github_repo: true,
             repo_stats,
             activity_metrics,
         })
@@ -165,20 +179,51 @@ impl GitHubAnalyzer {
             .unwrap_or(false)
     }
 
-    fn get_github_repo_fullname(repo_url: &Url) -> Result<String> {
+    fn get_github_repo_fullname(&self, repo_url: &Url) -> Result<String, GitHubRepoError> {
+        // Return the repository full name if a valid GitHub url
         if !Self::is_github_url(repo_url) {
-            return Err(anyhow!("Repository, {}, is not from GitHub", repo_url));
+            return Err(GitHubRepoError::InvalidUrl {
+                url: repo_url.clone(),
+            });
         }
 
-        let mut segments = repo_url.path_segments().unwrap();
-        let owner = segments
-            .next()
-            .ok_or_else(|| anyhow!("repository url missing owner"))?;
+        let mut segments = repo_url
+            .path_segments()
+            .ok_or_else(|| GitHubRepoError::InvalidUrl {
+                url: repo_url.clone(),
+            })?;
+        let owner = segments.next().ok_or_else(|| GitHubRepoError::InvalidUrl {
+            url: repo_url.clone(),
+        })?;
         let repo = segments
             .next()
             .map(|repo| repo.trim_end_matches(".git"))
-            .ok_or_else(|| anyhow!("repository url missing repo"))?;
-        return Ok(format!("{}/{}", owner, repo));
+            .ok_or_else(|| GitHubRepoError::InvalidUrl {
+                url: repo_url.clone(),
+            })?;
+
+        let repo_fullname = format!("{}/{}", owner, repo);
+        match self.is_existing_github_repo(&repo_fullname) {
+            Ok(flag) => match flag {
+                true => Ok(repo_fullname),
+                false => Err(GitHubRepoError::RepoNotFound {
+                    url: repo_url.clone(),
+                }),
+            },
+            Err(error) => Err(GitHubRepoError::Unknown { error }),
+        }
+    }
+
+    fn is_existing_github_repo(&self, repo_fullname: &str) -> Result<bool> {
+        let api_endpoint = format!("https://api.github.com/repos/{}", repo_fullname);
+        let response = self.client.get(api_endpoint).send()?;
+        if response.status().is_success() {
+            Ok(true)
+        } else if response.status() == reqwest::StatusCode::NOT_FOUND {
+            Ok(false)
+        } else {
+            Err(anyhow!("http request to GitHub failed, {:?}", response))
+        }
     }
 
     fn get_github_repo_stats(&self, repo_fullname: &str) -> Result<RepoStats> {
@@ -398,7 +443,10 @@ mod tests {
 
         let repository = pkg.repository().unwrap();
         let url = Url::from_str(repository).unwrap();
-        GitHubAnalyzer::get_github_repo_fullname(&url).unwrap()
+        GitHubAnalyzer::new()
+            .unwrap()
+            .get_github_repo_fullname(&url)
+            .unwrap()
     }
 
     fn get_test_repo_default_branch(package_name: &str) -> String {
