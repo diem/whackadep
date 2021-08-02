@@ -34,8 +34,8 @@ pub struct PackageMetrics {
     // Usage and Activity metrics for a crate
     pub name: String,
     pub is_direct: bool,
-    pub cratesio_metrics: CratesioReport,
-    pub github_metrics: GitHubReport,
+    pub cratesio_metrics: Option<CratesioReport>,
+    pub github_metrics: Option<GitHubReport>,
 }
 
 pub struct DependencyAnalyzer;
@@ -65,10 +65,11 @@ impl DependencyAnalyzer {
             }
 
             let cratesio_metrics = cratesio::CratesioAnalyzer::new()?;
-            let cratesio_metrics = cratesio_metrics.analyze_cratesio(dep)?;
+            let cratesio_metrics: Option<CratesioReport> =
+                cratesio_metrics.analyze_cratesio(dep).ok();
 
             let github_metrics = github::GitHubAnalyzer::new()?;
-            let github_metrics = github_metrics.analyze_github(dep)?;
+            let github_metrics: Option<GitHubReport> = github_metrics.analyze_github(dep).ok();
 
             output.push(PackageMetrics {
                 name: dep.name().to_string(),
