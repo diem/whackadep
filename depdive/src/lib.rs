@@ -16,7 +16,7 @@ use std::path::Path;
 mod advisory;
 mod code;
 mod cratesio;
-mod diff;
+pub mod diff;
 pub mod ghcomment;
 mod github;
 mod guppy_wrapper;

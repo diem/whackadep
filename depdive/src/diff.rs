@@ -179,9 +179,6 @@ impl DiffAnalyzer {
             Some(&mut DiffOptions::new()),
         )?;
 
-        // Uncomment while testing
-        // self.display_diff(&diff)?;
-
         let file_diff_stats = self.get_crate_source_file_diff_report(&diff)?;
 
         Ok({
@@ -218,7 +215,7 @@ impl DiffAnalyzer {
         self.download_file(&download_path, &dest_file)
     }
 
-    pub fn get_git_repo(&self, name: &str, url: &str) -> Result<Repository> {
+    pub(crate) fn get_git_repo(&self, name: &str, url: &str) -> Result<Repository> {
         let dest_file = format!("{}-source", name);
         let dest_path = self.dir.path().join(&dest_file);
         let repo = Repository::clone(url, dest_path)?;
@@ -405,19 +402,6 @@ impl DiffAnalyzer {
         let tree = repo.find_tree(tree)?;
         Ok(tree)
     }
-
-    // fn display_diff(&self, diff: &Diff) -> Result<()> {
-    //     let stats = diff.stats()?;
-    //     let mut format = git2::DiffStatsFormat::NONE;
-    //     format |= git2::DiffStatsFormat::FULL;
-    //     let buf = stats.to_buf(format, 80)?;
-    //     print!(
-    //         "difference between crates.io and source is:\n {}",
-    //         std::str::from_utf8(&*buf).unwrap()
-    //     );
-
-    //     Ok(())
-    // }
 
     fn get_crate_source_file_diff_report(&self, diff: &Diff) -> Result<FileDiffStats> {
         let mut files_added: HashSet<String> = HashSet::new();
