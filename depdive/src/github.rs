@@ -3,10 +3,13 @@
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Duration, FixedOffset, Utc};
 use guppy::graph::PackageMetadata;
+use reqwest::blocking::Response;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, USER_AGENT};
+use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::str::FromStr;
+use std::thread::sleep;
 use thiserror::Error;
 use url::Url;
 
@@ -133,6 +136,19 @@ impl GitHubAnalyzer {
         })
     }
 
+    fn make_github_rest_api_call(&self, api_endpoint: &str) -> Result<Response> {
+        let mut response = self.client.get(api_endpoint).send()?;
+        while response.status() == StatusCode::from_u16(429)?
+            || response.status() == StatusCode::from_u16(403)?
+        {
+            // If api rate limit exceeded, sleep for a minute
+            println!("GitHub API rate limit exceeded. Sleeping for a minute");
+            sleep(std::time::Duration::from_secs(60));
+            response = self.client.get(api_endpoint).send()?;
+        }
+        Ok(response)
+    }
+
     pub fn analyze_github(self, package: &PackageMetadata) -> Result<GitHubReport> {
         let name = package.name();
         let repository = match package.repository().and_then(|r| Url::from_str(r).ok()) {
@@ -216,7 +232,8 @@ impl GitHubAnalyzer {
 
     fn is_existing_github_repo(&self, repo_fullname: &str) -> Result<bool> {
         let api_endpoint = format!("https://api.github.com/repos/{}", repo_fullname);
-        let response = self.client.get(api_endpoint).send()?;
+        let response = self.make_github_rest_api_call(&api_endpoint)?;
+
         if response.status().is_success() {
             Ok(true)
         } else if response.status() == reqwest::StatusCode::NOT_FOUND {
@@ -228,7 +245,7 @@ impl GitHubAnalyzer {
 
     fn get_github_repo_stats(&self, repo_fullname: &str) -> Result<RepoStats> {
         let api_endpoint = format!("https://api.github.com/repos/{}", repo_fullname);
-        let response = self.client.get(api_endpoint).send()?;
+        let response = self.make_github_rest_api_call(&api_endpoint)?;
 
         if !response.status().is_success() {
             return Err(anyhow!("http request to GitHub failed, {:?}", response));
@@ -276,7 +293,7 @@ impl GitHubAnalyzer {
             "https://api.github.com/repos/{}/commits?sha={}&per_page=1",
             repo_fullname, default_branch
         );
-        let response = self.client.get(api_endpoint).send()?;
+        let response = self.make_github_rest_api_call(&api_endpoint)?;
 
         if !response.status().is_success() {
             return Err(anyhow!("http request to GitHub failed, {:?}", response));
@@ -311,7 +328,7 @@ impl GitHubAnalyzer {
             "https://api.github.com/repos/{}/issues?state=open&per_page=1",
             repo_fullname
         );
-        let response = self.client.get(api_endpoint).send()?;
+        let response = self.make_github_rest_api_call(&api_endpoint)?;
 
         if !response.status().is_success() {
             return Err(anyhow!("http request to GitHub failed, {:?}", response));
@@ -351,7 +368,7 @@ impl GitHubAnalyzer {
                 "https://api.github.com/repos/{}/issues?state=open&per_page=100&page={}&labels={}",
                 repo_fullname, page, label
             );
-            let response = self.client.get(api_endpoint).send()?;
+            let response = self.make_github_rest_api_call(&api_endpoint)?;
             let response: Vec<Issue> = response.json()?;
 
             if response.is_empty() {
@@ -383,7 +400,7 @@ impl GitHubAnalyzer {
                 "https://api.github.com/repos/{}/commits?since={}&per_page=100&page={}",
                 repo_fullname, since_query_string, page
             );
-            let response = self.client.get(api_endpoint).send()?;
+            let response = self.make_github_rest_api_call(&api_endpoint)?;
             if !response.status().is_success() {
                 return Err(anyhow!("http request to GitHub failed, {:?}", response));
             }
