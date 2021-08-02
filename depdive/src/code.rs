@@ -2,19 +2,18 @@
 
 use anyhow::{anyhow, Result};
 use camino::Utf8Path;
-use guppy::{
-    graph::{DependencyDirection, PackageGraph, PackageMetadata},
-    PackageId,
-};
+use guppy::graph::{PackageGraph, PackageMetadata};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
-    cell::RefCell, collections::HashMap, collections::HashSet, fs, iter, ops, path::Path,
+    cell::RefCell, collections::HashMap, collections::HashSet, fs, ops, path::Path,
     process::Command,
 };
 use tokei::{Config, LanguageType, Languages};
 
-use crate::guppy_wrapper::{get_all_dependencies, get_direct_dependencies};
+use crate::guppy_wrapper::{
+    filter_exclusive_deps, get_all_dependencies, get_direct_dependencies, get_package_dependencies,
+};
 use crate::super_toml::{SuperPackageGenerator, TomlChecker, TomlType};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -169,11 +168,11 @@ impl CodeAnalyzer {
                 self.get_unsafe_report(package.name().to_string(), package.version().to_string());
 
             //All dependencies of this package
-            let dependencies = self.get_package_dependencies(graph, package)?;
+            let dependencies = get_package_dependencies(graph, package)?;
             let dep_report = self.get_dep_report(&dependencies)?;
 
             //Exclusive deps from this package
-            let exclusive_dependencies = self.filter_exclusive_deps(package, &dependencies);
+            let exclusive_dependencies = filter_exclusive_deps(package, &dependencies);
             let exclusive_dep_report = self.get_dep_report(&exclusive_dependencies)?;
 
             let code_report = CodeReport {
@@ -191,54 +190,6 @@ impl CodeAnalyzer {
         }
 
         Ok(code_reports)
-    }
-
-    pub fn get_package_dependencies<'a>(
-        &self,
-        graph: &'a PackageGraph,
-        package: &PackageMetadata,
-    ) -> Result<Vec<PackageMetadata<'a>>> {
-        let dependencies: Vec<PackageMetadata> = graph
-            .query_forward(iter::once(package.id()))?
-            .resolve()
-            .packages(DependencyDirection::Forward)
-            .filter(|pkg| pkg.id() != package.id())
-            .collect();
-        Ok(dependencies)
-    }
-
-    pub fn filter_exclusive_deps<'a>(
-        &self,
-        package: &'a PackageMetadata,
-        pacakge_dependencies: &[PackageMetadata<'a>],
-    ) -> Vec<PackageMetadata<'a>> {
-        // HashSet for quick lookup in dependency subtree
-        let mut package_deps: HashSet<&PackageId> =
-            pacakge_dependencies.iter().map(|dep| dep.id()).collect();
-        // Add root to the tree
-        package_deps.insert(package.id());
-
-        // Keep track of non-exclusive deps
-        let mut common_deps: HashSet<&PackageId> = HashSet::new();
-        // and exclusive ones for
-        let mut exclusive_deps: HashMap<&PackageId, PackageMetadata> = HashMap::new();
-
-        for dep in pacakge_dependencies {
-            let mut unique = true;
-            for link in dep.reverse_direct_links() {
-                let from_id = link.from().id();
-                if !package_deps.contains(from_id) || common_deps.contains(from_id) {
-                    unique = false;
-                    common_deps.insert(dep.id());
-                    break;
-                }
-            }
-            if unique {
-                exclusive_deps.insert(dep.id(), *dep);
-            }
-        }
-
-        exclusive_deps.values().cloned().collect()
     }
 
     fn get_dep_report(&self, dependencies: &[PackageMetadata]) -> Result<DepReport> {
@@ -431,7 +382,6 @@ mod test {
     use super::*;
     use crate::diff::DiffAnalyzer;
     use chrono::Utc;
-    use guppy::CargoMetadata;
     use guppy::{graph::PackageGraph, MetadataCommand};
     use serial_test::serial;
     use std::path::PathBuf;
@@ -479,9 +429,7 @@ mod test {
         let graph = get_test_graph_valid_dep();
         let code_analyzer = get_test_code_analyzer();
         let package = graph.packages().find(|p| p.name() == "octocrab").unwrap();
-        let dependencies = code_analyzer
-            .get_package_dependencies(&graph, &package)
-            .unwrap();
+        let dependencies = get_package_dependencies(&graph, &package).unwrap();
         let report = code_analyzer.get_dep_report(&dependencies).unwrap();
 
         println!("{:?}", report);
@@ -597,44 +545,5 @@ mod test {
         };
         let sum = loc_report.clone() + loc_report.clone();
         assert_eq!(sum.total_loc, loc_report.total_loc + loc_report.total_loc);
-    }
-
-    #[test]
-    fn test_code_exclusive_deps() {
-        let metadata = CargoMetadata::parse_json(include_str!(
-            "../resources/test/exclusive_dep_cargo_metadata.json"
-        ))
-        .unwrap();
-        let graph = metadata.build_graph().unwrap();
-        let code_analyzer = get_test_code_analyzer();
-        let total_dependencies: Vec<_> = graph
-            .query_workspace()
-            .resolve_with_fn(|_, link| !link.to().in_workspace())
-            .packages(guppy::graph::DependencyDirection::Forward)
-            .filter(|pkg| !pkg.in_workspace())
-            .collect();
-        let total_dependencies = total_dependencies.len();
-
-        let package = graph.packages().find(|p| p.name() == "gitlab").unwrap();
-        let dependencies = code_analyzer
-            .get_package_dependencies(&graph, &package)
-            .unwrap();
-        let gitlab_exclusive_deps = code_analyzer
-            .filter_exclusive_deps(&package, &dependencies)
-            .len();
-        let common_deps = dependencies.len() - gitlab_exclusive_deps;
-
-        let package = graph.packages().find(|p| p.name() == "octocrab").unwrap();
-        let dependencies = code_analyzer
-            .get_package_dependencies(&graph, &package)
-            .unwrap();
-        let octocrab_exclusive_deps = code_analyzer
-            .filter_exclusive_deps(&package, &dependencies)
-            .len();
-
-        assert_eq!(
-            total_dependencies,
-            common_deps + gitlab_exclusive_deps + octocrab_exclusive_deps + 2
-        );
     }
 }
