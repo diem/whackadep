@@ -383,7 +383,10 @@ impl CodeAnalyzer {
             .output()?;
 
         if !output.status.success() {
-            return Err(anyhow!("Error in running cargo geiger"));
+            return Err(anyhow!(
+                "Error in running cargo geiger: \n{}",
+                String::from_utf8_lossy(&output.stderr)
+            ));
         }
 
         let geiger_report: GeigerReport = serde_json::from_slice(&output.stdout)?;
