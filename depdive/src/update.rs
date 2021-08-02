@@ -11,7 +11,7 @@ use guppy::graph::{
         diff::{SummaryDiff, SummaryDiffStatus},
         Summary, SummaryId,
     },
-    BuildTargetId, PackageGraph, PackageMetadata,
+    BuildTargetId, PackageGraph,
 };
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -25,6 +25,7 @@ use url::Url;
 
 use crate::advisory::AdvisoryLookup;
 use crate::diff::{CrateSourceDiffReport, DiffAnalyzer, HeadCommitNotFoundError, VersionDiffInfo};
+use crate::guppy_wrapper::get_direct_dependencies;
 
 #[derive(Debug, Clone)]
 pub enum DependencyType {
@@ -237,7 +238,7 @@ impl UpdateAnalyzer {
         let mut conflicts: Vec<VersionConflict> = Vec::new();
 
         // Check for direct-transitive version conflict
-        let direct_dependencies = Self::get_direct_dependencies(graph);
+        let direct_dependencies = get_direct_dependencies(graph);
         for dep_change_info in dep_change_infos {
             if let (Some(package), Some(new_version_info)) = (
                 direct_dependencies
@@ -256,18 +257,6 @@ impl UpdateAnalyzer {
         }
 
         conflicts
-    }
-
-    fn get_direct_dependencies(graph: &PackageGraph) -> Vec<PackageMetadata> {
-        graph
-            .query_workspace()
-            .resolve_with_fn(|_, link| {
-                let (from, to) = link.endpoints();
-                from.in_workspace() && !to.in_workspace()
-            })
-            .packages(guppy::graph::DependencyDirection::Forward)
-            .filter(|pkg| !pkg.in_workspace())
-            .collect()
     }
 
     fn get_default_cargo_options() -> CargoOptions<'static> {
