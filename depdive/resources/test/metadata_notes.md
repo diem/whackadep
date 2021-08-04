@@ -27,3 +27,8 @@ there is such breaking changes.
 ### rustsec change
 
 updated tokio from 1.7.1 to 1.7.2. 1.7.1 has RUSTSEC-2016-0005.
+
+### depkind metadata
+
+changed valid_dep to include deps in all dep kind section -
+normal, build, dev

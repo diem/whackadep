@@ -14,8 +14,13 @@ build = "build/main.rs"
 [dependencies]
 libc = "0.2.97"
 gitlab = "0.1312.0"
-octocrab = "0.9.1"
-guppy = "0.8.0"
 syn = { version = "1.0.73", default_features = false }
+unicase = "2.6.0"
+
+[build-dependencies]
+octocrab = "0.9.1"
+
+[dev-dependencies]
+guppy = "0.9.0"
 
 [workspace]

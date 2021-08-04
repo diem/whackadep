@@ -436,7 +436,7 @@ mod test {
 
         let report = code_reports_all
             .iter()
-            .find(|r| r.name == "octocrab")
+            .find(|r| r.name == "unicase")
             .unwrap();
         assert!(report.unsafe_report.is_some());
         assert!(report.dep_report.as_ref().unwrap().total_deps > 0);
