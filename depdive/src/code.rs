@@ -14,7 +14,7 @@ use tokei::{Config, LanguageType, Languages};
 use crate::guppy_wrapper::{
     filter_exclusive_deps, get_all_dependencies, get_direct_dependencies, get_package_dependencies,
 };
-use crate::super_toml::{SuperPackageGenerator, TomlChecker, TomlType};
+use crate::super_toml::{CargoTomlParser, CargoTomlType, SuperPackageGenerator};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CodeReport {
@@ -286,9 +286,9 @@ impl CodeAnalyzer {
 
     fn run_cargo_geiger(&self, graph: &PackageGraph) -> Result<()> {
         let toml_path = graph.workspace().root().join("Cargo.toml");
-        match TomlChecker::get_toml_type(&toml_path)? {
-            TomlType::Package => self.run_cargo_geiger_on_package_toml(toml_path.as_ref())?,
-            TomlType::VirtualManifest => self.run_cargo_geiger_on_virtual_manifest(graph)?,
+        match CargoTomlParser::new(&toml_path)?.get_toml_type()? {
+            CargoTomlType::Package => self.run_cargo_geiger_on_package_toml(toml_path.as_ref())?,
+            CargoTomlType::VirtualManifest => self.run_cargo_geiger_on_virtual_manifest(graph)?,
         }
         Ok(())
     }

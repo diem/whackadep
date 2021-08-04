@@ -16,7 +16,6 @@ use std::fs::{copy, create_dir_all, read_to_string, File, OpenOptions};
 use std::hash::{Hash, Hasher};
 use std::io::Write;
 use tempfile::{tempdir, TempDir};
-use toml::Value;
 use twox_hash::XxHash64;
 
 /// For a given workspace,
@@ -165,44 +164,6 @@ impl SuperPackageGenerator {
     }
 }
 
-pub struct TomlChecker;
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum TomlType {
-    Package,
-    VirtualManifest,
-}
-
-impl TomlChecker {
-    fn is_package_toml(path: &Utf8Path) -> Result<bool> {
-        let toml = read_to_string(path)?;
-        let toml: Value = toml::from_str(&toml)?;
-        Ok(toml.get("package").is_some())
-    }
-
-    fn is_virtual_manifest_toml(path: &Utf8Path) -> Result<bool> {
-        let toml = read_to_string(path)?;
-        let toml: Value = toml::from_str(&toml)?;
-        Ok(toml.get("package").is_none() && toml.get("workspace").is_some())
-    }
-
-    pub fn get_toml_type(path: &Utf8Path) -> Result<TomlType> {
-        if !path.ends_with("Cargo.toml") {
-            return Err(anyhow!("{} does not point to a Cargo.toml file", path));
-        }
-
-        if Self::is_package_toml(path)? {
-            Ok(TomlType::Package)
-        } else if Self::is_virtual_manifest_toml(path)? {
-            Ok(TomlType::VirtualManifest)
-        } else {
-            Err(anyhow!(
-                "Cargo.toml is neither package nor workspace. Check format"
-            ))
-        }
-    }
-}
-
 #[derive(Debug, Clone, Default)]
 struct FeatureInfo {
     default_feature_enabled: bool,
@@ -253,6 +214,79 @@ impl FeatureMapGenerator {
 
     fn get_featuremap_key_from_packagemetadata(package: &PackageMetadata) -> String {
         format!("{}:{}", package.name(), package.version())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum CargoTomlType {
+    Package,
+    VirtualManifest,
+}
+
+/// Holds path to a Cargo.toml file
+/// and returns value for various fields
+// TODO: merge TomlParser and TomlChecker
+pub struct CargoTomlParser {
+    path: String,
+    toml: toml::Value,
+}
+
+impl CargoTomlParser {
+    pub fn new(path: &Utf8Path) -> Result<Self> {
+        if path.file_name().unwrap_or("") != "Cargo.toml" {
+            return Err(anyhow!("{} does not point to a Cargo.toml file", path));
+        }
+
+        Ok(Self {
+            path: path.to_string(),
+            toml: toml::from_str(&read_to_string(path)?)?,
+        })
+    }
+
+    pub fn get_package_name(&self) -> Result<String> {
+        Ok(self
+            .toml
+            .get("package")
+            .ok_or_else(|| anyhow!("no package section found for {}", self.path))?
+            .get("name")
+            .ok_or_else(|| anyhow!("no package name found for {}", self.path))?
+            .as_str()
+            .ok_or_else(|| anyhow!("package name is not a string for {}", self.path))?
+            .to_string())
+    }
+
+    pub fn get_package_version(&self) -> Result<String> {
+        Ok(self
+            .toml
+            .get("package")
+            .ok_or_else(|| anyhow!("no package section found for {}", self.path))?
+            .get("version")
+            .ok_or_else(|| anyhow!("no package version found for {}", self.path))?
+            .as_str()
+            .ok_or_else(|| anyhow!("package version is not a string for {}", self.path))?
+            .to_string())
+    }
+
+    fn is_package_toml(&self) -> Result<bool> {
+        Ok(self.toml.get("package").is_some())
+    }
+
+    fn is_virtual_manifest_toml(&self) -> Result<bool> {
+        Ok(self.toml.get("package").is_none() && self.toml.get("workspace").is_some())
+    }
+
+    pub fn get_toml_type(&self) -> Result<CargoTomlType> {
+        println!("{:?}", self.toml);
+        if self.is_package_toml()? {
+            Ok(CargoTomlType::Package)
+        } else if self.is_virtual_manifest_toml()? {
+            Ok(CargoTomlType::VirtualManifest)
+        } else {
+            println!(":::");
+            Err(anyhow!(
+                "Cargo.toml is neither package nor workspace. Check format"
+            ))
+        }
     }
 }
 
@@ -348,20 +382,25 @@ mod test {
     #[test]
     fn test_super_toml_type() {
         assert_eq!(
-            TomlChecker::get_toml_type(Utf8Path::new("resources/test/valid_dep/Cargo.toml"))
+            CargoTomlParser::new(Utf8Path::new("resources/test/valid_dep/Cargo.toml"))
+                .unwrap()
+                .get_toml_type()
                 .unwrap(),
-            TomlType::Package
+            CargoTomlType::Package
         );
 
         assert_eq!(
-            TomlChecker::get_toml_type(Utf8Path::new("../Cargo.toml")).unwrap(),
-            TomlType::VirtualManifest
+            CargoTomlParser::new(Utf8Path::new("../Cargo.toml"))
+                .unwrap()
+                .get_toml_type()
+                .unwrap(),
+            CargoTomlType::VirtualManifest
         );
     }
 
     #[test]
     fn test_super_toml_invlaid_cargo_toml() {
-        assert!(TomlChecker::get_toml_type(Utf8Path::new("../Cargo.lock")).is_err());
+        assert!(CargoTomlParser::new(Utf8Path::new("../Cargo.lock")).is_err());
     }
 
     #[test]
@@ -430,5 +469,13 @@ mod test {
             .build_graph()
             .unwrap();
         assert_super_package_equals_graph(&graph);
+    }
+
+    #[test]
+    fn test_toml_parser() {
+        let toml_parser =
+            CargoTomlParser::new(Utf8Path::new("resources/test/valid_dep/Cargo.toml")).unwrap();
+        assert_eq!("valid_dep", toml_parser.get_package_name().unwrap());
+        assert_eq!("0.1.0", toml_parser.get_package_version().unwrap());
     }
 }
