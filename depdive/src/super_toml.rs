@@ -276,13 +276,11 @@ impl CargoTomlParser {
     }
 
     pub fn get_toml_type(&self) -> Result<CargoTomlType> {
-        println!("{:?}", self.toml);
         if self.is_package_toml()? {
             Ok(CargoTomlType::Package)
         } else if self.is_virtual_manifest_toml()? {
             Ok(CargoTomlType::VirtualManifest)
         } else {
-            println!(":::");
             Err(anyhow!(
                 "Cargo.toml is neither package nor workspace. Check format"
             ))

@@ -1,12 +1,12 @@
 //! This module abstracts diff analysis between code versions
 
 use anyhow::{anyhow, Result};
+use camino::Utf8Path;
 use flate2::read::GzDecoder;
 use git2::{
     AutotagOption, Delta, Diff, DiffOptions, Direction, FetchOptions, IndexAddOption, Oid,
     Repository, Signature, Tree,
 };
-use guppy::MetadataCommand;
 use regex::Regex;
 use reqwest::blocking::Client;
 use semver::Version;
@@ -22,6 +22,9 @@ use tar::Archive;
 use tempfile::{tempdir, TempDir};
 use thiserror::Error;
 use url::Url;
+use walkdir::WalkDir;
+
+use crate::super_toml::{CargoTomlParser, CargoTomlType};
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct CrateSourceDiffReport {
@@ -87,6 +90,24 @@ pub(crate) fn trim_remote_url(url: &str) -> Result<String> {
 
     let url = format!("https://{}/{}/{}", host, owner, repo);
     Ok(url)
+}
+
+/// Given a directory
+/// returns all paths for a given filename
+pub(crate) fn get_all_paths_for_filename(dir_path: &Path, file_name: &str) -> Result<Vec<PathBuf>> {
+    let mut file_paths: Vec<PathBuf> = Vec::new();
+    for entry in WalkDir::new(dir_path).follow_links(true).into_iter() {
+        let entry = entry?;
+        let file = entry.file_name();
+        let file = file
+            .to_str()
+            .ok_or_else(|| anyhow!("invalid unicode character in filename: {:?}", file))?;
+        if file.ends_with(file_name) {
+            file_paths.push(PathBuf::from(entry.path()));
+        }
+    }
+
+    Ok(file_paths)
 }
 
 impl DiffAnalyzer {
@@ -369,23 +390,27 @@ impl DiffAnalyzer {
         // Given a crate name and its repository
         // This function returns the path to Cargo.toml for the given crate
 
-        let path = repo
+        let repo_path = repo
             .path()
             .parent()
             .ok_or_else(|| anyhow!("Fatal: .git file has no parent"))?;
-
-        // Possible error is that the past version of the given commit had different crate name
-        // e.g., form_urlencoded 1.0.1 was percent encoding
-        // Or, guppy failed to build a graph at the specfied commit,
-        // https://github.com/facebookincubator/cargo-guppy/issues/416
-        let graph = MetadataCommand::new().current_dir(path).build_graph()?;
-
-        // Get crate path relative to the repository
-        let member = graph.workspace().member_by_name(name)?;
-        let toml_path = member.manifest_path();
-        let path = toml_path.strip_prefix(path)?;
-
-        Ok(PathBuf::from(path))
+        let toml_paths = get_all_paths_for_filename(repo_path, "Cargo.toml")?;
+        for path in &toml_paths {
+            let toml_parser = CargoTomlParser::new(
+                Utf8Path::from_path(path)
+                    .ok_or_else(|| anyhow!("invalid unicode in path: {:?}", path))?,
+            )?;
+            if matches!(toml_parser.get_toml_type()?, CargoTomlType::Package)
+                && toml_parser.get_package_name()? == name
+            {
+                return Ok(path.strip_prefix(repo_path)?.to_path_buf());
+            }
+        }
+        Err(anyhow!(
+            "Cargo.toml could not be located for {} in {:?}",
+            name,
+            repo.path()
+        ))
     }
 
     fn get_subdirectory_tree<'a>(
@@ -831,5 +856,13 @@ mod test {
             .err()
             .unwrap();
         assert!(!diff);
+    }
+
+    #[test]
+    fn test_diff_get_all_paths_for_filename() {
+        let paths = get_all_paths_for_filename(Path::new("."), "Cargo.toml").unwrap();
+        assert_eq!(2, paths.len());
+        assert!(paths.contains(&PathBuf::from("./Cargo.toml")));
+        assert!(paths.contains(&PathBuf::from("./resources/test/valid_dep/Cargo.toml")));
     }
 }

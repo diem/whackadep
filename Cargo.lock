@@ -566,6 +566,7 @@ dependencies = [
  "tracing",
  "twox-hash",
  "url",
+ "walkdir",
 ]
 
 [[package]]
