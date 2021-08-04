@@ -339,7 +339,7 @@ mod test {
     }
 
     #[test]
-    fn test_super_toml_empty_package() {
+    fn test_toml_empty_package() {
         let super_package = get_test_super_package_generator();
         super_package.setup_empty_package().unwrap();
 
@@ -351,7 +351,7 @@ mod test {
     }
 
     #[test]
-    fn test_super_toml_copy_cargo_lock() {
+    fn test_toml_copy_cargo_lock() {
         let graph = get_test_graph_whackadep();
         let super_package = get_test_super_package_generator();
         super_package
@@ -364,7 +364,7 @@ mod test {
     }
 
     #[test]
-    fn test_super_toml_feature_map() {
+    fn test_toml_feature_map() {
         let graph = get_test_graph_whackadep();
         let direct_deps = get_direct_dependencies(&graph);
         let feature_map = FeatureMapGenerator::get_direct_dependencies_features(&graph).unwrap();
@@ -372,13 +372,13 @@ mod test {
     }
 
     #[test]
-    fn test_super_toml_package() {
+    fn test_toml_package() {
         assert_super_package_equals_graph(&get_graph_valid_dep());
         assert_super_package_equals_graph(&get_test_graph_whackadep())
     }
 
     #[test]
-    fn test_super_toml_type() {
+    fn test_toml_type() {
         assert_eq!(
             CargoTomlParser::new(Utf8Path::new("resources/test/valid_dep/Cargo.toml"))
                 .unwrap()
@@ -397,12 +397,12 @@ mod test {
     }
 
     #[test]
-    fn test_super_toml_invlaid_cargo_toml() {
+    fn test_toml_invlaid_cargo_toml() {
         assert!(CargoTomlParser::new(Utf8Path::new("../Cargo.lock")).is_err());
     }
 
     #[test]
-    fn test_super_toml_cargo_lock() {
+    fn test_toml_cargo_lock() {
         let da = DiffAnalyzer::new().unwrap();
         let repo = da
             .get_git_repo("whackadep", "https://github.com/diem/whackadep")
@@ -454,9 +454,7 @@ mod test {
     }
 
     #[test]
-    fn test_suoer_toml_on_diem() {
-        // TODO: replace diem, whackadep, valid_dep with a test repo that involves
-        // all different challenges a virtual manifest can present
+    fn test_toml_on_diem() {
         let da = DiffAnalyzer::new().unwrap();
         let repo = da
             .get_git_repo("diem", "https://github.com/diem/diem.git")
