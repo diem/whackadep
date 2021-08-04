@@ -12,7 +12,8 @@ use std::{
 use tokei::{Config, LanguageType, Languages};
 
 use crate::guppy_wrapper::{
-    filter_exclusive_deps, get_all_dependencies, get_direct_dependencies, get_package_dependencies,
+    filter_exclusive_deps, get_all_dependencies, get_dep_kind_map, get_direct_dependencies,
+    get_package_dependencies, DependencyKind,
 };
 use crate::super_toml::{CargoTomlParser, CargoTomlType, SuperPackageGenerator};
 
@@ -21,6 +22,7 @@ pub struct CodeReport {
     pub name: String,
     pub version: String,
     pub is_direct: bool,
+    pub kind: DependencyKind,
     pub has_build_script: bool,
     pub loc_report: Option<LOCReport>,
     pub unsafe_report: Option<UnsafeReport>,
@@ -156,12 +158,23 @@ impl CodeAnalyzer {
             .iter()
             .map(|pkg| (pkg.name(), pkg.version()))
             .collect();
+        let dep_kind_map = get_dep_kind_map(graph)?;
 
         for package in &all_deps {
             let is_direct = direct_deps.contains(&(package.name(), package.version()));
             if only_direct && !is_direct {
                 continue;
             }
+            let kind = dep_kind_map
+                .get(&(package.name().to_string(), package.version().clone()))
+                .ok_or_else(|| {
+                    anyhow!(
+                        "fatal error in determining dependency kind for {}:{}",
+                        package.name(),
+                        package.version()
+                    )
+                })?
+                .clone();
 
             let loc_report = self.get_loc_report(package.manifest_path())?;
             let unsafe_report =
@@ -179,6 +192,7 @@ impl CodeAnalyzer {
                 name: package.name().to_string(),
                 version: package.version().to_string(),
                 is_direct,
+                kind,
                 has_build_script: package.has_build_script(),
                 loc_report: Some(loc_report),
                 unsafe_report,

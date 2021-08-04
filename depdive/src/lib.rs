@@ -26,7 +26,9 @@ mod update;
 use cratesio::CratesioReport;
 use ghcomment::{Emoji::*, GitHubCommentGenerator, TextStyle::*};
 use github::GitHubReport;
-use guppy_wrapper::{get_all_dependencies, get_direct_dependencies};
+use guppy_wrapper::{
+    get_all_dependencies, get_dep_kind_map, get_direct_dependencies, DependencyKind,
+};
 use update::{CrateVersionRustSecAdvisory, UpdateReviewReport, VersionConflict};
 
 #[derive(Serialize, Deserialize)]
@@ -34,6 +36,7 @@ pub struct PackageMetrics {
     // Usage and Activity metrics for a crate
     pub name: String,
     pub is_direct: bool,
+    pub kind: DependencyKind,
     pub cratesio_metrics: Option<CratesioReport>,
     pub github_metrics: Option<GitHubReport>,
 }
@@ -57,12 +60,23 @@ impl DependencyAnalyzer {
             .iter()
             .map(|pkg| (pkg.name(), pkg.version()))
             .collect();
+        let dep_kind_map = get_dep_kind_map(graph)?;
 
         for dep in &all_deps {
             let is_direct = direct_deps.contains(&(dep.name(), dep.version()));
             if only_direct && !is_direct {
                 continue;
             }
+            let kind = dep_kind_map
+                .get(&(dep.name().to_string(), dep.version().clone()))
+                .ok_or_else(|| {
+                    anyhow!(
+                        "fatal error in determining dependency kind for {}:{}",
+                        dep.name(),
+                        dep.version()
+                    )
+                })?
+                .clone();
 
             let cratesio_metrics = cratesio::CratesioAnalyzer::new()?;
             let cratesio_metrics: Option<CratesioReport> =
@@ -74,6 +88,7 @@ impl DependencyAnalyzer {
             output.push(PackageMetrics {
                 name: dep.name().to_string(),
                 is_direct,
+                kind,
                 cratesio_metrics,
                 github_metrics,
             });
