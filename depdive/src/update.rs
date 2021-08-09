@@ -782,13 +782,31 @@ mod test {
     };
     use crate::diff::trim_remote_url;
     use guppy::{CargoMetadata, MetadataCommand};
+    use once_cell::sync::Lazy;
     use semver::Version;
     use serial_test::serial;
     use std::path::PathBuf;
+    use std::sync::Once;
 
     struct PackageGraphPair {
         prior: PackageGraph,
         post: PackageGraph,
+    }
+
+    static DIFF_ANALYZER: Lazy<DiffAnalyzer> = Lazy::new(|| DiffAnalyzer::new().unwrap());
+
+    static INIT_GIT_REPOS: Once = Once::new();
+    pub fn setup_git_repos() {
+        // Multiple tests work with common git repos.
+        // As git2::Repositroy mutable reference is not thread safe,
+        // we'd need to run those tests serially.
+        // However, in this function, we clone those common repos
+        // to avoid redundant set up within the tests
+        INIT_GIT_REPOS.call_once(|| {
+            let name = "test_unsafe";
+            let url = "https://github.com/nasifimtiazohi/test-version-tag";
+            DIFF_ANALYZER.get_git_repo(name, url).unwrap();
+        });
     }
 
     fn get_test_graph_pair_guppy() -> PackageGraphPair {
@@ -943,7 +961,6 @@ mod test {
     }
 
     #[test]
-    #[serial]
     fn test_update_review_report_guppy() {
         let package_graph_pair = get_test_graph_pair_guppy();
         let update_analyzer = get_test_update_analyzer();
@@ -986,7 +1003,6 @@ mod test {
     }
 
     #[test]
-    #[serial]
     fn test_update_review_report_libc() {
         let package_graph_pair = get_test_graph_pair_libc();
         let update_analyzer = get_test_update_analyzer();
@@ -1018,15 +1034,9 @@ mod test {
         assert_eq!(report.diff_stats.as_ref().unwrap().rust_files_changed, 73);
         assert_eq!(report.diff_stats.as_ref().unwrap().insertions, 1333);
         assert_eq!(report.diff_stats.as_ref().unwrap().deletions, 4942);
-        assert_eq!(
-            report
-                .diff_stats
-                .as_ref()
-                .unwrap()
-                .modified_build_scripts
-                .len(),
-            1
-        );
+        let build_scripts = &report.diff_stats.as_ref().unwrap().modified_build_scripts;
+        assert_eq!(build_scripts.len(), 1);
+        assert_eq!(build_scripts.iter().next().unwrap(), "build.rs");
         assert_eq!(
             report
                 .diff_stats
@@ -1036,6 +1046,10 @@ mod test {
                 .len(),
             12
         );
+
+        let build_scripts = &report.diff_stats.as_ref().unwrap().modified_build_scripts;
+        assert_eq!(build_scripts.len(), 1);
+        assert_eq!(build_scripts.iter().next().unwrap(), "build.rs");
     }
 
     #[test]
@@ -1063,37 +1077,6 @@ mod test {
     }
 
     #[test]
-    #[serial]
-    fn test_update_build_script_change() {
-        let package_graph_pair = get_test_graph_pair_libc();
-        let update_analyzer = get_test_update_analyzer();
-        let update_review_reports = update_analyzer
-            .analyze_updates(&package_graph_pair.prior, &package_graph_pair.post)
-            .unwrap();
-        let report = update_review_reports
-            .dep_update_review_reports
-            .iter()
-            .find(|report| report.name == "libc")
-            .unwrap();
-        let build_scripts = &report.diff_stats.as_ref().unwrap().modified_build_scripts;
-        assert_eq!(build_scripts.len(), 1);
-        assert_eq!(build_scripts.iter().next().unwrap(), "build.rs");
-
-        let package_graph_pair = get_test_graph_pair_guppy();
-        let update_analyzer = get_test_update_analyzer();
-        let update_review_reports = update_analyzer
-            .analyze_updates(&package_graph_pair.prior, &package_graph_pair.post)
-            .unwrap();
-        let report = update_review_reports
-            .dep_update_review_reports
-            .iter()
-            .find(|report| report.name == "guppy")
-            .unwrap();
-        let build_scripts = &report.diff_stats.as_ref().unwrap().modified_build_scripts;
-        assert_eq!(build_scripts.len(), 0);
-    }
-
-    #[test]
     fn test_update_version_conflict() {
         let package_graph_pair = get_test_graph_pair_conflict();
         let dep_change_infos = UpdateAnalyzer::compare_pacakge_graphs(
@@ -1117,7 +1100,6 @@ mod test {
     }
 
     #[test]
-    #[serial]
     fn test_update_rustsec() {
         let package_graph_pair = get_test_graph_pair_rustsec();
         let update_analyzer = get_test_update_analyzer();
@@ -1145,12 +1127,13 @@ mod test {
     #[test]
     #[serial]
     fn test_update_geiger_file_scanning() {
+        setup_git_repos();
+
         let name = "test_unsafe";
         let repository = "https://github.com/nasifimtiazohi/test-version-tag";
-        let diff_analyzer = DiffAnalyzer::new().unwrap();
-        let repo = diff_analyzer.get_git_repo(name, repository).unwrap();
+        let repo = DIFF_ANALYZER.get_git_repo(name, repository).unwrap();
 
-        let version_diff_info = diff_analyzer
+        let version_diff_info = DIFF_ANALYZER
             .get_git_source_version_diff_info(
                 name,
                 &repo,
@@ -1179,7 +1162,7 @@ mod test {
         assert_eq!(file.unsafe_delta.impls, 0);
         assert_eq!(file.unsafe_delta.expressions, 0);
 
-        let version_diff_info = diff_analyzer
+        let version_diff_info = DIFF_ANALYZER
             .get_git_source_version_diff_info(
                 name,
                 &repo,
@@ -1210,7 +1193,7 @@ mod test {
         assert_eq!(file.unsafe_delta.impls, 0);
         assert_eq!(file.unsafe_delta.expressions, 2);
 
-        let version_diff_info = diff_analyzer
+        let version_diff_info = DIFF_ANALYZER
             .get_git_source_version_diff_info(
                 name,
                 &repo,
@@ -1235,12 +1218,13 @@ mod test {
     #[test]
     #[serial]
     fn test_update_unsafe_change_status() {
+        setup_git_repos();
+
         let name = "test_unsafe";
         let repository = "https://github.com/nasifimtiazohi/test-version-tag";
-        let diff_analyzer = DiffAnalyzer::new().unwrap();
-        let repo = diff_analyzer.get_git_repo(name, repository).unwrap();
+        let repo = DIFF_ANALYZER.get_git_repo(name, repository).unwrap();
 
-        let version_diff_info = diff_analyzer
+        let version_diff_info = DIFF_ANALYZER
             .get_git_source_version_diff_info(
                 name,
                 &repo,
