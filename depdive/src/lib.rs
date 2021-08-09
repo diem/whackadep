@@ -462,13 +462,39 @@ impl UpdateAnalyzer {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::diff::DiffAnalyzer;
+    use once_cell::sync::Lazy;
+    use serial_test::serial;
+    use std::sync::Once;
+
+    static DIFF_ANALYZER: Lazy<DiffAnalyzer> = Lazy::new(|| DiffAnalyzer::new().unwrap());
+
+    static INIT_GIT_REPOS: Once = Once::new();
+    pub fn setup_git_repos() {
+        // Multiple tests work with common git repos.
+        // As git2::Repositroy mutable reference is not thread safe,
+        // we'd need to run those tests serially.
+        // However, in this function, we clone those common repos
+        // to avoid redundant set up within the tests
+        INIT_GIT_REPOS.call_once(|| {
+            let name = "diem";
+            let url = "https://github.com/diem/diem";
+            DIFF_ANALYZER.get_git_repo(name, url).unwrap();
+
+            let name = "octocrab";
+            let url = "https://github.com/XAMPPRocky/octocrab";
+            DIFF_ANALYZER.get_git_repo(name, url).unwrap();
+        });
+    }
 
     #[test]
-    fn test_update_review_report_from_repo_commits() {
-        let diff_analyzer = diff::DiffAnalyzer::new().unwrap();
+    #[serial]
+    fn test_lib_update_review_report_from_repo_commits() {
+        setup_git_repos();
+
         let name = "diem";
         let repository = "https://github.com/diem/diem";
-        let repo = diff_analyzer.get_git_repo(name, repository).unwrap();
+        let repo = DIFF_ANALYZER.get_git_repo(name, repository).unwrap();
         let path = repo
             .path()
             .parent()
@@ -487,7 +513,7 @@ mod test {
     }
 
     #[test]
-    fn test_update_review_report_from_paths() {
+    fn test_lib_update_review_report_from_paths() {
         let mut checkout_builder = CheckoutBuilder::new();
         checkout_builder.force();
         let da = diff::DiffAnalyzer::new().unwrap();
@@ -538,11 +564,12 @@ mod test {
     }
 
     #[test]
-    fn test_for_no_updates() {
-        let diff_analyzer = diff::DiffAnalyzer::new().unwrap();
+    #[serial]
+    fn test_lib_for_no_updates() {
+        setup_git_repos();
         let name = "diem";
         let repository = "https://github.com/diem/diem";
-        let repo = diff_analyzer.get_git_repo(name, repository).unwrap();
+        let repo = DIFF_ANALYZER.get_git_repo(name, repository).unwrap();
         let path = repo
             .path()
             .parent()
