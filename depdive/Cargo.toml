@@ -23,7 +23,6 @@ rustsec = "0.24.1" # RUSTSEC advisory stuff
 crates_io_api = "0.7.1" # crates.io stuff
 tokei = "12.1.2" # loc count
 camino = "1.0.4" # UTF-8 path stuff
-serial_test = "0.5.1" # avoiding running some tests in parallel
 tar = "0.4.35" # tar file stuff
 flate2 = "1.0.20" # compression/decompression
 thiserror = "1.0.26"
@@ -34,3 +33,7 @@ twox-hash = "1.6.0"
 separator = "0.4.1" # number formatting with comma
 structopt = "0.3.22"
 walkdir = "2.3.2"
+
+[dev-dependencies]
+serial_test = "0.5.1" # avoiding running some tests in parallel
+once_cell = "1.8.0"
