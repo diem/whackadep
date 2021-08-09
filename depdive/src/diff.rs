@@ -623,10 +623,10 @@ mod test {
 
     #[test]
     #[serial]
-    fn test_diff_crate_source() {
+    fn test_diff_crate_source_diff_analyzer_setup() {
         let diff_analyzer = get_test_diff_analyzer();
-        let name = "libc";
-        let version = "0.2.97";
+        let name = "syn";
+        let version = "0.15.44";
         let path = diff_analyzer.get_cratesio_version(name, version).unwrap();
         assert!(path.exists());
 
@@ -636,8 +636,8 @@ mod test {
         assert!(commit.is_ok());
 
         // Add git repo as a remote to crate repo
-        let url = "https://github.com/rust-lang/libc";
-        let fetch_commit = "1c66799b7b8b82269c6bff0eab97d1a30e37fd36";
+        let url = "https://github.com/dtolnay/syn";
+        let fetch_commit = "6d798b63c255e90b7b1dbbfb3707fdce1704a18d";
         diff_analyzer
             .setup_remote(&repo, url, fetch_commit)
             .unwrap();
