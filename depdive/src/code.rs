@@ -383,22 +383,23 @@ mod test {
     use crate::diff::DiffAnalyzer;
     use chrono::Utc;
     use guppy::{graph::PackageGraph, MetadataCommand};
+    use once_cell::sync::Lazy;
     use serial_test::serial;
     use std::path::PathBuf;
 
-    fn get_test_graph_valid_dep() -> PackageGraph {
+    static VALID_DEP_GRAPH: Lazy<PackageGraph> = Lazy::new(|| {
         MetadataCommand::new()
             .current_dir(PathBuf::from("resources/test/valid_dep"))
             .build_graph()
             .unwrap()
-    }
+    });
 
-    fn get_test_graph_whackadep() -> PackageGraph {
+    static WHACKADEP_VALID_DEP: Lazy<PackageGraph> = Lazy::new(|| {
         MetadataCommand::new()
             .current_dir(PathBuf::from(".."))
             .build_graph()
             .unwrap()
-    }
+    });
 
     fn get_test_code_analyzer() -> CodeAnalyzer {
         CodeAnalyzer::new()
@@ -406,7 +407,7 @@ mod test {
 
     #[test]
     fn test_loc_report_for_valid_package() {
-        let graph = get_test_graph_valid_dep();
+        let graph = &VALID_DEP_GRAPH;
         let code_analyzer = get_test_code_analyzer();
         let pkg = graph.packages().find(|p| p.name() == "libc").unwrap();
         let report = code_analyzer.get_loc_report(pkg.manifest_path()).unwrap();
@@ -425,49 +426,47 @@ mod test {
     }
 
     #[test]
-    fn test_code_dep_report_for_valid_report() {
-        let graph = get_test_graph_valid_dep();
-        let code_analyzer = get_test_code_analyzer();
-        let package = graph.packages().find(|p| p.name() == "octocrab").unwrap();
-        let dependencies = get_package_dependencies(&graph, &package).unwrap();
-        let report = code_analyzer.get_dep_report(&dependencies).unwrap();
-
-        println!("{:?}", report);
-        assert!(report.total_deps > 0);
-        assert!(report.deps_total_loc_report.total_loc > 0);
-        assert!(report.deps_total_loc_report.rust_loc > 0);
-        // No unsafe report at this test, as geiger cache would remain empty here
-    }
-
-    #[test]
     #[serial]
     fn test_code_analyzer() {
-        let graph = get_test_graph_valid_dep();
+        let graph = &VALID_DEP_GRAPH;
 
         let code_analyzer = get_test_code_analyzer();
-        let code_reports_all = code_analyzer.analyze_code(&graph, false).unwrap();
+        let code_reports_all = code_analyzer.analyze_code(graph, false).unwrap();
         assert!(!code_reports_all.is_empty());
-        let report = &code_reports_all[0];
+
+        let report = code_reports_all
+            .iter()
+            .find(|r| r.name == "octocrab")
+            .unwrap();
         assert!(report.unsafe_report.is_some());
+        assert!(report.dep_report.as_ref().unwrap().total_deps > 0);
+        assert!(
+            report
+                .dep_report
+                .as_ref()
+                .unwrap()
+                .deps_total_loc_report
+                .total_loc
+                > 0
+        );
+        assert!(
+            report
+                .dep_report
+                .as_ref()
+                .unwrap()
+                .deps_total_loc_report
+                .rust_loc
+                > 0
+        );
 
         let code_analyzer = get_test_code_analyzer();
-        let code_reports_direct = code_analyzer.analyze_code(&graph, true).unwrap();
+        let code_reports_direct = code_analyzer.analyze_code(graph, true).unwrap();
         assert!(code_reports_all.len() > code_reports_direct.len());
     }
 
     #[test]
     #[serial]
-    #[ignore] // Covered by the next two tests
-    fn test_code_cargo_geiger() {
-        let path = PathBuf::from("resources/test/valid_dep/Cargo.toml");
-        let geiger_report = CodeAnalyzer::get_cargo_geiger_report(&path).unwrap();
-        println!("{:?}", geiger_report);
-        assert!(!geiger_report.packages.is_empty());
-    }
-
-    #[test]
-    #[serial]
-    #[ignore]
+    #[ignore] // Specific test for diem, does not to be run every time
     fn test_code_geiger_report_for_diem() {
         let code_analyzer = get_test_code_analyzer();
         let da = DiffAnalyzer::new().unwrap();
@@ -500,9 +499,9 @@ mod test {
     #[serial]
     fn test_code_geiger_report_for_workspace() {
         let code_analyzer = get_test_code_analyzer();
-        let graph = get_test_graph_whackadep();
+        let graph = &WHACKADEP_VALID_DEP;
 
-        code_analyzer.run_cargo_geiger(&graph).unwrap();
+        code_analyzer.run_cargo_geiger(graph).unwrap();
         println!(
             "Total keys in geiger cache: {}",
             code_analyzer.geiger_cache.borrow().len()
@@ -512,11 +511,14 @@ mod test {
 
     #[test]
     #[serial]
+    #[ignore] // This test is covered by the prior two tests
+              // geiger_report_for_workspace runs geiger_report_for_package on super_toml
+              // test_code_analyzer runs cargo geiger on valid_dep
     fn test_code_geiger_report_for_package() {
         let code_analyzer = get_test_code_analyzer();
-        let graph = get_test_graph_valid_dep();
+        let graph = &VALID_DEP_GRAPH;
 
-        code_analyzer.run_cargo_geiger(&graph).unwrap();
+        code_analyzer.run_cargo_geiger(graph).unwrap();
         println!(
             "Total keys in geiger cache: {}",
             code_analyzer.geiger_cache.borrow().len(),
