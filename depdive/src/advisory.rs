@@ -34,29 +34,27 @@ impl AdvisoryLookup {
 #[cfg(test)]
 mod test {
     use super::*;
+    use once_cell::sync::Lazy;
     use rustsec::advisory::id::Id;
 
-    fn get_adivsory_lookup() -> AdvisoryLookup {
-        AdvisoryLookup::new().unwrap()
-    }
+    static ADVISORY_LOOKUP: Lazy<AdvisoryLookup> = Lazy::new(|| AdvisoryLookup::new().unwrap());
 
     #[test]
-    #[ignore] // testing set up of advisory is being implicitly done by other test(s)
     fn test_advisory_lookup() {
-        let lookup = get_adivsory_lookup();
-        let advisory = lookup.db.get(&Id::from_str("RUSTSEC-2016-0005").unwrap());
+        let advisory = ADVISORY_LOOKUP
+            .db
+            .get(&Id::from_str("RUSTSEC-2016-0005").unwrap());
         assert!(advisory.is_some());
     }
 
     #[test]
     fn test_advisory_crate_version_lookup() {
-        let lookup = get_adivsory_lookup();
-        let advisories = lookup
+        let advisories = ADVISORY_LOOKUP
             .get_crate_version_advisories("tokio", "1.7.1")
             .unwrap();
         assert!(!advisories.is_empty());
 
-        let advisories = lookup
+        let advisories = ADVISORY_LOOKUP
             .get_crate_version_advisories("::invalid::", "1.7.1")
             .unwrap();
         assert!(advisories.is_empty());
