@@ -605,8 +605,8 @@ mod test {
     #[test]
     fn test_diff_download_file() {
         let diff_analyzer = get_test_diff_analyzer();
-        let name = "libc";
-        let version = "0.2.97";
+        let name = "criterion-cpu-time";
+        let version = "0.1.0";
         let path = diff_analyzer
             .download_file(
                 format!(
@@ -646,12 +646,11 @@ mod test {
     #[serial]
     fn test_diff_git_repo() {
         let diff_analyzer = get_test_diff_analyzer();
-        let name = "libc";
-        let url = "https://github.com/rust-lang/libc";
+        let name = "criterion-cpu-time";
+        let url = "https://github.com/YangKeao/criterion-cpu-time";
         let repo = diff_analyzer.get_git_repo(name, url).unwrap();
         assert!(repo.workdir().is_some());
         assert!(repo.path().exists());
-        // TODO add tests for non-git repos
     }
 
     #[test]
