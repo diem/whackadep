@@ -1,12 +1,15 @@
 //! This module abstracts interaction with rustsec advisory
 
 use anyhow::Result;
+use git2::Repository;
+use rustsec::repository::git::DEFAULT_URL;
 use rustsec::{
     advisory::Advisory,
     database::{Database, Query},
     package::Name,
 };
 use std::str::FromStr;
+use tempfile::tempdir;
 
 pub struct AdvisoryLookup {
     db: Database,
@@ -14,9 +17,12 @@ pub struct AdvisoryLookup {
 
 impl AdvisoryLookup {
     pub fn new() -> Result<Self> {
-        Ok(Self {
-            db: Database::fetch()?,
-        })
+        let dir = tempdir()?;
+        let dest_path = dir.path().join("rustsec");
+        Repository::clone(DEFAULT_URL, &dest_path)?;
+        let db = Database::open(&dest_path)?;
+
+        Ok(Self { db })
     }
 
     pub fn get_crate_version_advisories(
