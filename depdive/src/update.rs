@@ -536,7 +536,7 @@ impl UpdateAnalyzer {
                 // Get version diff info from git source if avaialbe
                 // We take here the repo for the new version as the latest source
                 let repo = diff_analyzer.get_git_repo(name, repository)?;
-                let version_diff_info = match diff_analyzer.get_version_diff_info(
+                let version_diff_info = match diff_analyzer.get_git_source_version_diff_info(
                     name,
                     &repo,
                     old_version,
@@ -1151,7 +1151,7 @@ mod test {
         let repo = diff_analyzer.get_git_repo(name, repository).unwrap();
 
         let version_diff_info = diff_analyzer
-            .get_version_diff_info(
+            .get_git_source_version_diff_info(
                 name,
                 &repo,
                 &Version::parse("2.0.0").unwrap(),
@@ -1180,7 +1180,7 @@ mod test {
         assert_eq!(file.unsafe_delta.expressions, 0);
 
         let version_diff_info = diff_analyzer
-            .get_version_diff_info(
+            .get_git_source_version_diff_info(
                 name,
                 &repo,
                 &Version::parse("2.1.0").unwrap(),
@@ -1211,7 +1211,7 @@ mod test {
         assert_eq!(file.unsafe_delta.expressions, 2);
 
         let version_diff_info = diff_analyzer
-            .get_version_diff_info(
+            .get_git_source_version_diff_info(
                 name,
                 &repo,
                 &Version::parse("2.4.0").unwrap(),
@@ -1241,7 +1241,7 @@ mod test {
         let repo = diff_analyzer.get_git_repo(name, repository).unwrap();
 
         let version_diff_info = diff_analyzer
-            .get_version_diff_info(
+            .get_git_source_version_diff_info(
                 name,
                 &repo,
                 &Version::parse("2.6.0").unwrap(),

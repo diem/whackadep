@@ -492,7 +492,7 @@ impl DiffAnalyzer {
         })
     }
 
-    pub(crate) fn get_version_diff_info<'a>(
+    pub(crate) fn get_git_source_version_diff_info<'a>(
         &'a self,
         name: &str,
         repo: &'a Repository,
@@ -803,7 +803,7 @@ mod test {
 
         let repo = DIFF_ANALYZER.get_git_repo(name, repository).unwrap();
         let version_diff_info = DIFF_ANALYZER
-            .get_version_diff_info(
+            .get_git_source_version_diff_info(
                 name,
                 &repo,
                 &Version::parse("0.8.0").unwrap(),
@@ -861,7 +861,7 @@ mod test {
 
         let repo = DIFF_ANALYZER.get_git_repo(name, repository).unwrap();
         let diff = DIFF_ANALYZER
-            .get_version_diff_info(
+            .get_git_source_version_diff_info(
                 name,
                 &repo,
                 &Version::parse("0.0.0").unwrap(),
