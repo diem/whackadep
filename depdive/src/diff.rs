@@ -579,17 +579,18 @@ impl DiffAnalyzer {
 mod test {
     use super::*;
     use guppy::{graph::PackageGraph, MetadataCommand};
+    use once_cell::sync::Lazy;
     use serial_test::serial;
 
-    fn get_test_diff_analyzer() -> DiffAnalyzer {
-        DiffAnalyzer::new().unwrap()
-    }
-
-    fn get_test_graph() -> PackageGraph {
+    static GRAPH_VALID_DEP: Lazy<PackageGraph> = Lazy::new(|| {
         MetadataCommand::new()
             .current_dir(PathBuf::from("resources/test/valid_dep"))
             .build_graph()
             .unwrap()
+    });
+
+    fn get_test_diff_analyzer() -> DiffAnalyzer {
+        DiffAnalyzer::new().unwrap()
     }
 
     #[test]
@@ -741,7 +742,7 @@ mod test {
     #[test]
     #[serial]
     fn test_diff_crate_source_diff_analyzer() {
-        let graph = get_test_graph();
+        let graph = &GRAPH_VALID_DEP;
         for package in graph.packages() {
             if package.name() == "guppy" || package.name() == "octocrab" {
                 println!("testing {}, {}", package.name(), package.version());
