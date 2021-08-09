@@ -119,7 +119,7 @@ impl DiffAnalyzer {
     }
 
     pub fn analyze_crate_source_diff(
-        self,
+        &self,
         name: &str,
         version: &str,
         repository: Option<&str>,
@@ -239,7 +239,10 @@ impl DiffAnalyzer {
     pub(crate) fn get_git_repo(&self, name: &str, url: &str) -> Result<Repository> {
         let dest_file = format!("{}-source", name);
         let dest_path = self.dir.path().join(&dest_file);
-        let repo = Repository::clone(url, dest_path)?;
+        if !dest_path.exists() {
+            Repository::clone(url, &dest_path)?;
+        }
+        let repo = Repository::open(dest_path)?;
         Ok(repo)
     }
 
@@ -581,6 +584,7 @@ mod test {
     use guppy::{graph::PackageGraph, MetadataCommand};
     use once_cell::sync::Lazy;
     use serial_test::serial;
+    use std::sync::Once;
 
     static GRAPH_VALID_DEP: Lazy<PackageGraph> = Lazy::new(|| {
         MetadataCommand::new()
@@ -588,6 +592,26 @@ mod test {
             .build_graph()
             .unwrap()
     });
+
+    static DIFF_ANALYZER: Lazy<DiffAnalyzer> = Lazy::new(|| DiffAnalyzer::new().unwrap());
+
+    static INIT_GIT_REPOS: Once = Once::new();
+    pub fn setup_git_repos() {
+        // Multiple tests work with common git repos.
+        // As git2::Repositroy mutable reference is not thread safe,
+        // we'd need to run those tests serially.
+        // However, in this function, we clone those common repos
+        // to avoid redundant set up within the tests
+        INIT_GIT_REPOS.call_once(|| {
+            let name = "guppy";
+            let url = "https://github.com/facebookincubator/cargo-guppy";
+            DIFF_ANALYZER.get_git_repo(name, url).unwrap();
+
+            let name = "octocrab";
+            let url = "https://github.com/XAMPPRocky/octocrab";
+            DIFF_ANALYZER.get_git_repo(name, url).unwrap();
+        });
+    }
 
     fn get_test_diff_analyzer() -> DiffAnalyzer {
         DiffAnalyzer::new().unwrap()
@@ -622,8 +646,7 @@ mod test {
     }
 
     #[test]
-    #[serial]
-    fn test_diff_crate_source_diff_analyzer_setup() {
+    fn test_diff_setup_crate_source_diff_analyzer() {
         let diff_analyzer = get_test_diff_analyzer();
         let name = "syn";
         let version = "0.15.44";
@@ -644,7 +667,6 @@ mod test {
     }
 
     #[test]
-    #[serial]
     fn test_diff_git_repo() {
         let diff_analyzer = get_test_diff_analyzer();
         let name = "criterion-cpu-time";
@@ -655,7 +677,6 @@ mod test {
     }
 
     #[test]
-    #[serial]
     fn test_diff_head_commit_oid_for_version() {
         let diff_analyzer = get_test_diff_analyzer();
         let name = "test-version-tag";
@@ -704,35 +725,35 @@ mod test {
     #[test]
     #[serial]
     fn test_diff_locate_cargo_toml() {
-        let diff_analyzer = get_test_diff_analyzer();
+        setup_git_repos();
+
         let name = "guppy";
         let url = "https://github.com/facebookincubator/cargo-guppy";
-        let repo = diff_analyzer.get_git_repo(name, url).unwrap();
-        let path = diff_analyzer.locate_package_toml(&repo, name).unwrap();
+        let repo = DIFF_ANALYZER.get_git_repo(name, url).unwrap();
+        let path = DIFF_ANALYZER.locate_package_toml(&repo, name).unwrap();
         assert_eq!("guppy/Cargo.toml", path.to_str().unwrap());
 
-        let diff_analyzer = get_test_diff_analyzer();
         let name = "octocrab";
         let url = "https://github.com/XAMPPRocky/octocrab";
-        let repo = diff_analyzer.get_git_repo(name, url).unwrap();
-        let path = diff_analyzer.locate_package_toml(&repo, name).unwrap();
+        let repo = DIFF_ANALYZER.get_git_repo(name, url).unwrap();
+        let path = DIFF_ANALYZER.locate_package_toml(&repo, name).unwrap();
         assert_eq!("Cargo.toml", path.to_str().unwrap());
     }
 
     #[test]
     #[serial]
     fn test_diff_get_subdirectory_tree() {
-        let diff_analyzer = get_test_diff_analyzer();
+        setup_git_repos();
         let name = "guppy";
         let url = "https://github.com/facebookincubator/cargo-guppy";
-        let repo = diff_analyzer.get_git_repo(name, url).unwrap();
+        let repo = DIFF_ANALYZER.get_git_repo(name, url).unwrap();
         let tree = repo
             .find_commit(Oid::from_str("dc6dcc151821e787ac02379bcd0319b26c962f55").unwrap())
             .unwrap()
             .tree()
             .unwrap();
         let path = PathBuf::from("guppy");
-        let subdirectory_tree = diff_analyzer
+        let subdirectory_tree = DIFF_ANALYZER
             .get_subdirectory_tree(&repo, &tree, &path)
             .unwrap();
         assert_ne!(tree.id(), subdirectory_tree.id());
@@ -742,12 +763,13 @@ mod test {
     #[test]
     #[serial]
     fn test_diff_crate_source_diff_analyzer() {
+        setup_git_repos();
         let graph = &GRAPH_VALID_DEP;
+
         for package in graph.packages() {
-            if package.name() == "guppy" || package.name() == "octocrab" {
+            if package.name() == "guppy" {
                 println!("testing {}, {}", package.name(), package.version());
-                let diff_analyzer = get_test_diff_analyzer();
-                let report = diff_analyzer
+                let report = DIFF_ANALYZER
                     .analyze_crate_source_diff(
                         package.name(),
                         &package.version().to_string(),
@@ -767,9 +789,6 @@ mod test {
                 if package.name() == "guppy" {
                     assert!(!report.is_different.unwrap());
                 }
-                if package.name() == "octocrab" {
-                    assert!(!report.is_different.unwrap());
-                }
             }
         }
     }
@@ -777,12 +796,13 @@ mod test {
     #[test]
     #[serial]
     fn test_diff_version_diff() {
-        let diff_analyzer = get_test_diff_analyzer();
+        setup_git_repos();
+
         let name = "guppy";
         let repository = "https://github.com/facebookincubator/cargo-guppy";
 
-        let repo = diff_analyzer.get_git_repo(name, repository).unwrap();
-        let version_diff_info = diff_analyzer
+        let repo = DIFF_ANALYZER.get_git_repo(name, repository).unwrap();
+        let version_diff_info = DIFF_ANALYZER
             .get_version_diff_info(
                 name,
                 &repo,
@@ -834,12 +854,13 @@ mod test {
     #[test]
     #[serial]
     fn test_diff_head_commit_not_found_error() {
-        let diff_analyzer = get_test_diff_analyzer();
+        setup_git_repos();
+
         let name = "guppy";
         let repository = "https://github.com/facebookincubator/cargo-guppy";
 
-        let repo = diff_analyzer.get_git_repo(name, repository).unwrap();
-        let diff = diff_analyzer
+        let repo = DIFF_ANALYZER.get_git_repo(name, repository).unwrap();
+        let diff = DIFF_ANALYZER
             .get_version_diff_info(
                 name,
                 &repo,
