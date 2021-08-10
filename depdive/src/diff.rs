@@ -4,8 +4,8 @@ use anyhow::{anyhow, Result};
 use camino::Utf8Path;
 use flate2::read::GzDecoder;
 use git2::{
-    AutotagOption, Delta, Diff, DiffOptions, Direction, FetchOptions, IndexAddOption, Oid,
-    Repository, Signature, Tree,
+    build::CheckoutBuilder, AutotagOption, Commit, Delta, Diff, DiffOptions, Direction,
+    FetchOptions, IndexAddOption, Oid, Repository, Signature, Tree,
 };
 use regex::Regex;
 use reqwest::blocking::Client;
@@ -246,6 +246,12 @@ impl DiffAnalyzer {
         Ok(repo)
     }
 
+    fn get_repo_dir(&self, repo: &Repository) -> Result<PathBuf> {
+        Ok(PathBuf::from(repo.path().parent().ok_or_else(|| {
+            anyhow!("Fatal: .git file has no parent")
+        })?))
+    }
+
     fn download_file(&self, download_path: &str, dest_file: &str) -> Result<PathBuf> {
         // Destination directory to contain downloded files
         let dest_path = self.dir.path().join(&dest_file);
@@ -344,6 +350,109 @@ impl DiffAnalyzer {
         Ok(None)
     }
 
+    // Looks at each commit on Cargo.toml
+    // to see if the commit updated version of the crate
+    // to the input version
+    // Note: we traverse each commit in the repo
+    //     and check if the commit has touched Cargo.toml or not
+    //     and if touches, perform a version update check
+    //     which may be an expensive operation for large repos
+    // However, a major use case of crate_source_diffing
+    // is during dep updates where we query against the newer version of the crate
+    // therefore, this function should find the desired commit early
+    // while traversing from the head and
+    // should be fast for practical use cases
+    fn get_head_commit_oid_for_version_from_cargo_toml(
+        &self,
+        repo: &Repository,
+        name: &str,
+        version: &str,
+    ) -> Result<Option<Oid>> {
+        // keep track of current head to reset at the end of this function
+        let starter_commit = repo.head()?.peel_to_commit()?;
+
+        let mut checkout_builder = CheckoutBuilder::new();
+        checkout_builder.force();
+
+        let mut get_version_at_commit =
+            |commit: &Commit| -> Result<Option<String>> {
+                repo.checkout_tree(commit.as_object(), Some(&mut checkout_builder))?;
+                if let Ok(toml_path) = self.locate_package_toml(repo, name) {
+                    let toml_path = self.get_repo_dir(repo)?.join(toml_path);
+                    Ok(Some(
+                        CargoTomlParser::new(Utf8Path::from_path(&toml_path).ok_or_else(
+                            || anyhow!("error converting {:?} to Utf8path", toml_path),
+                        )?)?
+                        .get_package_version()?,
+                    ))
+                } else {
+                    Ok(None)
+                }
+            };
+
+        let mut version_commit: Option<Oid> = None; // keep tracks of output commit
+
+        // git2 does not provide a wrapper for `git log --follow`
+        // In order to find commits touching Cargo.toml
+        // We take inspiration from this code -
+        // https://github.com/rust-lang/git2-rs/issues/588#issuecomment-856757971
+        let mut revwalk = repo.revwalk()?;
+        revwalk.set_sorting(git2::Sort::TIME)?;
+        revwalk.push_head()?;
+        for commit_oid in revwalk {
+            let commit_oid = commit_oid?;
+            let commit = repo.find_commit(commit_oid)?;
+            if commit.parent_count() > 1 {
+                // Ignore merge commits (2+ parents)
+                continue;
+            }
+
+            let tree = commit.tree()?;
+            if commit.parent_count() == 1 {
+                let prev_commit = commit.parent(0)?;
+                let prev_tree = prev_commit.tree()?;
+                let diff = repo.diff_tree_to_tree(Some(&prev_tree), Some(&tree), None)?;
+
+                for delta in diff.deltas() {
+                    if delta
+                        .new_file()
+                        .path()
+                        .unwrap_or_else(|| Path::new(""))
+                        .ends_with("Cargo.toml")
+                    {
+                        if let Some(post_version) = get_version_at_commit(&commit)? {
+                            if post_version == version {
+                                if let Some(prior_version) = get_version_at_commit(&prev_commit)? {
+                                    if Version::from_str(&post_version)
+                                        > Version::from_str(&prior_version)
+                                    {
+                                        // Case 1: version updated
+                                        version_commit = Some(commit_oid);
+                                    }
+                                } else {
+                                    // case 2: Cargo.toml added or package renamed
+                                    version_commit = Some(commit_oid);
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                // case 3: Initial commit
+                if let Some(post_version) = get_version_at_commit(&commit)? {
+                    if post_version == version {
+                        version_commit = Some(commit_oid);
+                    }
+                }
+            }
+        }
+        // case 4: could not found and the version commit remains None
+
+        // reset head before return
+        repo.checkout_tree(starter_commit.as_object(), Some(&mut checkout_builder))?;
+        Ok(version_commit)
+    }
+
     fn init_git(&self, path: &Path) -> Result<Repository> {
         // initiates a git repository in the path
         let repo = Repository::init(path)?;
@@ -393,11 +502,8 @@ impl DiffAnalyzer {
         // Given a crate name and its repository
         // This function returns the path to Cargo.toml for the given crate
 
-        let repo_path = repo
-            .path()
-            .parent()
-            .ok_or_else(|| anyhow!("Fatal: .git file has no parent"))?;
-        let toml_paths = get_all_paths_for_filename(repo_path, "Cargo.toml")?;
+        let repo_dir = self.get_repo_dir(repo)?;
+        let toml_paths = get_all_paths_for_filename(&repo_dir, "Cargo.toml")?;
         for path in &toml_paths {
             let toml_parser = CargoTomlParser::new(
                 Utf8Path::from_path(path)
@@ -406,9 +512,10 @@ impl DiffAnalyzer {
             if matches!(toml_parser.get_toml_type()?, CargoTomlType::Package)
                 && toml_parser.get_package_name()? == name
             {
-                return Ok(path.strip_prefix(repo_path)?.to_path_buf());
+                return Ok(path.strip_prefix(&repo_dir)?.to_path_buf());
             }
         }
+
         Err(anyhow!(
             "Cargo.toml could not be located for {} in {:?}",
             name,
@@ -885,5 +992,49 @@ mod test {
         assert_eq!(5, paths.len());
         assert!(paths.contains(&PathBuf::from("./Cargo.toml")));
         assert!(paths.contains(&PathBuf::from("./resources/test/valid_dep/Cargo.toml")));
+    }
+
+    #[test]
+    fn test_diff_head_commit_oid_from_cargo_toml() {
+        let diff_analyzer = get_test_diff_analyzer();
+        let name = "unicase";
+        let url = "https://github.com/seanmonstar/unicase";
+        let repo = diff_analyzer.get_git_repo(name, url).unwrap();
+
+        // Case 1: Version updated
+        let commit = diff_analyzer
+            .get_head_commit_oid_for_version_from_cargo_toml(&repo, name, "2.5.1")
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            commit,
+            Oid::from_str("141699ceaf145621eea41ce7597d3ade42902c37").unwrap()
+        );
+
+        // Case 2: Package Cargo.toml added (renamed in this case)
+        let commit = diff_analyzer
+            .get_head_commit_oid_for_version_from_cargo_toml(&repo, name, "0.0.1")
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            commit,
+            Oid::from_str("5834ee501c350ce5db5d1e62df3b7c207219a803").unwrap()
+        );
+
+        // Case 3: Initial commit
+        let commit = diff_analyzer
+            .get_head_commit_oid_for_version_from_cargo_toml(&repo, "case", "0.0.1")
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            commit,
+            Oid::from_str("1236f7b92854174eba20b5d3a13aaeb5a34a6bff").unwrap()
+        );
+
+        // Case 4: Commit not found
+        let commit = diff_analyzer
+            .get_head_commit_oid_for_version_from_cargo_toml(&repo, name, "0.0.0")
+            .unwrap();
+        assert!(commit.is_none());
     }
 }
