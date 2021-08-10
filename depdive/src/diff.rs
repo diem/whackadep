@@ -882,7 +882,7 @@ mod test {
     #[test]
     fn test_diff_get_all_paths_for_filename() {
         let paths = get_all_paths_for_filename(Path::new("."), "Cargo.toml").unwrap();
-        assert_eq!(2, paths.len());
+        assert_eq!(5, paths.len());
         assert!(paths.contains(&PathBuf::from("./Cargo.toml")));
         assert!(paths.contains(&PathBuf::from("./resources/test/valid_dep/Cargo.toml")));
     }

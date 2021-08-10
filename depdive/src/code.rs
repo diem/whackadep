@@ -408,7 +408,7 @@ mod test {
             .unwrap()
     });
 
-    static WHACKADEP_VALID_DEP: Lazy<PackageGraph> = Lazy::new(|| {
+    static VALID_WORKSPACE_GRAPH: Lazy<PackageGraph> = Lazy::new(|| {
         MetadataCommand::new()
             .current_dir(PathBuf::from(".."))
             .build_graph()
@@ -513,7 +513,7 @@ mod test {
     #[serial]
     fn test_code_geiger_report_for_workspace() {
         let code_analyzer = get_test_code_analyzer();
-        let graph = &WHACKADEP_VALID_DEP;
+        let graph = &VALID_WORKSPACE_GRAPH;
 
         code_analyzer.run_cargo_geiger(graph).unwrap();
         println!(
