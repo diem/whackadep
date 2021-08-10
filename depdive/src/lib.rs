@@ -446,6 +446,7 @@ impl UpdateAnalyzer {
         commit_b: &str,
     ) -> Result<Option<String>> {
         let repo = Repository::open(&path)?;
+        let starter_commit = repo.head()?.peel_to_commit()?;
 
         let mut checkout_builder = CheckoutBuilder::new();
         checkout_builder.force();
@@ -464,6 +465,7 @@ impl UpdateAnalyzer {
         )?;
         let post_graph = MetadataCommand::new().current_dir(path).build_graph()?;
 
+        repo.checkout_tree(starter_commit.as_object(), Some(&mut checkout_builder))?;
         UpdateAnalyzer::get_summary_report(&prior_graph, &post_graph)
     }
 

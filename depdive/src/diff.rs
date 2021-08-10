@@ -147,6 +147,8 @@ impl DiffAnalyzer {
 
         // Get commit for the version release in the git source
         let git_repo = self.get_git_repo(&name, &repository)?;
+        // Keep track of the current state to reset before return
+        let git_repo_starter_commit = git_repo.head()?.peel_to_commit()?;
         let head_commit_oid =
             match self.get_head_commit_oid_for_version(&git_repo, &name, &version)? {
                 Some(commit) => commit,
@@ -173,9 +175,11 @@ impl DiffAnalyzer {
 
         // Get the tree for the crate directory path
         // e.g., when a repository contains multiple crates
+        let mut checkout_builder = CheckoutBuilder::new();
+        checkout_builder.force();
         git_repo.checkout_tree(
             git_repo.find_commit(head_commit_oid)?.tree()?.as_object(),
-            None,
+            Some(&mut checkout_builder),
         )?;
         let toml_path = match self.locate_package_toml(&git_repo, &name) {
             Ok(path) => path,
@@ -201,6 +205,12 @@ impl DiffAnalyzer {
         )?;
 
         let file_diff_stats = self.get_crate_source_file_diff_report(&diff)?;
+
+        // reset repo
+        git_repo.checkout_tree(
+            git_repo_starter_commit.as_object(),
+            Some(&mut checkout_builder),
+        )?;
 
         Ok({
             CrateSourceDiffReport {

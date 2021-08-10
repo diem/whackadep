@@ -665,6 +665,7 @@ impl UpdateAnalyzer {
             .parent()
             .ok_or_else(|| anyhow!("error evaluating local repository path"))?;
 
+        let starter_commit = version_diff_info.repo.head()?.peel_to_commit()?;
         let mut checkout_builder = CheckoutBuilder::new();
         checkout_builder.force();
 
@@ -748,6 +749,9 @@ impl UpdateAnalyzer {
             })
         }
 
+        version_diff_info
+            .repo
+            .checkout_tree(starter_commit.as_object(), Some(&mut checkout_builder))?;
         Ok(files_unsafe_change_stats)
     }
 
