@@ -298,6 +298,28 @@ impl DiffAnalyzer {
         name: &str,
         version: &str,
     ) -> Result<Option<Oid>> {
+        // First try looking at repository tags
+        if let Some(commit_oid) =
+            self.get_head_commit_oid_for_version_from_tags(repo, name, version)?
+        {
+            Ok(Some(commit_oid))
+        }
+        // Else try parsing Cargo.toml histry
+        else if let Some(commit_oid) =
+            self.get_head_commit_oid_for_version_from_cargo_toml(repo, name, version)?
+        {
+            Ok(Some(commit_oid))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn get_head_commit_oid_for_version_from_tags(
+        &self,
+        repo: &Repository,
+        name: &str,
+        version: &str,
+    ) -> Result<Option<Oid>> {
         // Get candidate tags with a heuristic that tag will end with the version string
         let pattern = format!("*{}", version);
         let candidate_tags = repo.tag_names(Some(&pattern))?;
@@ -784,44 +806,44 @@ mod test {
     }
 
     #[test]
-    fn test_diff_head_commit_oid_for_version() {
+    fn test_diff_head_commit_oid_for_version_from_tags() {
         let diff_analyzer = get_test_diff_analyzer();
         let name = "test-version-tag";
         let url = "https://github.com/nasifimtiazohi/test-version-tag";
 
         let repo = diff_analyzer.get_git_repo(name, url).unwrap();
         let oid = diff_analyzer
-            .get_head_commit_oid_for_version(&repo, name, "0.0.8")
+            .get_head_commit_oid_for_version_from_tags(&repo, name, "0.0.8")
             .unwrap();
         assert!(oid.is_none());
         let oid = diff_analyzer
-            .get_head_commit_oid_for_version(&repo, name, "10.0.8")
+            .get_head_commit_oid_for_version_from_tags(&repo, name, "10.0.8")
             .unwrap();
         assert_eq!(
             oid.unwrap(),
             Oid::from_str("51efd612af12183a682bb3242d41369d2879ad60").unwrap()
         );
         let oid = diff_analyzer
-            .get_head_commit_oid_for_version(&repo, name, "10.0.8-")
+            .get_head_commit_oid_for_version_from_tags(&repo, name, "10.0.8-")
             .unwrap();
         assert!(oid.is_none());
 
         let oid = diff_analyzer
-            .get_head_commit_oid_for_version(&repo, "hakari", "0.3.0")
+            .get_head_commit_oid_for_version_from_tags(&repo, "hakari", "0.3.0")
             .unwrap();
         assert_eq!(
             oid.unwrap(),
             Oid::from_str("946ddf053582067b843c19f1270fe92eaa0a7cb3").unwrap()
         );
         let oid = diff_analyzer
-            .get_head_commit_oid_for_version(&repo, "guppy", "0.3.0")
+            .get_head_commit_oid_for_version_from_tags(&repo, "guppy", "0.3.0")
             .unwrap();
         assert_eq!(
             oid.unwrap(),
             Oid::from_str("dd7e5609e640f468a7e15a32fe36b607bae13e3e").unwrap()
         );
         let oid = diff_analyzer
-            .get_head_commit_oid_for_version(&repo, "guppy-summaries", "0.3.0")
+            .get_head_commit_oid_for_version_from_tags(&repo, "guppy-summaries", "0.3.0")
             .unwrap();
         assert_eq!(
             oid.unwrap(),
@@ -1036,5 +1058,33 @@ mod test {
             .get_head_commit_oid_for_version_from_cargo_toml(&repo, name, "0.0.0")
             .unwrap();
         assert!(commit.is_none());
+    }
+
+    #[test]
+    fn test_diff_head_commit_oid() {
+        let diff_analyzer = get_test_diff_analyzer();
+        let name = "unicase";
+        let url = "https://github.com/seanmonstar/unicase";
+        let repo = diff_analyzer.get_git_repo(name, url).unwrap();
+
+        // Case 1: Tag exists
+        let commit = diff_analyzer
+            .get_head_commit_oid_for_version(&repo, name, "2.4.0")
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            commit,
+            Oid::from_str("8a93c809b061615bfa1021e9ab3bd115b8f3b1cc").unwrap()
+        );
+
+        // Case 2: Tag doesn't exist
+        let commit = diff_analyzer
+            .get_head_commit_oid_for_version(&repo, name, "0.0.5")
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            commit,
+            Oid::from_str("dc1fa6bad26f0f40f415146fb581a928e214981a").unwrap()
+        );
     }
 }
