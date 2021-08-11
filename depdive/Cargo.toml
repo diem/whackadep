@@ -9,7 +9,7 @@ authors = ["Brandon Williams <bmwill@fb.com>, Nasif Imtiaz <nasifimtiaz@fb.com>"
 readme = "README.md"
 keywords = [
     "dependencies",
-    "dependency update"
+    "dependency-update"
 ]
 edition = "2018"
 
