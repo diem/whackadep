@@ -1,5 +1,9 @@
 # Depdive
 
+[![depdive on crates.io](https://img.shields.io/crates/v/depdive)](https://crates.io/crates/depdive)
+[![Documentation (latest release)](https://docs.rs/depdive/badge.svg)](https://docs.rs/depdive/)
+[![License](https://img.shields.io/badge/license-Apache-green.svg)](LICENSE-APACHE)
+
 Depdive is a Rust dependency analysis tool,
 that provides various analysis metrics for
 i) Rust crates to aid in dependency selection and monitoring,
