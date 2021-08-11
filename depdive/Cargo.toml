@@ -4,12 +4,16 @@ version = "0.1.0"
 description = "Rust dependency analysis tool"
 repository = "https://github.com/diem/whackadep"
 homepage = "https://github.com/diem/whackadep/tree/main/depdive"
+documentation = "https://docs.rs/depdive"
 license = "Apache-2.0"
 authors = ["Brandon Williams <bmwill@fb.com>, Nasif Imtiaz <nasifimtiaz@fb.com>"]
 readme = "README.md"
 keywords = [
     "dependencies",
     "dependency-update"
+]
+exclude = [
+    "resources/*"
 ]
 edition = "2018"
 
