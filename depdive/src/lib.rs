@@ -13,15 +13,15 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::Path;
 
-mod advisory;
-mod code;
-mod cratesio;
+pub mod advisory;
+pub mod code;
+pub mod cratesio;
 pub mod diff;
 pub mod ghcomment;
-mod github;
+pub mod github;
 mod guppy_wrapper;
 pub mod super_toml;
-mod update;
+pub mod update;
 
 use cratesio::CratesioReport;
 use ghcomment::{Emoji::*, GitHubCommentGenerator, TextStyle::*};
