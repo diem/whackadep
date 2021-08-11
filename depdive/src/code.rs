@@ -393,6 +393,12 @@ impl CodeAnalyzer {
     }
 }
 
+impl Default for CodeAnalyzer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

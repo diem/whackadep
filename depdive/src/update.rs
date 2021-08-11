@@ -782,6 +782,12 @@ impl UpdateAnalyzer {
     }
 }
 
+impl Default for UpdateAnalyzer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::{
