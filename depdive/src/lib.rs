@@ -31,9 +31,9 @@ use guppy_wrapper::{
 };
 use update::{CrateVersionRustSecAdvisory, UpdateReviewReport, VersionConflict};
 
+/// Usage and Activity metrics for a crate
 #[derive(Serialize, Deserialize)]
 pub struct PackageMetrics {
-    // Usage and Activity metrics for a crate
     pub name: String,
     pub is_direct: bool,
     pub kind: DependencyKind,
@@ -44,6 +44,7 @@ pub struct PackageMetrics {
 pub struct DependencyAnalyzer;
 
 impl DependencyAnalyzer {
+    /// Given a cargo project path, outputs usage and activity metrics
     pub fn get_dep_pacakge_metrics_in_json_from_path(
         path: &Path,
         only_direct: bool,
@@ -52,6 +53,7 @@ impl DependencyAnalyzer {
         Self::get_dep_pacakge_metrics_in_json(&graph, only_direct)
     }
 
+    /// Given a guppy graph, outputs usage and activity metrics
     fn get_dep_pacakge_metrics_in_json(graph: &PackageGraph, only_direct: bool) -> Result<String> {
         let mut output: Vec<PackageMetrics> = Vec::new();
 
@@ -103,11 +105,13 @@ impl DependencyAnalyzer {
 pub struct DependencyGraphAnalyzer;
 
 impl DependencyGraphAnalyzer {
+    /// Given a cargo project path, outputs loc and unsafe loc metrics
     pub fn get_code_metrics_in_json_from_path(path: &Path, only_direct: bool) -> Result<String> {
         let graph = MetadataCommand::new().current_dir(path).build_graph()?;
         Self::get_code_metrics_in_json(&graph, only_direct)
     }
 
+    /// Given a guppy graph, outputs loc and unsafe loc metrics
     fn get_code_metrics_in_json(graph: &PackageGraph, only_direct: bool) -> Result<String> {
         let code_reports = code::CodeAnalyzer::new();
         let reports = code_reports.analyze_code(graph, only_direct)?;
@@ -135,6 +139,8 @@ pub enum AdvisoryStatus {
 pub struct UpdateAnalyzer;
 
 impl UpdateAnalyzer {
+    /// Given two guppy graph, prior and post,
+    /// Analyzed the updated dependencies
     pub fn run_update_analyzer(
         prior_graph: &PackageGraph,
         post_graph: &PackageGraph,
@@ -143,6 +149,9 @@ impl UpdateAnalyzer {
         update_analyzer.analyze_updates(prior_graph, post_graph)
     }
 
+    /// Given two guppy graph, prior and post,
+    /// Analyzed the updated dependencies
+    /// and outputs a markdown formatted report
     pub fn get_summary_report(
         prior_graph: &PackageGraph,
         post_graph: &PackageGraph,
@@ -440,6 +449,8 @@ impl UpdateAnalyzer {
         advisory_banner
     }
 
+    /// Get update review report in markdown format
+    /// for a given repo and prior and post commit
     pub fn run_update_analyzer_from_repo_commits(
         path: &Path,
         commit_a: &str,
@@ -469,6 +480,8 @@ impl UpdateAnalyzer {
         UpdateAnalyzer::get_summary_report(&prior_graph, &post_graph)
     }
 
+    /// Get update review report in markdown format
+    /// for two paths, presumably checked out at two commits for a given repo
     pub fn run_update_analyzer_from_paths(path_a: &Path, path_b: &Path) -> Result<Option<String>> {
         let prior_graph = MetadataCommand::new().current_dir(path_a).build_graph()?;
         let post_graph = MetadataCommand::new().current_dir(path_b).build_graph()?;

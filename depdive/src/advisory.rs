@@ -15,6 +15,8 @@ pub struct AdvisoryLookup {
     db: Database,
 }
 
+/// Constructs a local copy of rustsec advisory
+/// and facilitates querying for advisries in a specific version of a crate
 impl AdvisoryLookup {
     pub fn new() -> Result<Self> {
         let dir = tempdir()?;

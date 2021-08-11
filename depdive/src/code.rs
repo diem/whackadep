@@ -89,6 +89,8 @@ impl ops::Add<UnsafeDetails> for UnsafeDetails {
     }
 }
 
+/// Provides loc and unsafe loc analysis for all dependencies
+/// given a guppy graph
 pub struct CodeAnalyzer {
     loc_cache: RefCell<HashMap<String, LOCReport>>,
     geiger_cache: RefCell<HashMap<(String, String), GeigerPackageInfo>>,

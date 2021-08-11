@@ -1,3 +1,5 @@
+//! Wrapper for some commonly used guppy calls
+
 use anyhow::Result;
 use guppy::graph::{DependencyDirection, PackageGraph, PackageMetadata};
 use guppy::PackageId;

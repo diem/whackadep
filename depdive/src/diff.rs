@@ -26,12 +26,12 @@ use walkdir::WalkDir;
 
 use crate::super_toml::{CargoTomlParser, CargoTomlType};
 
+/// This type presents information on the difference
+/// between crates.io source code
+/// and git source hosted code
+/// for a given version
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct CrateSourceDiffReport {
-    // This type presents information on the difference
-    // between crates.io source code
-    // and git source hosted code
-    // for a given version
     pub name: String,
     pub version: String,
     pub release_commit_found: Option<bool>,
@@ -66,10 +66,10 @@ pub(crate) struct VersionDiffInfo<'a> {
     pub diff: Diff<'a>,
 }
 
+/// Trim down remote git urls like GitHub for cloning
+/// e.g., cases where the crate is in a subdirectory of the repo
+/// in the format "host_url/owner/repo"
 pub(crate) fn trim_remote_url(url: &str) -> Result<String> {
-    // Trim down remote git urls like GitHub for cloning
-    // in cases where the crate is in a subdirectory of the repo
-    // in the format "host_url/owner/repo"
     let url = Url::from_str(url)?;
 
     let host = url
@@ -118,6 +118,9 @@ impl DiffAnalyzer {
         })
     }
 
+    /// Given a crate version and its source repository,
+    /// returns a report on differences between the source
+    /// and code hosted on crates.io
     pub fn analyze_crate_source_diff(
         &self,
         name: &str,
@@ -529,11 +532,10 @@ impl DiffAnalyzer {
         Ok(())
     }
 
-    fn locate_package_toml(&self, repo: &Repository, name: &str) -> Result<PathBuf> {
-        // The repository may or may not contain multiple crates
-        // Given a crate name and its repository
-        // This function returns the path to Cargo.toml for the given crate
-
+    /// The repository of a crate may or may not contain multiple crates
+    /// Given a crate name and its repository
+    /// This function returns the path to Cargo.toml for the given crate
+    pub fn locate_package_toml(&self, repo: &Repository, name: &str) -> Result<PathBuf> {
         let repo_dir = self.get_repo_dir(repo)?;
         let toml_paths = get_all_paths_for_filename(&repo_dir, "Cargo.toml")?;
         for path in &toml_paths {

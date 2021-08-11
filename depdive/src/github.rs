@@ -100,6 +100,7 @@ impl GitHubReport {
     }
 }
 
+/// A GitHub client to fetch various metrics
 pub struct GitHubAnalyzer {
     client: reqwest::blocking::Client,
 }
@@ -149,6 +150,7 @@ impl GitHubAnalyzer {
         Ok(response)
     }
 
+    /// Get overall usage and activity metrics
     pub fn analyze_github(self, package: &PackageMetadata) -> Result<GitHubReport> {
         let name = package.name();
         let repository = match package.repository().and_then(|r| Url::from_str(r).ok()) {
@@ -230,7 +232,7 @@ impl GitHubAnalyzer {
         }
     }
 
-    fn is_existing_github_repo(&self, repo_fullname: &str) -> Result<bool> {
+    pub fn is_existing_github_repo(&self, repo_fullname: &str) -> Result<bool> {
         let api_endpoint = format!("https://api.github.com/repos/{}", repo_fullname);
         let response = self.make_github_rest_api_call(&api_endpoint)?;
 
@@ -243,7 +245,7 @@ impl GitHubAnalyzer {
         }
     }
 
-    fn get_github_repo_stats(&self, repo_fullname: &str) -> Result<RepoStats> {
+    pub fn get_github_repo_stats(&self, repo_fullname: &str) -> Result<RepoStats> {
         let api_endpoint = format!("https://api.github.com/repos/{}", repo_fullname);
         let response = self.make_github_rest_api_call(&api_endpoint)?;
 
@@ -254,7 +256,7 @@ impl GitHubAnalyzer {
         Ok(response.json()?)
     }
 
-    fn get_activity_metrics(
+    pub fn get_activity_metrics(
         self,
         repo_fullname: &str,
         default_branch: &str,
@@ -284,7 +286,7 @@ impl GitHubAnalyzer {
         })
     }
 
-    fn get_time_since_last_commit(
+    pub fn get_time_since_last_commit(
         &self,
         repo_fullname: &str,
         default_branch: &str,
@@ -323,7 +325,7 @@ impl GitHubAnalyzer {
         Ok(duration)
     }
 
-    fn get_time_since_last_open_issue(&self, repo_fullname: &str) -> Result<Option<Duration>> {
+    pub fn get_time_since_last_open_issue(&self, repo_fullname: &str) -> Result<Option<Duration>> {
         let api_endpoint = format!(
             "https://api.github.com/repos/{}/issues?state=open&per_page=1",
             repo_fullname
@@ -355,7 +357,7 @@ impl GitHubAnalyzer {
         }
     }
 
-    fn get_total_open_issue_count_for_label(
+    pub fn get_total_open_issue_count_for_label(
         &self,
         repo_fullname: &str,
         label: &str,
@@ -381,7 +383,7 @@ impl GitHubAnalyzer {
         Ok(total)
     }
 
-    fn get_stats_on_recent_activity(
+    pub fn get_stats_on_recent_activity(
         &self,
         repo_fullname: &str,
         past_days: u64,

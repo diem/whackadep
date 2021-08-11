@@ -1,7 +1,6 @@
 //! This module abstracts various manipulation with Cargo.toml and Cargo.lock files
 //! 1. It can create a custom package that repicates the full dependency build of a given workspace
 //! 2. Check a Cargo.toml is a package or a virtual manifest toml
-//! TODO: This module can work as a stand-alone crate; isolate and publish
 
 use crate::guppy_wrapper::get_direct_dependencies;
 use anyhow::{anyhow, Result};
@@ -225,7 +224,7 @@ pub enum CargoTomlType {
 
 /// Holds path to a Cargo.toml file
 /// and returns value for various fields
-// TODO: merge TomlParser and TomlChecker
+/// and checks if it is a package toml or a virtual manifest
 pub struct CargoTomlParser {
     path: String,
     toml: toml::Value,

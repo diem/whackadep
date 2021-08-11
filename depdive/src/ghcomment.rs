@@ -1,6 +1,5 @@
 //! This module abstracts github comment generation
 //! by using markdown, html, and emojis
-//! TODO: this should be able to work as a stand-alone crate
 
 #[derive(PartialEq)]
 #[allow(dead_code)]
@@ -22,9 +21,9 @@ pub struct GitHubCommentGenerator {
     comment: String,
 }
 
-// This type offers both functionality
-// to get makrdown formatted text just as string
-// or build a string along with the type
+/// This type offers both functionality
+/// to get makrdown formatted text just as string
+/// or build a string along with the type
 impl GitHubCommentGenerator {
     pub fn new() -> Self {
         Self {

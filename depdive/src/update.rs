@@ -175,6 +175,10 @@ impl UpdateAnalyzer {
             cache: RefCell::new(HashMap::new()),
         }
     }
+
+    /// Given two guppy graph
+    /// determines the updated dependencies
+    /// and provides a update review report
     pub fn analyze_updates(
         self,
         prior_graph: &PackageGraph,
