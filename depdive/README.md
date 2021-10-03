@@ -23,7 +23,7 @@ i) and their version updates, to aid in security review
 When used as a CLI tool, you can run `depdive update-review commits <repo-path> <commit_a> <commit_b>` or `depdive update-review paths <path_a> <path_b>`.
 
 2. **Dependency monitoring metrics**: You can provide the path of your Cargo project and get the dependency monitoring metrics in `json` format. Check impls of `DependencyAnalyzer` and `DependencyGraphAnalyzer` at the library root.
-When used as a CLI tool, you can run `depdive dep-review package-metrics <path>` and `depdive dep-review code-metrics <path>` to get usage and activity metrics and code and unsafe analysis metrics respectively. Note that, code-mterics use [`cargo-geiger`](https://github.com/rust-secure-code/cargo-geiger) which cannot be run more than once at a time.
+When used as a CLI tool, you can run `GITHUB_TOKEN=<pat> depdive dep-review package-metrics <path>` and `depdive dep-review code-metrics <path>` to get usage and activity metrics and code and unsafe analysis metrics respectively. Note that, code-mterics use [`cargo-geiger`](https://github.com/rust-secure-code/cargo-geiger) which cannot be run more than once at a time.
 
 
 ## Dependency Update Review

@@ -1,6 +1,6 @@
 //! This module abstracts the communication with GitHub API for a given crate
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use chrono::{DateTime, Duration, FixedOffset, Utc};
 use guppy::graph::PackageMetadata;
 use reqwest::blocking::Response;
@@ -120,7 +120,8 @@ impl GitHubAnalyzer {
         let mut headers = HeaderMap::new();
         headers.insert(USER_AGENT, HeaderValue::from_static("diem/whackadep"));
 
-        let pat = std::env::var("GITHUB_TOKEN")?;
+        let pat = std::env::var("GITHUB_TOKEN")
+            .with_context(|| "GITHUB_TOKEN needs to be present in env")?;
         let pat = format!("token {}", pat);
         let mut auth_value = HeaderValue::from_str(&pat)?;
         auth_value.set_sensitive(true);
@@ -221,39 +222,22 @@ impl GitHubAnalyzer {
             })?;
 
         let repo_fullname = format!("{}/{}", owner, repo);
-        match self.is_existing_github_repo(&repo_fullname) {
-            Ok(flag) => match flag {
-                true => Ok(repo_fullname),
-                false => Err(GitHubRepoError::RepoNotFound {
-                    url: repo_url.clone(),
-                }),
-            },
-            Err(error) => Err(GitHubRepoError::Unknown { error }),
-        }
-    }
-
-    pub fn is_existing_github_repo(&self, repo_fullname: &str) -> Result<bool> {
-        let api_endpoint = format!("https://api.github.com/repos/{}", repo_fullname);
-        let response = self.make_github_rest_api_call(&api_endpoint)?;
-
-        if response.status().is_success() {
-            Ok(true)
-        } else if response.status() == reqwest::StatusCode::NOT_FOUND {
-            Ok(false)
-        } else {
-            Err(anyhow!("http request to GitHub failed, {:?}", response))
-        }
+        Ok(repo_fullname)
     }
 
     pub fn get_github_repo_stats(&self, repo_fullname: &str) -> Result<RepoStats> {
         let api_endpoint = format!("https://api.github.com/repos/{}", repo_fullname);
         let response = self.make_github_rest_api_call(&api_endpoint)?;
 
-        if !response.status().is_success() {
-            return Err(anyhow!("http request to GitHub failed, {:?}", response));
+        if response.status().is_success() {
+            Ok(response.json()?)
+        } else if response.status() == reqwest::StatusCode::NOT_FOUND {
+            Err(anyhow::Error::new(GitHubRepoError::RepoNotFound {
+                url: Url::from_str(&api_endpoint).unwrap(),
+            }))
+        } else {
+            Err(anyhow!("http request to GitHub failed, {:?}", response))
         }
-
-        Ok(response.json()?)
     }
 
     pub fn get_activity_metrics(
