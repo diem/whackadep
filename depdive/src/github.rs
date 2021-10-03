@@ -1,6 +1,6 @@
 //! This module abstracts the communication with GitHub API for a given crate
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use chrono::{DateTime, Duration, FixedOffset, Utc};
 use guppy::graph::PackageMetadata;
 use reqwest::blocking::Response;
@@ -120,7 +120,8 @@ impl GitHubAnalyzer {
         let mut headers = HeaderMap::new();
         headers.insert(USER_AGENT, HeaderValue::from_static("diem/whackadep"));
 
-        let pat = std::env::var("GITHUB_TOKEN")?;
+        let pat = std::env::var("GITHUB_TOKEN")
+            .with_context(|| format!("GITHUB_TOKEN needs to be present in env"))?;
         let pat = format!("token {}", pat);
         let mut auth_value = HeaderValue::from_str(&pat)?;
         auth_value.set_sensitive(true);

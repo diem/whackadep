@@ -93,7 +93,7 @@ fn update_analyzer_from_repo_commits(
 }
 
 fn get_package_metrics_for_deps_in_json(path: &str, only_direct: Option<bool>) -> Result<()> {
-    let report = DependencyAnalyzer::get_dep_pacakge_metrics_in_json_from_path(
+    let report = DependencyAnalyzer::get_dep_package_metrics_in_json_from_path(
         Path::new(path),
         only_direct.unwrap_or(false),
     )?;

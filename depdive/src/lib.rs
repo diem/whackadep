@@ -71,16 +71,16 @@ pub struct DependencyAnalyzer;
 
 impl DependencyAnalyzer {
     /// Given a cargo project path, outputs usage and activity metrics
-    pub fn get_dep_pacakge_metrics_in_json_from_path(
+    pub fn get_dep_package_metrics_in_json_from_path(
         path: &Path,
         only_direct: bool,
     ) -> Result<String> {
         let graph = MetadataCommand::new().current_dir(path).build_graph()?;
-        Self::get_dep_pacakge_metrics_in_json(&graph, only_direct)
+        Self::get_dep_package_metrics_in_json(&graph, only_direct)
     }
 
     /// Given a guppy graph, outputs usage and activity metrics
-    fn get_dep_pacakge_metrics_in_json(graph: &PackageGraph, only_direct: bool) -> Result<String> {
+    fn get_dep_package_metrics_in_json(graph: &PackageGraph, only_direct: bool) -> Result<String> {
         let mut output: Vec<PackageMetrics> = Vec::new();
 
         let all_deps = get_all_dependencies(graph);
