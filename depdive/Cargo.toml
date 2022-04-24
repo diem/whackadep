@@ -32,7 +32,7 @@ chrono = "0.4" # used for datetime of mongodb document
 guppy = { version = "0.9.0", features = ["summaries"] } # library to analyze deps
 semver = "0.11.0" # semver of dependencies
 url = "2.2.2" # url parsing
-rustsec = "0.24.1" # RUSTSEC advisory stuff
+rustsec = "0.25.1" # RUSTSEC advisory stuff
 crates_io_api = "0.7.1" # crates.io stuff
 tokei = "12.1.2" # loc count
 camino = "1.0.4" # UTF-8 path stuff
