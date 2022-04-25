@@ -88,11 +88,7 @@ impl CratesioAnalyzer {
     }
 
     pub fn get_version_downloads(&self, crate_name: &str, version: &Version) -> Result<u64> {
-        let api_endpoint = format!(
-            "https://crates.io/api/v1/crates/{}/{}",
-            crate_name,
-            version.to_string()
-        );
+        let api_endpoint = format!("https://crates.io/api/v1/crates/{}/{}", crate_name, version);
 
         let response = self.http_client.get(api_endpoint).send()?;
         if !response.status().is_success() {

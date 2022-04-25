@@ -253,7 +253,7 @@ impl UpdateAnalyzer {
             // a closure for generating hyperlink of an advisory
             let get_hyperlink = |a: &CrateVersionRustSecAdvisory| {
                 if let Some(url) = &a.url {
-                    GitHubCommentGenerator::get_hyperlink(&a.id, &url.to_string())
+                    GitHubCommentGenerator::get_hyperlink(&a.id, url.as_ref())
                 } else {
                     a.id.clone()
                 }
