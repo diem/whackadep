@@ -458,6 +458,18 @@ mod test {
         let repo = da
             .get_git_repo("diem", "https://github.com/diem/diem.git")
             .unwrap();
+        let mut checkout_builder = CheckoutBuilder::new();
+        checkout_builder.force();
+        repo.checkout_tree(
+            &repo
+                .find_object(
+                    Oid::from_str("a116e3e75fd4f455b1ab9f5935b9f188c0baafff").unwrap(),
+                    None,
+                )
+                .unwrap(),
+            Some(&mut checkout_builder),
+        )
+        .unwrap();
         let path = repo.path().parent().unwrap();
         let graph = MetadataCommand::new()
             .current_dir(path)
