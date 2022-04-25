@@ -345,7 +345,7 @@ impl DiffAnalyzer {
         }
 
         // Now we check through a series of heuristics if tag matches a version
-        let version_formatted_for_regex = version.replace(".", "\\.");
+        let version_formatted_for_regex = version.replace('.', "\\.");
         let patterns = [
             // 1. Ensure the version part does not follow any digit between 1-9,
             // e.g., to distinguish betn 0.1.8 vs 10.1.8
@@ -692,11 +692,10 @@ impl DiffAnalyzer {
         let head_b = repo_version_b.head()?.peel_to_commit()?;
         self.setup_remote(
             repo_version_a,
-            &repo_version_b
+            repo_version_b
                 .path()
                 .to_str()
-                .ok_or_else(|| anyhow!("no local path found for repository"))?
-                .to_string(),
+                .ok_or_else(|| anyhow!("no local path found for repository"))?,
             &head_b.id().to_string(),
         )?;
 

@@ -396,6 +396,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "crates-index"
+version = "0.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ad4af5c8dd9940a497ef4473e6e558b660a4a1b6e5ce2cb9d85454e2aaaf947"
+dependencies = [
+ "git2",
+ "glob",
+ "hex",
+ "home",
+ "memchr",
+ "semver 1.0.3",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "smartstring",
+]
+
+[[package]]
 name = "crates_io_api"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -552,7 +570,7 @@ dependencies = [
  "once_cell",
  "regex",
  "reqwest",
- "rustsec",
+ "rustsec 0.25.1",
  "semver 0.11.0",
  "separator",
  "serde",
@@ -942,9 +960,9 @@ checksum = "0e4075386626662786ddb0ec9081e7c7eeb1ba31951f447ca780ef9f5d568189"
 
 [[package]]
 name = "git2"
-version = "0.13.20"
+version = "0.13.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9831e983241f8c5591ed53f17d874833e2fa82cac2625f3888c50cbfe136cba"
+checksum = "f29229cc1b24c0e6062f6e742aa3e256492a5323365e5ed3413599f8a5eff7d6"
 dependencies = [
  "bitflags",
  "libc",
@@ -1444,9 +1462,9 @@ checksum = "12b8adadd720df158f4d70dfe7ccc6adb0472d7c55ca83445f6a5ab3e36f8fb6"
 
 [[package]]
 name = "libgit2-sys"
-version = "0.12.21+1.1.0"
+version = "0.12.26+1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86271bacd72b2b9e854c3dcfb82efd538f15f870e4c11af66900effb462f6825"
+checksum = "19e1c899248e606fbfe68dcb31d8b0176ebab833b103824af31bddf4b7457494"
 dependencies = [
  "cc",
  "libc",
@@ -1593,7 +1611,7 @@ dependencies = [
  "regex",
  "reqwest",
  "rust-crypto",
- "rustsec",
+ "rustsec 0.24.1",
  "semver 0.11.0",
  "serde",
  "serde_json",
@@ -2063,6 +2081,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "platforms"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e8d0eef3571242013a0d5dc84861c3ae4a652e56e12adf8bdc26ff5f8cb34c94"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "ppv-lite86"
 version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2454,17 +2481,39 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fedb4f4352e056a699c88cfd0dde0dece944ea8f52081f8403292d22b8fd4a97"
 dependencies = [
  "cargo-lock",
- "crates-index",
+ "crates-index 0.16.7",
  "cvss",
  "fs-err",
  "git2",
  "home",
  "humantime",
  "humantime-serde",
- "platforms",
+ "platforms 1.1.0",
  "semver 1.0.3",
  "serde",
  "smol_str",
+ "thiserror",
+ "toml",
+ "url",
+]
+
+[[package]]
+name = "rustsec"
+version = "0.25.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6136976fbabcd3ca37a12ae8ecc3408e8d7a94916d1cabdabd86aa4464e0887"
+dependencies = [
+ "cargo-lock",
+ "crates-index 0.17.0",
+ "cvss",
+ "fs-err",
+ "git2",
+ "home",
+ "humantime",
+ "humantime-serde",
+ "platforms 2.0.0",
+ "semver 1.0.3",
+ "serde",
  "thiserror",
  "toml",
  "url",
