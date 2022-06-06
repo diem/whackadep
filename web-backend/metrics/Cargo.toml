@@ -15,7 +15,7 @@ serde_json = "1.0" # bson serialization
 tokio = { version = "1.6.1", features = ["full"] } # old version because of mongodb driver...
 futures = "0.3.12" # async stuff
 tracing = "0.1.22" # logging
-regex = "1.4.3" # used for checking diff output
+regex = "1.5.5" # used for checking diff output
 chrono = "0.4" # used for datetime of mongodb document
 rust-crypto = "0.2" # used to hash the repo url (to derive a folder dir)
 
