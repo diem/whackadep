@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 anyhow = "1.0.38" # error handling
-tokio = { version = "1.6.1", features = ["full"] }
+tokio = { version = "1.16.1", features = ["full"] }
 serde_json = "1.0" # JSON response serialization
 tracing = "0.1" # logging
 tracing-subscriber = "0.2"
